@@ -47,7 +47,7 @@ export function BookingLayoutMobileShell({
 
               <Button
                 size="lg"
-                className="rounded-full px-7 py-6 shrink-0"
+                className="rounded-full px-7 py-6 shrink-0 font-semibold"
                 disabled={isContinueDisabled}
                 onClick={handleContinue}
               >

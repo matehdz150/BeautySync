@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { Loader2, ShieldCheck } from "lucide-react";
 
 import {
   Dialog,
@@ -19,7 +19,7 @@ type Props = {
 };
 
 export function PublicAuthDialog({ open, onOpenChange, onLoggedIn }: Props) {
-  const {refresh} = usePublicAuth();
+  const { refresh } = usePublicAuth();
   const btnRef = useRef<HTMLDivElement | null>(null);
 
   const [ready, setReady] = useState(false);
@@ -117,57 +117,59 @@ export function PublicAuthDialog({ open, onOpenChange, onLoggedIn }: Props) {
       type: "standard",
       shape: "pill",
       text: "continue_with",
-      width: 360,
+      // 👇 importante: en mobile queremos que sea responsivo
+      width: 320,
       locale: "es",
     });
 
+    // 👇 forzamos el contenedor a ocupar todo en mobile
+    btnRef.current.style.width = "100%";
+    (btnRef.current.firstChild as HTMLElement | null)?.setAttribute(
+      "style",
+      "width: 100%; display: flex; justify-content: center;"
+    );
+
     google.accounts.id.disableAutoSelect();
-  }, [open, ready, onOpenChange, onLoggedIn]);
+  }, [open, ready, onOpenChange, onLoggedIn, refresh]);
 
   return (
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        // mientras está autenticando, no cierres
         if (!v && loadingLogin) return;
         onOpenChange(v);
       }}
     >
       <DialogContent
-        className="sm:max-w-md rounded-3xl border bg-background/95 shadow-2xl backdrop-blur-md"
+        className="w-[calc(100%-24px)] max-w-[420px] rounded-3xl border bg-background/95 shadow-2xl backdrop-blur-md"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <DialogHeader className="space-y-3">
-          {/* icon header */}
-          <div className="flex items-center gap-3">
-
-            <div className="flex-1">
-              <DialogTitle className="text-xl leading-tight">
-                Inicia sesión para confirmar
-              </DialogTitle>
-              <DialogDescription className="text-sm">
-                Te toma 5 segundos y tu reservación queda lista.
-              </DialogDescription>
-            </div>
-          </div>
+        <DialogHeader className="space-y-2">
+          <DialogTitle className="text-lg sm:text-xl leading-tight">
+            Inicia sesión para confirmar
+          </DialogTitle>
+          <DialogDescription className="text-sm">
+            Te toma 5 segundos y tu reservación queda lista.
+          </DialogDescription>
         </DialogHeader>
 
-        {/* error */}
         {error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
           </div>
         ) : null}
 
-        {/* body */}
         <div className="space-y-4 pt-1">
           <div className="rounded-2xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
             <div className="flex items-start gap-2">
-              <ShieldCheck className="mt-0.5 h-4 w-4" />
-              <p>
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              <p className="leading-relaxed">
                 Usamos Google para identificarte y poder ligar tu reservación a
-                tu perfil. <span className="font-medium">No vemos tu contraseña.</span>
+                tu perfil.{" "}
+                <span className="font-medium text-foreground">
+                  No vemos tu contraseña.
+                </span>
               </p>
             </div>
           </div>
@@ -179,7 +181,7 @@ export function PublicAuthDialog({ open, onOpenChange, onLoggedIn }: Props) {
             </div>
           ) : (
             <div className="flex justify-center">
-              <div ref={btnRef} />
+              <div ref={btnRef} className="w-full flex justify-center" />
             </div>
           )}
 
@@ -190,7 +192,7 @@ export function PublicAuthDialog({ open, onOpenChange, onLoggedIn }: Props) {
             </div>
           ) : null}
 
-          <p className="text-center text-xs text-muted-foreground">
+          <p className="text-center text-[11px] leading-snug text-muted-foreground">
             Al continuar aceptas nuestras condiciones de uso.
           </p>
         </div>

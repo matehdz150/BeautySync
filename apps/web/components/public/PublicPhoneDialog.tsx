@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, Phone, ShieldCheck, ChevronDown } from "lucide-react";
+import { Loader2, Phone, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,7 +75,9 @@ export function PublicPhoneDialog({ open, onOpenChange, onSaved }: Props) {
 
   const isValid = useMemo(() => {
     if (!digits) return false;
-    return digits.length >= country.minDigits && digits.length <= country.maxDigits;
+    return (
+      digits.length >= country.minDigits && digits.length <= country.maxDigits
+    );
   }, [digits, country]);
 
   async function savePhone() {
@@ -120,24 +122,23 @@ export function PublicPhoneDialog({ open, onOpenChange, onSaved }: Props) {
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        // si está guardando, no cierres
         if (!v && saving) return;
         onOpenChange(v);
       }}
     >
       <DialogContent
-        className="sm:max-w-md rounded-3xl border bg-background/95 shadow-2xl backdrop-blur-md"
+        className="w-[calc(100%-24px)] max-w-[420px] rounded-3xl border bg-background/95 shadow-2xl backdrop-blur-md"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <DialogHeader className="space-y-3">
+        <DialogHeader className="space-y-2">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border bg-muted">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border bg-muted">
               <Phone className="h-5 w-5" />
             </div>
 
-            <div className="flex-1">
-              <DialogTitle className="text-xl leading-tight">
+            <div className="min-w-0">
+              <DialogTitle className="text-lg sm:text-xl leading-tight">
                 Confirma tu número
               </DialogTitle>
               <DialogDescription className="text-sm">
@@ -153,9 +154,9 @@ export function PublicPhoneDialog({ open, onOpenChange, onSaved }: Props) {
           </div>
         ) : null}
 
-        {/* input row */}
         <div className="space-y-3 pt-1">
-          <div className="grid grid-cols-[140px_1fr] gap-2">
+          {/* input row */}
+          <div className="grid grid-cols-[120px_1fr] gap-2">
             {/* Country selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -164,15 +165,20 @@ export function PublicPhoneDialog({ open, onOpenChange, onSaved }: Props) {
                   variant="outline"
                   className="h-12 justify-between rounded-2xl px-3"
                 >
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-2 min-w-0">
                     <span className="text-lg">{country.flag}</span>
-                    <span className="text-sm font-medium">{country.dialCode}</span>
+                    <span className="text-sm font-medium truncate">
+                      {country.dialCode}
+                    </span>
                   </span>
                   <ChevronDown className="h-4 w-4 opacity-60" />
                 </Button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="start" className="w-[220px] rounded-2xl">
+              <DropdownMenuContent
+                align="start"
+                className="w-[240px] rounded-2xl"
+              >
                 {COUNTRIES.map((c) => (
                   <DropdownMenuItem
                     key={c.code}
@@ -202,6 +208,14 @@ export function PublicPhoneDialog({ open, onOpenChange, onSaved }: Props) {
             />
           </div>
 
+          {/* preview */}
+          <p className="text-xs text-muted-foreground">
+            Se guardará como:{" "}
+            <span className="font-medium text-foreground">
+              {phoneE164 || "—"}
+            </span>
+          </p>
+
           <Button
             onClick={savePhone}
             disabled={saving || !isValid}
@@ -217,7 +231,7 @@ export function PublicPhoneDialog({ open, onOpenChange, onSaved }: Props) {
             )}
           </Button>
 
-          <p className="text-center text-xs text-muted-foreground">
+          <p className="text-center text-[11px] leading-snug text-muted-foreground">
             Después agregamos SMS, por ahora solo lo guardamos.
           </p>
         </div>

@@ -1,9 +1,13 @@
 import { PublicAuthProvider } from "@/context/public/PublicAuthContext";
 
-export default function PublicLayout({ children }: { children: React.ReactNode }) {
+export default function PublicLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <PublicAuthProvider>
-      {children}
+      <div className="min-h-screen bg-white">{children}</div>
     </PublicAuthProvider>
   );
 }

@@ -30,6 +30,40 @@ function getInitials(nameOrEmail?: string | null) {
 
 type Gender = "MALE" | "FEMALE" | "NON_BINARY" | "PREFER_NOT_TO_SAY";
 
+const pageMotion = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+};
+
+const headerMotion = {
+  initial: { opacity: 0, y: -8 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+};
+
+const cardMotion = {
+  initial: { opacity: 0, y: 14, filter: "blur(4px)" },
+  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
+  transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+};
+
+const staggerWrap = {
+  initial: {},
+  animate: {
+    transition: {
+      staggerChildren: 0.06,
+      delayChildren: 0.05,
+    },
+  },
+};
+
+const fieldMotion = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+};
+
 export default function PublicProfilePage() {
   const router = useRouter();
   const { user } = usePublicAuth();
@@ -97,40 +131,32 @@ export default function PublicProfilePage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-white">
-      {/* Glow background (no rompe layout) */}
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-0 h-[520px] w-[520px] -translate-x-1/2 -z-10 rounded-full blur-3xl
-        bg-gradient-to-b from-indigo-400/40 via-indigo-400/10 to-transparent"
-        initial={{ opacity: 0, scale: 0.92, filter: "blur(90px)" }}
-        animate={{
-          opacity: 1,
-          scale: [1, 1.03, 1],
-          y: [0, 10, 0],
-          filter: ["blur(50px)", "blur(58px)", "blur(50px)"],
-        }}
-        transition={{
-          opacity: { duration: 1.2, ease: "easeOut" },
-          scale: { duration: 1.8, ease: "easeInOut", repeat: Infinity },
-          y: { duration: 1.8, ease: "easeInOut", repeat: Infinity },
-          filter: { duration: 1.8, ease: "easeInOut", repeat: Infinity },
-        }}
-      />
-
+    <motion.div
+      {...pageMotion}
+      className="relative min-h-screen bg-white rounded-2xl"
+    >
       {/* Header sticky */}
-      <div className="sticky top-0 z-40 border-b border-black/5 bg-white/70 backdrop-blur-md">
+      <motion.div
+        {...headerMotion}
+        className="sticky top-0 z-40 border-b bg-transparent backdrop-blur-sm"
+      >
         <div className="mx-auto w-full max-w-3xl px-4 py-4">
           <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="rounded-full"
-              onClick={() => router.back()}
+            <motion.div
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
             >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                onClick={() => router.back()}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </motion.div>
 
             <div className="min-w-0">
               <h1 className="text-xl font-semibold tracking-tight truncate">
@@ -142,41 +168,59 @@ export default function PublicProfilePage() {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Content */}
       <div className="mx-auto w-full max-w-3xl px-4 pb-24 pt-6">
-        <div className="rounded-[28px] border border-black/5 bg-white p-5 md:p-7">
+        <motion.div
+          {...cardMotion}
+          className="rounded-[28px] border border-black/5 bg-white p-5 md:p-7"
+        >
           {/* Avatar + acciones */}
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-5">
+          <motion.div
+            variants={staggerWrap}
+            initial="initial"
+            animate="animate"
+            className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between"
+          >
+            <motion.div variants={fieldMotion} className="flex items-center gap-5">
               {/* Avatar */}
               <div className="relative shrink-0">
-                {avatarPreview ? (
-                  <Image
-                    src={avatarPreview}
-                    alt="Foto de perfil"
-                    width={110}
-                    height={110}
-                    className="h-[110px] w-[110px] rounded-full object-cover border border-black/10"
-                  />
-                ) : (
-                  <div className="flex h-[110px] w-[110px] items-center justify-center rounded-full bg-indigo-50 border border-indigo-100">
-                    <span className="text-3xl font-semibold text-indigo-600">
-                      {initials}
-                    </span>
-                  </div>
-                )}
+                <motion.div
+                  key={avatarPreview ? "avatar-img" : "avatar-initials"}
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  {avatarPreview ? (
+                    <Image
+                      src={avatarPreview}
+                      alt="Foto de perfil"
+                      width={110}
+                      height={110}
+                      className="h-[110px] w-[110px] rounded-full object-cover border border-black/10"
+                    />
+                  ) : (
+                    <div className="flex h-[110px] w-[110px] items-center justify-center rounded-full bg-indigo-50 border border-indigo-100">
+                      <span className="text-3xl font-semibold text-indigo-600">
+                        {initials}
+                      </span>
+                    </div>
+                  )}
+                </motion.div>
 
                 {/* botón flotante */}
-                <button
+                <motion.button
                   type="button"
                   onClick={openFilePicker}
-                  className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full bg-black text-white shadow-md active:scale-95 transition"
+                  className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full bg-black text-white shadow-md"
                   aria-label="Cambiar foto"
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 >
                   <Camera className="h-5 w-5" />
-                </button>
+                </motion.button>
 
                 <input
                   ref={fileRef}
@@ -196,41 +240,56 @@ export default function PublicProfilePage() {
                   {email || "Cuenta pública"}
                 </p>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    onClick={openFilePicker}
-                    className="rounded-full"
-                  >
-                    Cambiar foto
-                  </Button>
+                <motion.div
+                  variants={fieldMotion}
+                  className="mt-3 flex flex-wrap gap-2"
+                >
+                  <motion.div whileTap={{ scale: 0.98 }}>
+                    <Button
+                      type="button"
+                      onClick={openFilePicker}
+                      className="rounded-full"
+                    >
+                      Cambiar foto
+                    </Button>
+                  </motion.div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={removeAvatar}
-                    className="rounded-full"
-                    disabled={!avatarPreview}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Eliminar
-                  </Button>
-                </div>
+                  <motion.div whileTap={{ scale: 0.98 }}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={removeAvatar}
+                      className="rounded-full"
+                      disabled={!avatarPreview}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Eliminar
+                    </Button>
+                  </motion.div>
+                </motion.div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Tip */}
-            <div className="rounded-2xl border border-black/5 bg-black/[0.02] px-4 py-3 text-sm text-muted-foreground">
+            <motion.div
+              variants={fieldMotion}
+              className="rounded-2xl border border-black/5 bg-black/[0.02] px-4 py-3 text-sm text-muted-foreground"
+            >
               <p className="font-medium text-black/80">Tip</p>
               <p className="mt-0.5">
                 Usa una foto clara, de frente y con buena iluminación.
               </p>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
           {/* Form */}
-          <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div className="space-y-2">
+          <motion.div
+            variants={staggerWrap}
+            initial="initial"
+            animate="animate"
+            className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2"
+          >
+            <motion.div variants={fieldMotion} className="space-y-2">
               <label className="text-sm font-medium">Nombre completo</label>
               <Input
                 value={fullName}
@@ -238,18 +297,18 @@ export default function PublicProfilePage() {
                 placeholder="Ej. Mateo Hernández"
                 className="h-12 rounded-2xl"
               />
-            </div>
+            </motion.div>
 
-            <div className="space-y-2">
+            <motion.div variants={fieldMotion} className="space-y-2">
               <label className="text-sm font-medium">Email</label>
               <Input
                 value={email}
                 readOnly
                 className="h-12 rounded-2xl bg-black/[0.02]"
               />
-            </div>
+            </motion.div>
 
-            <div className="space-y-2">
+            <motion.div variants={fieldMotion} className="space-y-2">
               <label className="text-sm font-medium">Teléfono</label>
               <Input
                 value={phone}
@@ -258,9 +317,9 @@ export default function PublicProfilePage() {
                 inputMode="tel"
                 className="h-12 rounded-2xl"
               />
-            </div>
+            </motion.div>
 
-            <div className="space-y-2">
+            <motion.div variants={fieldMotion} className="space-y-2">
               <label className="text-sm font-medium">Fecha de nacimiento</label>
               <Input
                 value={birthdate}
@@ -268,17 +327,14 @@ export default function PublicProfilePage() {
                 type="date"
                 className="h-12 rounded-2xl"
               />
-            </div>
+            </motion.div>
 
-            <div className="space-y-2 md:col-span-2">
+            <motion.div variants={fieldMotion} className="space-y-2 md:col-span-2">
               <label className="text-sm font-medium">Género</label>
 
               {/* ✅ Select solo después de mount para evitar hydration mismatch */}
               {mounted ? (
-                <Select
-                  value={gender}
-                  onValueChange={(v) => setGender(v as Gender)}
-                >
+                <Select value={gender} onValueChange={(v) => setGender(v as Gender)}>
                   <SelectTrigger className="h-12 rounded-2xl">
                     <SelectValue placeholder="Selecciona una opción" />
                   </SelectTrigger>
@@ -295,38 +351,47 @@ export default function PublicProfilePage() {
               ) : (
                 <div className="h-12 w-full rounded-2xl border border-black/10 bg-white" />
               )}
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
           {/* CTA */}
-          <div className="mt-8 flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 rounded-full"
-              onClick={() => router.back()}
-            >
-              Cancelar
-            </Button>
+          <motion.div
+            variants={staggerWrap}
+            initial="initial"
+            animate="animate"
+            className="mt-8 flex flex-col gap-3 md:flex-row md:items-center md:justify-end"
+          >
+            <motion.div variants={fieldMotion} whileTap={{ scale: 0.98 }}>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 rounded-full"
+                onClick={() => router.back()}
+              >
+                Cancelar
+              </Button>
+            </motion.div>
 
-            <Button
-              type="button"
-              onClick={saveProfile}
-              disabled={saving}
-              className="h-12 rounded-full px-8"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Guardando…
-                </>
-              ) : (
-                "Guardar cambios"
-              )}
-            </Button>
-          </div>
-        </div>
+            <motion.div variants={fieldMotion} whileTap={{ scale: 0.98 }}>
+              <Button
+                type="button"
+                onClick={saveProfile}
+                disabled={saving}
+                className="h-12 rounded-full px-8"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Guardando…
+                  </>
+                ) : (
+                  "Guardar cambios"
+                )}
+              </Button>
+            </motion.div>
+          </motion.div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }

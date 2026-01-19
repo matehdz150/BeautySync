@@ -3,10 +3,12 @@ import { PublicService } from './public.service';
 import { PublicController } from './public.controller';
 import { AvailabilityModule } from 'src/availability/availability.module';
 import { PublicAuthModule } from './auth/public-auth.module';
+import { PublicAppointmentController } from './appointments/public-appointment.controller';
+import { PublicAppointmentsService } from './appointments/public-appointments.service';
 
 @Module({
   imports: [AvailabilityModule, PublicAuthModule],
-  controllers: [PublicController],
-  providers: [PublicService],
+  controllers: [PublicController, PublicAppointmentController],
+  providers: [PublicService, PublicAppointmentsService],
 })
 export class PublicModule {}

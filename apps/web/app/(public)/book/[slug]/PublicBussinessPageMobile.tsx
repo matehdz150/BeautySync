@@ -410,7 +410,7 @@ export default function PublicBusinessMobilePage() {
         <div className="pointer-events-none absolute inset-x-0 -top-10 h-40 w-100 bg-gradient-to-t from-indigo-400/450 via-indigo-400/10 to-transparent blur-2xl" />
 
         {/* bar */}
-        <div className="border-t border-black/10 bg-white/85 backdrop-blur-xl pt-2">
+        <div className="border-t border-black/10 bg-white pt-2">
           <div className="px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+15px)]">
             <div className="flex items-center justify-between gap-4">
               {/* left info */}
@@ -426,9 +426,7 @@ export default function PublicBusinessMobilePage() {
               <Button
                 size="lg"
                 className={cn(
-                  "rounded-full px-6 py-6 text-base font-normal",
-                  "shadow-[0_18px_35px_rgba(79,70,229,0.35)]",
-                  "bg-indigo-600 hover:bg-indigo-700"
+                  "rounded-full px-6 py-6 text-base font-semibold",
                 )}
                 onClick={() => {
                   router.push(`/book/${branch?.slug}/b/services`);

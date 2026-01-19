@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable prettier/prettier */
 import nodemailer from 'nodemailer';
 import { redis } from '../redis/redis.provider';
 import { Worker as BullWorker } from 'bullmq';

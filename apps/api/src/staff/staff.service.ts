@@ -11,7 +11,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { staffInvites } from 'src/db/schema/staff/staffInvites';
-import { mailQueue } from 'src/mail/mail.queue';
+import { mailQueue } from 'src/queues/mail/mail.queue';
 import { randomUUID } from 'crypto';
 import { resumirHorario } from './util';
 
