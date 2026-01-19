@@ -7,7 +7,7 @@ export function SegmentToggle() {
   const [value, setValue] = useState<"Servicios" | "Categorias">("Servicios");
 
   return (
-    <div className="inline-flex items-center border p-1 rounded-full">
+    <div className="inline-flex items-center border p-1 rounded-full bg-white">
       {[
         { key: "Servicios", label: "Servicios" },
         { key: "Categorias", label: "Categorias" },

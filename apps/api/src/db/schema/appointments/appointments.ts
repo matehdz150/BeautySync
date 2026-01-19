@@ -6,72 +6,90 @@ import {
   integer,
   timestamp,
   index,
-} from "drizzle-orm/pg-core";
+} from 'drizzle-orm/pg-core';
 
-import { branches } from "../branches/branches";
-import { clients } from "../clients";
-import { staff } from "../staff/staff";
-import { services } from "../services";
+import { branches } from '../branches/branches';
+import { clients } from '../clients';
+import { staff } from '../staff/staff';
+import { services } from '../services';
+import { publicUsers } from '../public/public-users';
 
 export type AppointmentStatus =
-  | "PENDING"
-  | "CONFIRMED"
-  | "CANCELLED"
-  | "NO_SHOW"
-  | "COMPLETED";
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'CANCELLED'
+  | 'NO_SHOW'
+  | 'COMPLETED';
 
 export const appointments = pgTable(
-  "appointments",
+  'appointments',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().defaultRandom(),
 
-    branchId: uuid("branch_id")
+    branchId: uuid('branch_id')
       .notNull()
-      .references(() => branches.id, { onDelete: "cascade" }),
+      .references(() => branches.id, { onDelete: 'cascade' }),
 
-    clientId: uuid("client_id")
-      .references(() => clients.id, { onDelete: "cascade" }),
+    clientId: uuid('client_id').references(() => clients.id, {
+      onDelete: 'cascade',
+    }),
 
-    staffId: uuid("staff_id")
+    staffId: uuid('staff_id')
       .notNull()
-      .references(() => staff.id, { onDelete: "restrict" }),
+      .references(() => staff.id, { onDelete: 'restrict' }),
 
-    serviceId: uuid("service_id")
+    serviceId: uuid('service_id')
       .notNull()
-      .references(() => services.id, { onDelete: "restrict" }),
+      .references(() => services.id, { onDelete: 'restrict' }),
 
-    start: timestamp("start", { withTimezone: true }).notNull(),
-    end: timestamp("end", { withTimezone: true }).notNull(),
+    start: timestamp('start', { withTimezone: true }).notNull(),
+    end: timestamp('end', { withTimezone: true }).notNull(),
 
-    status: text("status")
+    status: text('status')
       .$type<AppointmentStatus>()
       .notNull()
-      .default("PENDING"),
+      .default('PENDING'),
 
-    priceCents: integer("price_cents"),
+    paymentStatus: text('payment_status')
+      .$type<'UNPAID' | 'PARTIALLY_PAID' | 'PAID' | 'REFUNDED'>()
+      .notNull()
+      .default('UNPAID'),
 
-    notes: text("notes"),
+    publicBookingId: uuid('public_booking_id'),
 
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    publicUserId: uuid('public_user_id').references(() => publicUsers.id, {
+      onDelete: 'set null',
+    }),
+
+    priceCents: integer('price_cents'),
+
+    notes: text('notes'),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   },
 
   (table) => ({
     // 🔥 más usado: calendario por staff
-    staffStartIdx: index("appointment_staff_start_idx").on(
+    staffStartIdx: index('appointment_staff_start_idx').on(
       table.staffId,
-      table.start
+      table.start,
     ),
 
     // 🔥 calendario sucursal
-    branchStartIdx: index("appointment_branch_start_idx").on(
+    branchStartIdx: index('appointment_branch_start_idx').on(
       table.branchId,
-      table.start
+      table.start,
     ),
 
     // 🔍 historial cliente
-    clientIdx: index("appointment_client_idx").on(table.clientId),
+    clientIdx: index('appointment_client_idx').on(table.clientId),
 
     // ⚡ filtros por estado
-    statusIdx: index("appointment_status_idx").on(table.status),
-  })
+    statusIdx: index('appointment_status_idx').on(table.status),
+
+    publicBookingIdx: index('appointment_public_booking_idx').on(
+      table.publicBookingId,
+    ),
+    publicUserIdx: index("appointment_public_user_idx").on(table.publicUserId),
+  }),
 );

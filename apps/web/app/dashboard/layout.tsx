@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/shared/app-sidebar";
 import { Navbar } from "@/components/shared/navbar";
+import { PaymentProvider } from "@/context/PaymentContext";
 
 export default function SidebarLayout({
   children,
@@ -8,7 +9,7 @@ export default function SidebarLayout({
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider>
+      <SidebarProvider>
       {/* Sidebar fijo a la izquierda */}
       <AppSidebar />
 
@@ -18,7 +19,9 @@ export default function SidebarLayout({
           <Navbar />
 
           {/* Este main ya sí tiene un contenedor padre de altura fija */}
-          <main className="flex-1 overflow-hidden">{children}</main>
+          <main className="flex-1 overflow-hidden">
+              {children}
+            </main>
         </div>
       </SidebarInset>
     </SidebarProvider>

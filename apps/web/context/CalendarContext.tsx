@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -6,6 +7,7 @@ import {
   useReducer,
   useEffect,
   type ReactNode,
+  useCallback,
 } from "react";
 import { DateTime } from "luxon";
 import { useBranch } from "@/context/BranchContext";
@@ -16,38 +18,58 @@ import { getConceptualStatus } from "@/lib/helpers/conceptualStatus";
 
 /* ---------- TYPES ---------- */
 
-type Prefill = {
+export type Prefill = {
   defaultStaffId?: string;
   startISO?: string;
+  presetServices?: {
+    id: string;
+    name: string;
+    durationMin: number;
+    priceCents?: number;
+  }[];
 };
 
 type CalendarState = {
   date: string;
 
-  staff: any[];
-  schedules: Record<string, any[]>;
+  staff: string[];
+  schedules: Record<string, unknown[]>;
   appointments: any[];
   dailyCounts: Record<string, number>;
 
   dialogOpen: boolean;
   prefill: Prefill;
 
-  selectedEvent: any | null;
+  selectedAppointment?: any; // 👈 NEW
+
+  selectedEvent: unknown | null;
   anchorRect: DOMRect | null;
+
+  view: CalendarViewState;
+};
+
+type CalendarViewState = {
+  maxVisibleStaff: number; // ej. 5, 7
+  staffOffset: number; // ventana actual
+  enabledStaffIds: string[]; // filtros activos
 };
 
 type Action =
   | { type: "SET_DATE"; payload: string }
-  | { type: "SET_STAFF"; payload: any[] }
-  | { type: "SET_SCHEDULES"; payload: Record<string, any[]> }
+  | { type: "SET_STAFF"; payload: unknown[] }
+  | { type: "SET_SCHEDULES"; payload: Record<string, unknown[]> }
   | { type: "SET_APPOINTMENTS"; payload: any[] }
   | { type: "SET_DAILY_COUNTS"; payload: Record<string, number> }
-
   | { type: "OPEN_SHEET"; payload?: Prefill }
   | { type: "CLOSE_SHEET" }
-
-  | { type: "SELECT_EVENT"; payload: { event: any; rect: DOMRect } }
-  | { type: "CLEAR_EVENT" };
+  | { type: "SELECT_EVENT"; payload: { event: unknown; rect: DOMRect } }
+  | { type: "CLEAR_EVENT" }
+  | { type: "ADD_APPOINTMENTS"; payload: any[] }
+  | { type: "OPEN_APPOINTMENT"; payload: any }
+  | { type: "CLOSE_APPOINTMENT" }
+  | { type: "SET_MAX_VISIBLE_STAFF"; payload: number }
+  | { type: "SET_STAFF_OFFSET"; payload: number }
+  | { type: "SET_ENABLED_STAFF"; payload: string[] };
 
 /* ---------- INITIAL STATE ---------- */
 
@@ -62,16 +84,20 @@ const initialState: CalendarState = {
   dialogOpen: false,
   prefill: {},
 
+  selectedAppointment: undefined,
+
   selectedEvent: null,
   anchorRect: null,
+  view: {
+    maxVisibleStaff: 7,
+    staffOffset: 0,
+    enabledStaffIds: [],
+  },
 };
 
 /* ---------- REDUCER ---------- */
 
-function calendarReducer(
-  state: CalendarState,
-  action: Action
-): CalendarState {
+function calendarReducer(state: CalendarState, action: Action): CalendarState {
   switch (action.type) {
     case "SET_DATE":
       return { ...state, date: action.payload };
@@ -104,6 +130,63 @@ function calendarReducer(
     case "CLEAR_EVENT":
       return { ...state, selectedEvent: null, anchorRect: null };
 
+    case "ADD_APPOINTMENTS":
+      return {
+        ...state,
+        appointments: [...state.appointments, ...action.payload].sort(
+          (a, b) =>
+            DateTime.fromISO(a.startISO).toMillis() -
+            DateTime.fromISO(b.startISO).toMillis()
+        ),
+      };
+
+    /* ---------- NEW ---------- */
+    case "OPEN_APPOINTMENT": {
+      const appointment = state.appointments.find(
+        (a) => a.id === action.payload
+      );
+
+      return {
+        ...state,
+        selectedAppointment: appointment,
+      };
+    }
+
+    case "CLOSE_APPOINTMENT":
+      return {
+        ...state,
+        selectedAppointment: undefined,
+      };
+
+    case "SET_MAX_VISIBLE_STAFF":
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          maxVisibleStaff: action.payload,
+          staffOffset: 0,
+        },
+      };
+
+    case "SET_STAFF_OFFSET":
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          staffOffset: action.payload,
+        },
+      };
+
+    case "SET_ENABLED_STAFF":
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          enabledStaffIds: action.payload,
+          staffOffset: 0,
+        },
+      };
+
     default:
       return state;
   }
@@ -118,40 +201,57 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(calendarReducer, initialState);
 
   /* ---------- DATA LOADING ---------- */
-  async function reload() {
+
+  const reload = useCallback(async () => {
     if (!branch) return;
 
-    // 1️⃣ STAFF
     const staff = await getStaffByBranch(branch.id);
     dispatch({ type: "SET_STAFF", payload: staff });
 
-    // 2️⃣ SCHEDULES
+    if (state.view.enabledStaffIds.length === 0) {
+      dispatch({
+        type: "SET_ENABLED_STAFF",
+        payload: staff.map((s: any) => s.id),
+      });
+    }
+
     const sched = await Promise.all(
       staff.map((s) => getScheduleForStaff(s.id))
     );
 
     dispatch({
       type: "SET_SCHEDULES",
-      payload: Object.fromEntries(
-        staff.map((s, i) => [s.id, sched[i]])
-      ),
+      payload: Object.fromEntries(staff.map((s, i) => [s.id, sched[i]])),
     });
 
-    // 3️⃣ APPOINTMENTS OF SELECTED DAY
     const res = await getAppointmentsByDay({
       branchId: branch.id,
       date: state.date,
     });
 
-    dispatch({
-      type: "SET_APPOINTMENTS",
-      payload: res.data.map((a: any) => ({
-        ...a,
+    const mappedAppointments = res.data.map((a: any) => {
+      const start = DateTime.fromISO(a.start);
+      const end = DateTime.fromISO(a.end);
+
+      return {
+        id: a.id,
+        priceCents: a.priceCents ?? a.service?.priceCents ?? 0,
+        staffId: a.staff.id,
+        staffName: a.staff.name,
+        client: a.client?.name ?? "Cliente",
+        serviceName: a.service?.name ?? "",
+        serviceColor: a.service?.categoryColor ?? "#A78BFA",
+        startISO: a.start,
+        endISO: a.end,
+        startTime: start.toLocal().toFormat("H:mm"),
+        minutes: end.diff(start, "minutes").minutes,
         conceptualStatus: getConceptualStatus(a.start, a.end),
-      })),
+        raw: a,
+      };
     });
 
-    // 4️⃣ DAILY COUNTS OF WEEK
+    dispatch({ type: "SET_APPOINTMENTS", payload: mappedAppointments });
+
     const selected = DateTime.fromISO(state.date);
     const startOfWeek = selected.startOf("week").plus({ days: 1 });
 
@@ -171,14 +271,58 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         weekRes.map((r, i) => [weekDays[i], r.data.length])
       ),
     });
-  }
+  }, [branch, state.date, dispatch]);
 
   useEffect(() => {
     void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branch, state.date]);
 
+  useEffect(() => {
+    let id: NodeJS.Timeout | null = null;
+
+    function start() {
+      if (!id) {
+        reload(); // 👈 refresh inmediato al volver
+        id = setInterval(reload, 60_000);
+      }
+    }
+
+    function stop() {
+      if (id) {
+        clearInterval(id);
+        id = null;
+      }
+    }
+
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") start();
+      else stop();
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    start();
+
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [reload]);
+
+  const filteredStaff = state.view.enabledStaffIds.length
+    ? state.staff.filter((s: any) => state.view.enabledStaffIds.includes(s.id))
+    : state.staff;
+
+  const visibleStaff = filteredStaff.slice(
+    state.view.staffOffset,
+    state.view.staffOffset + state.view.maxVisibleStaff
+  );
+
   return (
-    <CalendarContext.Provider value={{ state, dispatch, reload }}>
+    <CalendarContext.Provider
+      value={{ state, dispatch, reload, visibleStaff, filteredStaff }}
+    >
       {children}
     </CalendarContext.Provider>
   );
@@ -194,8 +338,7 @@ export function useCalendarActions() {
   const { dispatch } = useCalendar();
 
   return {
-    setDate: (d: string) =>
-      dispatch({ type: "SET_DATE", payload: d }),
+    setDate: (d: string) => dispatch({ type: "SET_DATE", payload: d }),
 
     openNewAppointment: (prefill?: Prefill) =>
       dispatch({ type: "OPEN_SHEET", payload: prefill }),
@@ -203,11 +346,38 @@ export function useCalendarActions() {
     closeSheet: () => dispatch({ type: "CLOSE_SHEET" }),
 
     selectEvent: (event: any, rect: DOMRect) =>
-      dispatch({
-        type: "SELECT_EVENT",
-        payload: { event, rect },
-      }),
+      dispatch({ type: "SELECT_EVENT", payload: { event, rect } }),
 
     clearEvent: () => dispatch({ type: "CLEAR_EVENT" }),
+
+    addAppointments: (apps: any[]) =>
+      dispatch({ type: "ADD_APPOINTMENTS", payload: apps }),
+
+    /* ---------- NEW ---------- */
+    openAppointment: (a: any) =>
+      dispatch({ type: "OPEN_APPOINTMENT", payload: a }),
+
+    openAppointmentById: (id: string) =>
+      dispatch({ type: "OPEN_APPOINTMENT", payload: id }),
+
+    closeAppointment: () => dispatch({ type: "CLOSE_APPOINTMENT" }),
+
+    setMaxVisibleStaff: (n: number) =>
+      dispatch({ type: "SET_MAX_VISIBLE_STAFF", payload: n }),
+
+    nextStaffPage: () =>
+      dispatch({
+        type: "SET_STAFF_OFFSET",
+        payload: (prev: number) => prev + 1,
+      }),
+
+    prevStaffPage: () =>
+      dispatch({
+        type: "SET_STAFF_OFFSET",
+        payload: (prev: number) => Math.max(0, prev - 1),
+      }),
+
+    setEnabledStaff: (ids: string[]) =>
+      dispatch({ type: "SET_ENABLED_STAFF", payload: ids }),
   };
 }

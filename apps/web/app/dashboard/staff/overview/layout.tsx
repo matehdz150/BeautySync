@@ -4,7 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Plus, Settings, Settings2, SlidersHorizontal } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Settings,
+  Settings2,
+  SlidersHorizontal,
+} from "lucide-react";
+import { useState } from "react";
 
 export default function StaffLayout({
   children,
@@ -30,32 +38,30 @@ export default function StaffLayout({
     return pathname.startsWith(href);
   }
 
+  const [open, setOpen] = useState(true);
+
   return (
     <div className="min-h-screen">
-      <div className="mx-auto px-8 py-8">
-        {/* HEADER */}
-        <header className="sticky top-0 z-40 py-3 ">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold ml-2">Equipo</h1>
-            <div className="flex gap-2">
-            <Button variant={'default'} className="py-5 px-6 shadow-none">
-                Agregar staff
-                <Plus/>
-            </Button>
-            </div>
-          </div>
-        </header>
-
+      <div className="mx-auto">
         {/* LAYOUT */}
         <div className="flex gap-5">
-          
           {/* SIDEBAR */}
-          <aside className="w-64">
-            <div className="bg-white rounded-2xl border p-4 sticky top-24 max-h-[calc(100vh-96px)] overflow-y-auto">
-              
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                Staff
-              </p>
+          <aside
+            className={cn(
+              "relative transition-all duration-300 ease-in-out",
+              open ? "w-54" : "w-2"
+            )}
+          >
+            {/* CONTENEDOR */}
+            <div
+              className={cn(
+                "bg-white border-r py-3 px-2 sticky top-0 h-screen overflow-y-auto transition-all duration-300",
+                open ? "opacity-100" : "opacity-0 pointer-events-none"
+              )}
+            >
+              <div className="flex flex-col px-2 py-5 ">
+                <p className="text-lg font-semibold text-black ">Staff</p>
+              </div>
 
               <div className="space-y-1">
                 {nav.map((item) => (
@@ -63,9 +69,9 @@ export default function StaffLayout({
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "block w-full text-left px-3 py-2 rounded-md text-sm",
+                      "block w-full text-left px-3 py-4 rounded-md text-sm transition-colors",
                       isActive(item.href)
-                        ? "bg-indigo-400 text-white font-medium"
+                        ? "bg-indigo-400 text-white"
                         : "text-gray-700 hover:bg-gray-50"
                     )}
                   >
@@ -74,13 +80,24 @@ export default function StaffLayout({
                 ))}
               </div>
             </div>
+
+            {/* BOTÓN TOGGLE */}
+            <button
+              onClick={() => setOpen((v) => !v)}
+              className={cn(
+                "absolute top-6 -right-5 z-5 h-10 w-10 rounded-full border bg-white flex items-center justify-center hover:bg-gray-50 transition"
+              )}
+            >
+              {open ? (
+                <ChevronLeft className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </button>
           </aside>
 
           {/* MAIN CONTENT */}
-          <main className="flex-1 overflow-hidden min-h-0">
-            {children}
-          </main>
-
+          <main className="flex-1 overflow-hidden min-h-0">{children}</main>
         </div>
       </div>
     </div>

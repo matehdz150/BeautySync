@@ -16,9 +16,14 @@ import { ServicesModule } from './services/services.module';
 import { StaffServicesModule } from './staff-services/staff-services.module';
 import { AuthModule } from './auth/auth.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { PaymentsModule } from './payments/payments.module';
+import { UploadsModule } from './uploads/uploads.module';
+import { PublicPresenceModule } from './public-presence/public-presence.module';
+import { PublicModule } from './public/public.module';
+import { IaModule } from './ia/ia.module';
 
 @Module({
-  imports: [DbModule, UsersModule, OrganizationsModule, BranchesModule, StaffModule, StaffSchedulesModule, StaffTimeOffModule, AvailabilityModule, AppointmentsModule, ClientsModule, ServiceCategoriesModule, ServicesModule, StaffServicesModule, AuthModule, OnboardingModule],
+  imports: [DbModule, UsersModule, OrganizationsModule, BranchesModule, StaffModule, StaffSchedulesModule, StaffTimeOffModule, AvailabilityModule, AppointmentsModule, ClientsModule, ServiceCategoriesModule, ServicesModule, StaffServicesModule, AuthModule, OnboardingModule, PaymentsModule, UploadsModule, PublicPresenceModule, PublicModule, IaModule],
   controllers: [AppController],
   providers: [AppService],
 })

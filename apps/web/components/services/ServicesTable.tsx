@@ -61,7 +61,7 @@ export function ServicesTable({
   }, [services, page, rowsPerPage]);
 
   return (
-    <div className="rounded-xl border bg-white overflow-hidden">
+    <div className="rounded-xl  bg-white overflow-hidden">
       <div
         className="max-h-[calc(95vh-220px)] flex flex-col"
         ref={containerRef}

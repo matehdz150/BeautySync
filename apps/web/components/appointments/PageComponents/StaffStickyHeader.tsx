@@ -6,7 +6,7 @@ import { colorFromName } from "@/lib/utils";
 type Staff = {
   id: string;
   name: string;
-  avatar?: string;
+  avatarUrl?: string;
 };
 
 export function StaffStickyHeader({
@@ -16,7 +16,6 @@ export function StaffStickyHeader({
   staff: Staff[];
   top?: number;
 }) {
-  
   return (
     <div className="flex bg-white z-40 border-b sticky" style={{ top }}>
       {/* Columna izquierda (horas vacía) */}
@@ -36,20 +35,19 @@ export function StaffStickyHeader({
             }}
           >
             <Avatar key={s.id} className="w-12 h-12">
-              <AvatarImage
-                src={`https://randomuser.me/api/portraits/${
-                  i % 2 === 0 ? "women" : "men"
-                }/${Math.abs(i % 100)}.jpg`}
-                alt={s.name}
-                className="w-12 h-12 rounded-full object-cover"
-                onError={(e) => {
-                  // fallback si randomuser devuelve 404
-                  (e.target as HTMLImageElement).src =
-                    "https://randomuser.me/api/portraits/lego/1.jpg";
-                }}
-              />
+              {s.avatarUrl ? (
+                <AvatarImage
+                  src={s.avatarUrl}
+                  alt={s.name}
+                  className="w-12 h-12 rounded-full object-cover"
+                  onError={(e) => {
+                    // por si la imagen existe pero falla (Cloudinary, permisos, etc)
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : null}
 
-              <AvatarFallback className="text-sm font-bold">
+              <AvatarFallback className="text-sm font-bold bg-black text-white">
                 {s.name?.slice(0, 2).toUpperCase() ?? "?"}
               </AvatarFallback>
             </Avatar>

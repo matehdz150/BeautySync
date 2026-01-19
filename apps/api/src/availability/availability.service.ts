@@ -13,6 +13,7 @@ import {
   staffSchedules,
   staffTimeOff,
   staffServices,
+  serviceCategories,
 } from 'src/db/schema';
 import { and, eq, inArray, lt, gte } from 'drizzle-orm';
 import { GetAvailabilityDto } from './dto/create-availability.dto';
@@ -33,18 +34,33 @@ export class AvailabilityService {
   constructor(@Inject('DB') private db: client.DB) {}
 
   async getAvailability(query: GetAvailabilityDto) {
-    const { branchId, serviceId, date, staffId } = query;
+    const { branchId, serviceId, date, staffId, requiredDurationMin } = query;
+    const isByDuration = typeof requiredDurationMin === 'number';
+    const isByService = typeof serviceId === 'string';
     const SLOT_MIN = 15;
 
-    // 1️⃣ Servicio
-    const service = await this.db.query.services.findFirst({
-      where: and(eq(services.id, serviceId), eq(services.branchId, branchId)),
-    });
+    let durationMin: number;
 
-    if (!service)
-      throw new BadRequestException('Service not found for this branch');
-    if (!service.durationMin)
-      throw new BadRequestException('Service duration not configured');
+    if (typeof requiredDurationMin === 'number') {
+      durationMin = requiredDurationMin;
+    } else if (serviceId) {
+      const service = await this.db.query.services.findFirst({
+        where: and(eq(services.id, serviceId), eq(services.branchId, branchId)),
+      });
+
+      if (!service)
+        throw new BadRequestException('Service not found for this branch');
+
+      if (!service.durationMin)
+        throw new BadRequestException('Service duration not configured');
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      durationMin = service.durationMin;
+    } else {
+      throw new BadRequestException(
+        'serviceId or requiredDurationMin is required',
+      );
+    }
 
     // 2️⃣ Settings
     const settings = await this.db.query.branchSettings.findFirst({
@@ -59,7 +75,7 @@ export class AvailabilityService {
 
     // 👉 número de slots necesarios
     const slotsNeeded = Math.ceil(
-      (service.durationMin + bufferBefore + bufferAfter) / SLOT_MIN,
+      (durationMin + bufferBefore + bufferAfter) / SLOT_MIN,
     );
 
     const nowLocal = DateTime.now().setZone(tz);
@@ -77,12 +93,17 @@ export class AvailabilityService {
     let staffIds: string[] = [];
 
     if (staffId) {
-      const canDo = await this.db.query.staffServices.findFirst({
-        where: and(
-          eq(staffServices.staffId, staffId),
-          eq(staffServices.serviceId, serviceId),
-        ),
-      });
+      if (isByService) {
+        const canDo = await this.db.query.staffServices.findFirst({
+          where: and(
+            eq(staffServices.staffId, staffId),
+            eq(staffServices.serviceId, serviceId),
+          ),
+        });
+
+        if (!canDo)
+          throw new BadRequestException('Staff cannot perform this service');
+      }
 
       const staffRow = await this.db.query.staff.findFirst({
         where: and(
@@ -92,27 +113,36 @@ export class AvailabilityService {
         ),
       });
 
-      if (!canDo || !staffRow)
-        throw new BadRequestException(
-          'Staff is not active in this branch or cannot perform this service',
-        );
+      if (!staffRow) {
+        throw new BadRequestException('Staff is not active in this branch');
+      }
 
       staffIds = [staffId];
     } else {
-      const staffWithService = await this.db
-        .select({ staffId: staffServices.staffId })
-        .from(staffServices)
-        .innerJoin(
-          staff,
-          and(
-            eq(staff.id, staffServices.staffId),
-            eq(staff.branchId, branchId),
-            eq(staff.isActive, true),
-          ),
-        )
-        .where(eq(staffServices.serviceId, serviceId));
+      if (isByService) {
+        const staffWithService = await this.db
+          .select({ staffId: staffServices.staffId })
+          .from(staffServices)
+          .innerJoin(
+            staff,
+            and(
+              eq(staff.id, staffServices.staffId),
+              eq(staff.branchId, branchId),
+              eq(staff.isActive, true),
+            ),
+          )
+          .where(eq(staffServices.serviceId, serviceId!));
 
-      staffIds = [...new Set(staffWithService.map((s) => s.staffId))];
+        staffIds = [...new Set(staffWithService.map((s) => s.staffId))];
+      } else {
+        // 🔥 modo por duración: cualquier staff activo
+        const activeStaff = await this.db
+          .select({ staffId: staff.id })
+          .from(staff)
+          .where(and(eq(staff.branchId, branchId), eq(staff.isActive, true)));
+
+        staffIds = activeStaff.map((s) => s.staffId);
+      }
     }
 
     if (staffIds.length === 0) return { date, branchId, serviceId, staff: [] };
@@ -255,5 +285,152 @@ export class AvailabilityService {
     }
 
     return { date, branchId, serviceId, staff: staffAvailability };
+  }
+
+  async getAvailableServicesForSlot({
+    branchId,
+    staffId,
+    datetime,
+  }: {
+    branchId: string;
+    staffId: string;
+    datetime: string;
+  }) {
+    // 1️⃣ Settings
+    const settings = await this.db.query.branchSettings.findFirst({
+      where: eq(branchSettings.branchId, branchId),
+    });
+
+    const tz = settings?.timezone ?? 'America/Mexico_City';
+    const bufferBefore = settings?.bufferBeforeMin ?? 0;
+    const bufferAfter = settings?.bufferAfterMin ?? 0;
+
+    const start = DateTime.fromISO(datetime, { zone: tz });
+    const dayStart = start.startOf('day');
+    const dayEnd = start.endOf('day');
+
+    // 2️⃣ Staff must belong to branch
+    const staffRow = await this.db.query.staff.findFirst({
+      where: and(
+        eq(staff.id, staffId),
+        eq(staff.branchId, branchId),
+        eq(staff.isActive, true),
+      ),
+    });
+
+    if (!staffRow) throw new BadRequestException('Invalid staff');
+
+    // 3️⃣ Get services staff can perform
+    const srvList = await this.db
+      .select({
+        id: services.id,
+        name: services.name,
+        durationMin: services.durationMin,
+        priceCents: services.priceCents,
+
+        category: {
+          id: serviceCategories.id,
+          name: serviceCategories.name,
+          colorHex: serviceCategories.colorHex,
+        },
+      })
+      .from(staffServices)
+      .innerJoin(services, eq(services.id, staffServices.serviceId))
+      .leftJoin(
+        serviceCategories,
+        eq(serviceCategories.id, services.categoryId),
+      )
+      .where(eq(staffServices.staffId, staffId));
+
+    if (srvList.length === 0) return [];
+
+    // 4️⃣ Get schedules
+    const dayOfWeek = start.weekday % 7;
+
+    const schedules = await this.db
+      .select()
+      .from(staffSchedules)
+      .where(
+        and(
+          eq(staffSchedules.staffId, staffId),
+          eq(staffSchedules.dayOfWeek, dayOfWeek),
+        ),
+      );
+
+    if (schedules.length === 0) return [];
+
+    // Build base free blocks
+    let freeBlocks = schedules.map((s) => ({
+      startMin: parseTimeToMinutes(s.startTime as any),
+      endMin: parseTimeToMinutes(s.endTime as any),
+    }));
+
+    // 5️⃣ Get time-off
+    const timeOff = await this.db
+      .select()
+      .from(staffTimeOff)
+      .where(
+        and(
+          eq(staffTimeOff.staffId, staffId),
+          lt(staffTimeOff.start, dayEnd.toUTC().toJSDate()),
+          gte(staffTimeOff.end, dayStart.toUTC().toJSDate()),
+        ),
+      );
+
+    const busyOff = timeOff.map((t) => ({
+      startMin: dtToMinutesSinceDayStart(
+        DateTime.fromJSDate(t.start).setZone(tz),
+        dayStart,
+      ),
+      endMin: dtToMinutesSinceDayStart(
+        DateTime.fromJSDate(t.end).setZone(tz),
+        dayStart,
+      ),
+    }));
+
+    freeBlocks = subtractBusy(freeBlocks, busyOff);
+
+    // 6️⃣ Get existing appointments
+    const appointmentsToday = await this.db
+      .select()
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.staffId, staffId),
+          eq(appointments.branchId, branchId),
+          lt(appointments.start, dayEnd.toUTC().toJSDate()),
+          gte(appointments.end, dayStart.toUTC().toJSDate()),
+          inArray(appointments.status, [
+            'PENDING',
+            'CONFIRMED',
+            'COMPLETED',
+          ] as any),
+        ),
+      );
+
+    const busyApps = appointmentsToday.map((a) => ({
+      startMin: dtToMinutesSinceDayStart(
+        DateTime.fromJSDate(a.start).setZone(tz),
+        dayStart,
+      ),
+      endMin: dtToMinutesSinceDayStart(
+        DateTime.fromJSDate(a.end).setZone(tz),
+        dayStart,
+      ),
+    }));
+
+    freeBlocks = subtractBusy(freeBlocks, busyApps);
+
+    // 7️⃣ Check each service fits in the selected slot
+    const startMin = dtToMinutesSinceDayStart(start, dayStart);
+
+    return srvList.filter((s) => {
+      const total = s.durationMin + bufferBefore + bufferAfter;
+      const endMin = startMin + total;
+
+      return freeBlocks.some(
+        (b) => startMin >= b.startMin && endMin <= b.endMin,
+      );
+    });
   }
 }

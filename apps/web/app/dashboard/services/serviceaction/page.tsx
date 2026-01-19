@@ -67,7 +67,7 @@ export default function NewServiceBasicInfo() {
   return (
     <div className="space-y-5 overflow-y-scroll">
       <section className="bg-white rounded-2xl">
-        <h2 className="text-2xl font-semibold mb-6">Información básica</h2>
+        <h2 className="text-2xl font-semibold mb-6">Detalles del servicio</h2>
 
         <div className="space-y-6 px-3">
           {/* Nombre */}
@@ -97,7 +97,7 @@ export default function NewServiceBasicInfo() {
                 staff={staff}
                 value={state.staffIds}
                 onChange={(ids) => dispatch({ type: "SET_STAFF", value: ids })}
-                label="Asignar miembro del equipo"
+                label="Quién lo puede realizar"
                 placeholder="Asigna a un miembro del equipo"
               />
 

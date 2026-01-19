@@ -30,3 +30,8 @@ export class GetAppointmentsDto {
   @Min(0)
   offset = 0;
 }
+
+export class GetAppointmentByIdDto {
+  @IsUUID()
+  id!: string;
+}

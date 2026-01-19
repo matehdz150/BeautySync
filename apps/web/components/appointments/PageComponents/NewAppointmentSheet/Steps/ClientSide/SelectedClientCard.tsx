@@ -1,98 +1,74 @@
 "use client";
 
-import { Mail, Phone, User, X } from "lucide-react";
-import type { Client as SelectedClient } from "@/context/AppointmentBuilderContext";
+import { Button } from "@/components/ui/button";
+import { Mail, Phone, Plus, User, MoreHorizontal, X } from "lucide-react";
 
-export function SelectedClientCard({
-  client,
-  onClear,
-}: {
-  client?: SelectedClient;
-  onClear: () => void;
-}) {
-  // si no hay cliente, mostramos una tarjeta con defaults
-  if (!client) {
-    return (
-      <aside className="w-80 border-r flex flex-col h-full">
-        <div className="flex items-center justify-between px-5 py-4">
-          <h2 className="font-semibold text-lg">Cliente seleccionado</h2>
+type Props = {
+  client: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    avatarUrl?: string;
+  };
+  onClear?: () => void;
+};
 
-        </div>
-
-        <div className="flex flex-col items-center px-6 py-6 gap-4">
-          <div className="h-20 w-20 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-sm">
-            <User className="h-10 w-10" />
-          </div>
-
-          <p className="font-semibold text-xl">Cliente sin nombre</p>
-
-          <div className="w-full space-y-3">
-            <div className="flex items-center gap-3 text-sm">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span>Sin teléfono</span>
-            </div>
-
-            <div className="flex items-center gap-3 text-sm">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <span>Sin correo</span>
-            </div>
-          </div>
-
-          <button
-            onClick={onClear}
-            className="w-full mt-4 border rounded-xl py-2 text-sm font-medium hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition"
-          >
-            Quitar cliente
-          </button>
-        </div>
-      </aside>
-    );
-  }
-
-  // cliente con datos reales
+export function SelectedClientCard({ client, onClear }: Props) {
   const { name, email, phone, avatarUrl } = client;
 
   return (
-    <aside className="w-80 border-r flex flex-col h-full">
-      <div className="flex items-center justify-between px-5 py-4">
-        <h2 className="font-semibold text-lg">Cliente seleccionado</h2>
-      </div>
+    <div className="w-full bg-white px-5 py-3 flex items-center justify-between">
 
-      <div className="flex flex-col items-center px-6 py-6 gap-4">
+      {/* LEFT — Avatar + Info */}
+      <div className="flex items-center gap-4">
+
+        {/* Avatar */}
         {avatarUrl ? (
           <img
             src={avatarUrl}
-            className="h-20 w-20 rounded-full object-cover shadow-sm"
+            className="h-12 w-12 rounded-full object-cover"
           />
         ) : (
-          <div className="h-20 w-20 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-sm">
-            <User className="h-10 w-10" />
+          <div className="h-12 w-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
+            <User className="h-6 w-6" />
           </div>
         )}
 
-        <p className="font-semibold text-xl">
-          {name || "Cliente sin nombre"}
-        </p>
+        {/* TEXT */}
+        <div className="flex flex-col">
 
-        <div className="w-full space-y-3">
-          <div className="flex items-center gap-3 text-sm">
-            <Phone className="h-4 w-4 text-muted-foreground" />
-            <span>{phone || "Sin teléfono"}</span>
-          </div>
+          <span className="font-semibold text-[15px]">
+            {name || "Cliente sin nombre"}
+          </span>
 
-          <div className="flex items-center gap-3 text-sm">
-            <Mail className="h-4 w-4 text-muted-foreground" />
-            <span>{email || "Sin correo"}</span>
+          <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
+
+            {email && (
+              <span className="flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5" />
+                {email}
+              </span>
+            )}
+
+            {email && phone && <span>•</span>}
+
+            {phone && (
+              <span className="flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5" />
+                {phone}
+              </span>
+            )}
           </div>
         </div>
-
-        <button
-          onClick={onClear}
-          className="w-full mt-4 border rounded-xl py-2 text-sm font-medium hover:bg-[#f6f6f6] transition"
-        >
-          Deseleccionar cliente
-        </button>
       </div>
-    </aside>
+
+      {/* RIGHT — Action buttons */}
+      <div className="flex items-center gap-2">
+        <Button variant={'outline'} className="shadow-none rounded-2xl" onClick={onClear}>
+          Deseleccionar
+          <X/>
+        </Button>
+      </div>
+    </div>
   );
 }

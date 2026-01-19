@@ -1,8 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as client from 'src/db/client';
-import { branches, staff } from 'src/db/schema';
-import { eq } from 'drizzle-orm';
+import { branches, services, staff } from 'src/db/schema';
+import { and, eq } from 'drizzle-orm';
 import { CreateBranchDto } from './dto/create-branch.dto';
+import { UpdateBranchLocationDto } from './dto/branch-location.dto';
+import { UpdateBranchDto } from './dto/update-branch.dto';
 
 @Injectable()
 export class BranchesService {
@@ -19,12 +27,28 @@ export class BranchesService {
   }
 
   async create(data: CreateBranchDto) {
+    const lat = data.lat;
+    const lng = data.lng;
+
+    const latProvided = typeof lat === 'number';
+    const lngProvided = typeof lng === 'number';
+
+    if (latProvided !== lngProvided) {
+      throw new BadRequestException('lat y lng deben venir juntos');
+    }
+
+    const hasCoords = latProvided && lngProvided;
+
     const [branch] = await this.db
       .insert(branches)
       .values({
         organizationId: data.organizationId,
         name: data.name,
-        address: data.address,
+        address: data.address ?? null,
+        lat: hasCoords ? lat.toString() : null,
+        lng: hasCoords ? lng.toString() : null,
+        isLocationVerified: hasCoords,
+        locationUpdatedAt: hasCoords ? new Date() : null,
       })
       .returning();
 
@@ -52,5 +76,154 @@ export class BranchesService {
     return {
       branch: branchResult,
     };
+  }
+
+  async getBySlug(slug: string) {
+    if (!slug) {
+      throw new BadRequestException('Slug requerido');
+    }
+
+    // 1️⃣ Buscar branch por slug
+    const branch = await this.db.query.branches.findFirst({
+      where: eq(branches.publicSlug, slug),
+      with: {
+        images: true,
+      },
+    });
+
+    if (!branch) {
+      throw new NotFoundException('Sucursal no encontrada');
+    }
+
+    if (!branch.publicPresenceEnabled) {
+      throw new ForbiddenException('Sucursal no pública');
+    }
+
+    // 2️⃣ Servicios activos de la branch
+    const branchServices = await this.db.query.services.findMany({
+      where: and(eq(services.branchId, branch.id), eq(services.isActive, true)),
+      with: {
+        category: true,
+      },
+      orderBy: (services, { asc }) => asc(services.name),
+    });
+
+    // 3️⃣ Response público (CONTROLADO)
+    return {
+      id: branch.id,
+      name: branch.name,
+      address: branch.address,
+      slug: branch.publicSlug,
+      lat: branch.lat,
+      lng: branch.lng,
+      description: branch.description,
+
+      images: branch.images.map((img) => ({
+        id: img.id,
+        url: img.url,
+        isCover: img.isCover,
+      })),
+
+      services: branchServices.map((s) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        durationMin: s.durationMin,
+        priceCents: s.priceCents,
+        category: s.category
+          ? {
+              id: s.category.id,
+              name: s.category.name,
+              icon: s.category.icon,
+              hexColor: s.category.colorHex,
+            }
+          : null,
+      })),
+    };
+  }
+  async updateLocation(branchId: string, dto: UpdateBranchLocationDto) {
+    const [updated] = await this.db
+      .update(branches)
+      .set({
+        address: dto.address ?? null,
+        lat: dto.lat.toString(),
+        lng: dto.lng.toString(),
+        isLocationVerified: dto.isLocationVerified ?? true,
+        locationUpdatedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(branches.id, branchId))
+      .returning();
+
+    if (!updated) throw new NotFoundException('Branch not found');
+
+    return updated;
+  }
+
+  async getBranchForAi(branchId: string) {
+    if (!branchId) throw new BadRequestException('branchId requerido');
+
+    const branch = await this.db.query.branches.findFirst({
+      where: eq(branches.id, branchId),
+    });
+
+    if (!branch) throw new NotFoundException('Sucursal no encontrada');
+
+    const branchServices = await this.db.query.services.findMany({
+      where: and(eq(services.branchId, branch.id), eq(services.isActive, true)),
+      orderBy: (services, { asc }) => asc(services.name),
+    });
+
+    return {
+      branch,
+      services: branchServices,
+    };
+  }
+
+  async updateBranch(branchId: string, dto: UpdateBranchDto) {
+    if (!branchId) throw new BadRequestException('branchId requerido');
+
+    const hasSomethingToUpdate =
+      typeof dto.name === 'string' ||
+      typeof dto.address === 'string' ||
+      typeof dto.description === 'string';
+
+    if (!hasSomethingToUpdate) {
+      throw new BadRequestException('Nada que actualizar');
+    }
+
+    const [updated] = await this.db
+      .update(branches)
+      .set({
+        name: typeof dto.name === 'string' ? dto.name : undefined,
+        address: typeof dto.address === 'string' ? dto.address : undefined,
+        description:
+          typeof dto.description === 'string' ? dto.description : undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(branches.id, branchId))
+      .returning();
+
+    if (!updated) throw new NotFoundException('Branch not found');
+
+    return updated;
+  }
+
+  async getBasic(branchId: string) {
+    if (!branchId) throw new BadRequestException('branchId requerido');
+
+    const branch = await this.db.query.branches.findFirst({
+      where: eq(branches.id, branchId),
+      columns: {
+        id: true,
+        name: true,
+        address: true,
+        description: true,
+      },
+    });
+
+    if (!branch) throw new NotFoundException('Sucursal no encontrada');
+
+    return branch;
   }
 }

@@ -30,8 +30,8 @@ export class StaffSchedulesController {
     return this.service.update(Number(id), dto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.service.remove(Number(id));
+  @Delete('staff/:staffId')
+  async clearStaffSchedules(@Param('staffId') staffId: string) {
+    return this.service.clearForStaff(staffId);
   }
 }

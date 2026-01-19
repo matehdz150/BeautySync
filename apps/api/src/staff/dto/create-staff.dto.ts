@@ -25,4 +25,8 @@ export class CreateStaffDto {
   @IsString()
   @IsOptional()
   avatarUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  jobRole?: string;
 }

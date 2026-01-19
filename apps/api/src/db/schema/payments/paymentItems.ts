@@ -1,44 +1,62 @@
-/* eslint-disable prettier/prettier */
 import {
-  pgTable,
-  uuid,
-  text,
-  integer,
   index,
-} from "drizzle-orm/pg-core";
-
-import { payments } from "./payment";
-import { services } from "../services";
-
-export type PaymentItemType = "SERVICE" | "TAX" | "DISCOUNT" | "TIP";
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
+import { paymentItemTypeEnum, payments } from './payment';
 
 export const paymentItems = pgTable(
-  "payment_items",
+  'payment_items',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuid('id').defaultRandom().primaryKey(),
 
-    paymentId: uuid("payment_id")
+    paymentId: uuid('payment_id')
       .notNull()
-      .references(() => payments.id, { onDelete: "cascade" }),
+      .references(() => payments.id, { onDelete: 'cascade' }),
 
-    serviceId: uuid("service_id")
-      .references(() => services.id, { onDelete: "set null" }),
+    /* =====================
+       ITEM
+    ===================== */
+    type: paymentItemTypeEnum('type').notNull(),
 
-    description: text("description"),
+    referenceId: uuid('reference_id'),
+    // id del service/product original (opcional)
 
-    type: text("type").$type<PaymentItemType>().notNull(),
+    label: text('label').notNull(),
 
-    amountCents: integer("amount_cents").notNull(),
+    amountCents: integer('amount_cents').notNull(),
+    // +cargo | -descuento
+
+    /* =====================
+       STAFF ASOCIADO AL ITEM
+    ===================== */
+    staffId: uuid('staff_id'),
+
+    /* =====================
+       METADATA FLEXIBLE
+    ===================== */
+    meta: jsonb('meta'),
+    // { color, durationMin, icon, etc }
+
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
-
   (table) => ({
-    // 🔥 lookup por pago
-    itemPaymentIdx: index("payment_item_payment_idx").on(table.paymentId),
+    /* =====================
+       ÍNDICES PARA ANALYTICS
+    ===================== */
 
-    // 📊 ingresos por servicio
-    itemServiceIdx: index("payment_item_service_idx").on(table.serviceId),
+    paymentIdx: index('payment_items_payment_idx').on(table.paymentId),
 
-    // 💸 agregados por tipo (propinas, descuentos)
-    itemTypeIdx: index("payment_item_type_idx").on(table.type),
-  })
+    typeIdx: index('payment_items_type_idx').on(table.type),
+
+    staffIdx: index('payment_items_staff_idx').on(table.staffId),
+
+    referenceIdx: index('payment_items_reference_idx').on(table.referenceId),
+  }),
 );

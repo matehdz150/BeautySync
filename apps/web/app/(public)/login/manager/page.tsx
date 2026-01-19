@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 
 import { useAuth } from "@/context/AuthContext";
 
-export default function LoginPage() {
+export default function ManagerLogin() {
   const router = useRouter();
   const { login } = useAuth();
 
@@ -44,11 +44,9 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-
       {/* LEFT — FORM */}
       <div className="bg-[#0E0E0E] text-white flex items-center justify-center px-10">
         <div className="mx-auto w-full max-w-sm space-y-6">
-
           {/* TITLE */}
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-semibold">
@@ -61,16 +59,14 @@ export default function LoginPage() {
 
           {/* FORM */}
           <form onSubmit={submit} className="space-y-4">
-            {error && (
-              <p className="text-sm text-red-400">{error}</p>
-            )}
+            {error && <p className="text-sm text-red-400">{error}</p>}
 
             <div className="space-y-2">
               <Label>Correo</Label>
               <Input
                 className="h-12 bg-transparent text-white border-gray-700 focus-visible:ring-white"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="tu@email.com"
               />
             </div>
@@ -81,7 +77,7 @@ export default function LoginPage() {
                 className="h-12 bg-transparent text-white border-gray-700 focus-visible:ring-white"
                 type="password"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
 
@@ -89,10 +85,9 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               className="w-full h-12 rounded-full bg-white text-black hover:bg-gray-200"
+              variant={"primary"}
             >
-              {loading && (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              )}
+              {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               Continuar
             </Button>
           </form>
@@ -106,7 +101,6 @@ export default function LoginPage() {
 
           {/* SOCIAL BUTTONS */}
           <div className="space-y-3">
-
             <Button
               variant="outline"
               className="w-full h-12 rounded-full bg-transparent border-gray-700 text-white hover:bg-[#1a1a1a]"
@@ -137,7 +131,6 @@ export default function LoginPage() {
               <Apple className="mr-2" />
               Continuar con Apple
             </Button>
-
           </div>
 
           {/* FOOTER */}
@@ -148,7 +141,6 @@ export default function LoginPage() {
               Ir a la app para clientes
             </span>
           </p>
-
         </div>
       </div>
 

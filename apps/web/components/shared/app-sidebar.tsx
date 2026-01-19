@@ -27,6 +27,11 @@ import {
   Settings,
   Hash,
   ChevronsUpDown,
+  Smile,
+  Globe,
+  Puzzle,
+  Store,
+  Trophy,
 } from "lucide-react";
 
 import { useAuth, type Role } from "@/context/AuthContext";
@@ -53,13 +58,13 @@ const items: NavItem[] = [
     allow: ["owner", "manager"], // ❌ staff no
   },
   {
-    label: "Citas",
+    label: "Calendario",
     icon: Calendar,
     href: "/dashboard/appointments",
     allow: ["owner", "manager"],
   },
   {
-    label: "Servicios",
+    label: "Servicios y productos",
     icon: Scissors,
     href: "/dashboard/services",
     allow: ["owner", "manager"],
@@ -72,15 +77,9 @@ const items: NavItem[] = [
   },
   {
     label: "Clientes",
-    icon: CircleUser,
+    icon: Smile,
     href: "/dashboard/clients",
     allow: ["owner", "manager"],
-  },
-  {
-    label: "Estadisticas",
-    icon: ChartLine,
-    href: "/dashboard/statistics",
-    allow: ["owner"],
   },
   {
     label: "Tus citas",
@@ -93,6 +92,36 @@ const items: NavItem[] = [
     icon: UserPen,
     href: "/dashboard/profile",
     allow: ["staff"],
+  },
+  {
+    label: "Prescencia publica",
+    icon: Globe,
+    href: "/dashboard/public-setup",
+    allow: ["owner"],
+  },
+  {
+    label: "Lealtad",
+    icon: Trophy,
+    href: "/dashboard/loyal-program",
+    allow: ["owner"],
+  },
+  {
+    label: "Configuracion del negocio",
+    icon: Store,
+    href: "/dashboard/bussines-setup",
+    allow: ["owner"],
+  },
+  {
+    label: "Extensiones",
+    icon: Puzzle,
+    href: "/dashboard/extensions",
+    allow: ["owner"],
+  },
+  {
+    label: "Estadisticas",
+    icon: ChartLine,
+    href: "/dashboard/statistics",
+    allow: ["owner"],
   },
 ];
 

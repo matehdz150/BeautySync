@@ -9,7 +9,10 @@ import {
 } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
-import { GetAppointmentsDto } from './dto/get-appointments.dto';
+import {
+  GetAppointmentByIdDto,
+  GetAppointmentsDto,
+} from './dto/get-appointments.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 
@@ -20,6 +23,11 @@ export class AppointmentsController {
   @Post()
   create(@Body() dto: CreateAppointmentDto) {
     return this.service.create(dto);
+  }
+
+  @Get(':id')
+  findOne(@Param() params: GetAppointmentByIdDto) {
+    return this.service.findOne(params.id);
   }
 
   @Get()

@@ -22,21 +22,6 @@ import { InviteStaffDto } from './dto/invites-staff.dto';
 export class StaffController {
   constructor(private readonly service: StaffService) {}
 
-  @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('owner', 'manager')
-  findAll() {
-    return this.service.findAll();
-  }
-
-  @Get('branch/:branchId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('owner', 'manager', 'staff')
-  findByBranch(@Param('branchId') branchId: string, @Req() req) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return this.service.findByBranch(branchId, req.user);
-  }
-
   @Get('for-service')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('owner', 'manager', 'staff')
@@ -53,9 +38,27 @@ export class StaffController {
     });
   }
 
+  // staff.controller.ts
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  @UseGuards(JwtAuthGuard)
+  findOne(@Param('id') id: string, @Req() req: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.service.findOne(id, req.user);
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  findAll() {
+    return this.service.findAll();
+  }
+
+  @Get('branch/:branchId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager', 'staff')
+  findByBranch(@Param('branchId') branchId: string, @Req() req) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.service.findByBranch(branchId, req.user);
   }
 
   @Post()
@@ -63,9 +66,15 @@ export class StaffController {
     return this.service.create(body);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: UpdateStaffDto) {
-    return this.service.update(id, body);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateStaffDto,
+    @Req() req: any,
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.service.update(id, dto, req.user);
   }
 
   @Delete(':id')

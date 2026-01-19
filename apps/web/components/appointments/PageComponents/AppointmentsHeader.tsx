@@ -1,12 +1,7 @@
 "use client";
 
 import {
-  ChevronLeft,
-  ChevronRight,
   Settings,
-  CalendarFold,
-  RefreshCw,
-  SlidersHorizontal,
   ChevronDown,
 } from "lucide-react";
 
@@ -14,6 +9,10 @@ import { Button } from "@/components/ui/button";
 import { DualMonthDatePicker } from "./HeaderComponents/DualMonthDatePicker";
 import { AddMenu } from "./HeaderComponents/AddMenu";
 import { DateTime } from "luxon";
+import { useCalendarActions } from "@/context/CalendarContext";
+import { CalendarRefreshButton } from "./HeaderComponents/ReloadButton";
+import { CalendarVisibilityMenu } from "./HeaderComponents/CalendarVisibilityMenu";
+import { CalendarSettingsButton } from "./CalendarSettingsSheet/CalendarSettingsButton";
 
 type Props = {
   onToday?: () => void;
@@ -31,12 +30,9 @@ type Props = {
 };
 
 export function AppointmentsHeader({
-  onToday,
   date,
-  onDateChange,
-  view,
-  onNew
-}: Props) {
+  onDateChange}: Props) {
+  const { openNewAppointment } = useCalendarActions();
   const jsDate = DateTime.fromISO(date).toJSDate();
   return (
     <div className="flex items-center justify-between gap-3 py-5 px-3 sticky top-0 z-50 border-b bg-white ">
@@ -56,39 +52,20 @@ export function AppointmentsHeader({
           onChange={(d) => onDateChange(DateTime.fromJSDate(d).toISODate())}
         />
         {/* Team */}
-        <Button variant="outline" className="rounded-full gap-2 shadow-none">
-          Visibilidad del equipo
-          <ChevronDown className="w-4 h-4" />
-        </Button>
-        {/* Filters */}
-        <Button variant="outline" className="rounded-full shadow-none">
-          <SlidersHorizontal className="w-4 h-4" />
-        </Button>
+        <CalendarVisibilityMenu/>
       </div>
 
       {/* RIGHT GROUP */}
       <div className="flex items-center gap-2">
-        <Button variant="outline" className="rounded-full shadow-none">
-          <Settings className="w-4 h-4" />
-        </Button>
+        <CalendarSettingsButton/>
 
-        <Button variant="outline" className="rounded-full shadow-none">
-          <CalendarFold className="w-4 h-4" />
-        </Button>
 
-        <Button variant="outline" className="rounded-full shadow-none">
-          <RefreshCw className="w-4 h-4" />
-        </Button>
+        <CalendarRefreshButton/>
 
-        {/* View mode */}
-        <Button variant="outline" className="rounded-full gap-2 shadow-none">
-          {view === "day" ? "Day" : view === "week" ? "Week" : "Month"}
-          <ChevronDown className="w-4 h-4" />
-        </Button>
 
         {/* Add */}
         <AddMenu
-          onAppointment={onNew}
+          onAppointment={() => openNewAppointment()}
           onGroupAppointment={() => console.log("group")}
           onBlockedTime={() => console.log("block")}
           onSale={() => console.log("sale")}

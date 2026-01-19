@@ -79,7 +79,7 @@ export function ClientSelector({
       <button
         className="flex items-center gap-3 p-3 rounded-xl hover:bg-indigo-50 transition w-full"
         onClick={() => {
-          setClient(undefined);     // sin cliente
+          setClient(undefined); // sin cliente
           onClose();
         }}
       >
@@ -92,7 +92,7 @@ export function ClientSelector({
       <Separator />
 
       {/* SCROLLABLE LIST */}
-      <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+      <div className="space-y-1 pr-1 max-h-[65vh] min-h-[65vh] overflow-y-auto pb-10">
         {loading && (
           <p className="text-sm text-muted-foreground px-2">
             Cargando clientes…
@@ -107,7 +107,6 @@ export function ClientSelector({
               email={c.email}
               selected={clientId === c.id}
               onClick={() => {
-                // 🔥 guardamos TODO el cliente en el contexto
                 setClient(c);
                 onClose();
               }}
