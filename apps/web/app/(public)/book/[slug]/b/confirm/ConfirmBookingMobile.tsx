@@ -12,6 +12,9 @@ import {
   type CreatePublicBookingPayload,
 } from "@/lib/services/public/appointment";
 import { BookingConfirmSplash } from "../../success/BookingConfirmSplash";
+import { PublicPhoneDialog } from "@/components/public/PublicPhoneDialog";
+import { PublicAuthDialog } from "@/components/public/PublicAuthDialog";
+import { PublicApiError } from "@/lib/errors";
 
 type PaymentMethod = "ONSITE" | "ONLINE";
 
@@ -36,6 +39,12 @@ export function ConfirmBookingMobilePage() {
     return Boolean(branch && date && appointmentsDraft?.length > 0);
   }, [branch, date, appointmentsDraft]);
 
+  const [openAuth, setOpenAuth] = useState(false);
+  const [openPhone, setOpenPhone] = useState(false);
+
+  // para reintentar confirm cuando termine login / phone
+  const [pendingConfirm, setPendingConfirm] = useState(false);
+
   async function handleConfirm() {
     if (!canConfirm) return;
     if (submitting) return;
@@ -43,35 +52,49 @@ export function ConfirmBookingMobilePage() {
     setSubmitting(true);
     setSubmitError(null);
 
-    // 🔥 prende splash
-    setShowSplash(true);
+    const splashStart = Date.now();
+    setShowSplash(true); // ✅ PRENDE SPLASH
 
     try {
-      const appointments = [...appointmentsDraft].sort((a: any, b: any) =>
+      const appointments = [...appointmentsDraft].sort((a, b) =>
         a.startIso.localeCompare(b.startIso)
       );
 
       const payload: CreatePublicBookingPayload = {
         branchSlug: branch!.slug,
         date: date!,
-        paymentMethod: paymentMethod,
+        paymentMethod: (paymentMethod ?? "ONSITE") as "ONSITE" | "ONLINE",
         discountCode: discountCode?.trim() ? discountCode.trim() : null,
         notes: notes?.trim() ? notes.trim() : null,
         appointments,
       };
 
-      console.log("CONFIRM BOOKING PAYLOAD", payload);
-
       const res = await createPublicBooking(payload);
 
-      // ✨ deja que el splash se vea un poquito
-      await new Promise((r) => setTimeout(r, 1500));
+      // ✅ asegúrate que el splash dure mínimo 1500ms (1.5s)
+      const elapsed = Date.now() - splashStart;
+      const remaining = Math.max(0, 2000 - elapsed);
+      if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
 
-      router.push(`/book/${branch!.slug}/success?bookingId=${res.bookingId}`);
+      router.push(`/me/bookings/${res.bookingId}`);
     } catch (err: any) {
-      setSubmitError(err?.message ?? "No se pudo confirmar la reservación");
+      if (err instanceof PublicApiError) {
+        if (err.code === "UNAUTHORIZED") {
+          setShowSplash(false);
+          setPendingConfirm(true);
+          setOpenAuth(true);
+          return;
+        }
 
-      // 🔻 si falla, apaga splash para que el user vea el error
+        if (err.code === "PHONE_REQUIRED") {
+          setShowSplash(false);
+          setPendingConfirm(true);
+          setOpenPhone(true);
+          return;
+        }
+      }
+
+      setSubmitError(err?.message ?? "No se pudo confirmar la reservación");
       setShowSplash(false);
     } finally {
       setSubmitting(false);
@@ -295,6 +318,31 @@ export function ConfirmBookingMobilePage() {
         open={showSplash}
         title="Reservación confirmada"
         subtitle="Estamos guardando tu cita…"
+      />
+      <PublicAuthDialog
+        open={openAuth}
+        onOpenChange={setOpenAuth}
+        onLoggedIn={() => {
+          setOpenAuth(false);
+
+          if (pendingConfirm) {
+            setPendingConfirm(false);
+            handleConfirm(); // 🔥 reintenta solo
+          }
+        }}
+      />
+
+      <PublicPhoneDialog
+        open={openPhone}
+        onOpenChange={setOpenPhone}
+        onSaved={() => {
+          setOpenPhone(false);
+
+          if (pendingConfirm) {
+            setPendingConfirm(false);
+            handleConfirm(); // 🔥 reintenta solo
+          }
+        }}
       />
     </div>
   );

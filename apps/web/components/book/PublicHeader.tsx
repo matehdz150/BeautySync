@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Calendar, Contact, Heart, LogOut, Settings, User } from "lucide-react";
+import {
+  ArrowRight,
+  Calendar,
+  Contact,
+  Heart,
+  LogOut,
+  Settings,
+  User,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { usePublicAuth } from "@/context/public/PublicAuthContext";
@@ -32,7 +40,7 @@ export function PublicHeader() {
         <div className="flex items-center gap-3">
           {loading ? null : user ? (
             <>
-              <Link href="/me">
+              <Link href="/me/bookings">
                 <Button
                   variant="outline"
                   className="rounded-full py-6 px-6 shadow-none"
@@ -43,7 +51,7 @@ export function PublicHeader() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-3 rounded-full px-3 py-2 hover:bg-black/5 transition">
+                  <button className="flex items-center gap-3 rounded-full px-3 py-2 hover:bg-black/5 transition border">
                     {user.avatarUrl ? (
                       <Image
                         src={user.avatarUrl}
@@ -67,22 +75,23 @@ export function PublicHeader() {
                     {user.name ?? user.email ?? "Mi cuenta"}
                   </DropdownMenuLabel>
 
-                  <DropdownMenuSeparator />
-
                   <DropdownMenuItem asChild>
                     <Link
                       href="/me/profile"
                       className="flex items-center gap-2"
                     >
-                      <User className="h-4 w-4" />
+                      <Contact className="h-5 w-5" />
                       Perfil
                     </Link>
                   </DropdownMenuItem>
 
                   <DropdownMenuItem asChild>
-                    <Link href="/me" className="flex items-center gap-2">
+                    <Link
+                      href="/me/bookings"
+                      className="flex items-center gap-2"
+                    >
                       <Calendar className="h-4 w-4" />
-                      Citas
+                      Reservaciones
                     </Link>
                   </DropdownMenuItem>
 
@@ -96,14 +105,34 @@ export function PublicHeader() {
                     </Link>
                   </DropdownMenuItem>
 
+                  <DropdownMenuItem asChild>
+                    <Link
+                      href="/me/settings"
+                      className="flex items-center gap-2"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Ajustes
+                    </Link>
+                  </DropdownMenuItem>
+
                   <DropdownMenuSeparator />
+
+                  <DropdownMenuItem asChild>
+                    <Link href="/me/help" className="flex items-center gap-2">
+                      Ayuda y soporte
+                    </Link>
+                  </DropdownMenuItem>
 
                   <DropdownMenuItem
                     onClick={logout}
-                    className="flex items-center gap-2 text-red-600 focus:text-red-600"
+                    className="flex items-center gap-2"
                   >
-                    <LogOut className="h-4 w-4" />
                     Cerrar sesión
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem className="flex items-center gap-2 font-medium justify-between">
+                    Registra tu negocio
+                    <ArrowRight className="text-black" />
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -139,7 +168,7 @@ export function PublicHeader() {
           {loading ? null : user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 rounded-full px-2 py-1 hover:bg-black/5 transition">
+                <button className="flex items-center gap-2 rounded-full px-2 py-1 hover:bg-black/5 transition border">
                   {user.avatarUrl ? (
                     <Image
                       src={user.avatarUrl}
@@ -163,7 +192,6 @@ export function PublicHeader() {
                   {user.name ?? user.email ?? "Mi cuenta"}
                 </DropdownMenuLabel>
 
-
                 <DropdownMenuItem asChild>
                   <Link href="/me/profile" className="flex items-center gap-2">
                     <Contact className="h-5 w-5" />
@@ -172,7 +200,7 @@ export function PublicHeader() {
                 </DropdownMenuItem>
 
                 <DropdownMenuItem asChild>
-                  <Link href="/me" className="flex items-center gap-2">
+                  <Link href="/me/bookings" className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
                     Reservaciones
                   </Link>
@@ -189,26 +217,19 @@ export function PublicHeader() {
                 </DropdownMenuItem>
 
                 <DropdownMenuItem asChild>
-                  <Link
-                    href="/me/settings"
-                    className="flex items-center gap-2"
-                  >
+                  <Link href="/me/settings" className="flex items-center gap-2">
                     <Settings className="h-4 w-4" />
                     Ajustes
                   </Link>
                 </DropdownMenuItem>
 
-                <DropdownMenuSeparator/>
+                <DropdownMenuSeparator />
 
                 <DropdownMenuItem asChild>
-                  <Link
-                    href="/me/help"
-                    className="flex items-center gap-2"
-                  >
+                  <Link href="/me/help" className="flex items-center gap-2">
                     Ayuda y soporte
                   </Link>
                 </DropdownMenuItem>
-
 
                 <DropdownMenuItem
                   onClick={logout}
@@ -217,11 +238,9 @@ export function PublicHeader() {
                   Cerrar sesión
                 </DropdownMenuItem>
 
-                <DropdownMenuItem
-                  className="flex items-center gap-2 font-medium justify-between"
-                >
+                <DropdownMenuItem className="flex items-center gap-2 font-medium justify-between">
                   Registra tu negocio
-                  <ArrowRight className="text-black"/>
+                  <ArrowRight className="text-black" />
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
