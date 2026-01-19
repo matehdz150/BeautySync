@@ -39,10 +39,14 @@ export const staff = pgTable(
     // Lo dejo nullable para que la migración no truene si ya tienes filas.
     email: text("email"),
 
+    phone: text("phone"),
+
     avatarUrl: text("avatar_url"),
 
     // Estado lógico de onboarding / ciclo de vida
     status: staffStatusEnum("status").notNull().default("pending"),
+
+    jobRole: text("jobRole"),
 
     // Flag rápido para filtrar en UI (lo mantenemos)
     isActive: boolean("is_active").notNull().default(true),

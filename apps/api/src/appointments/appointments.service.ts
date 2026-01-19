@@ -2,7 +2,12 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as client from 'src/db/client';
 import {
   appointments,
@@ -132,6 +137,7 @@ export class AppointmentsService {
           start: startUtc.toJSDate(),
           end: endUtc.toJSDate(),
           status: 'CONFIRMED',
+          paymentStatus: 'UNPAID',
           notes: dto.notes,
           priceCents: service.priceCents,
         })
@@ -189,6 +195,7 @@ export class AppointmentsService {
           start: appointments.start,
           end: appointments.end,
           status: appointments.status,
+          paymentStatus: appointments.paymentStatus,
           priceCents: appointments.priceCents,
 
           staff: {
@@ -383,5 +390,57 @@ export class AppointmentsService {
 
       return updated;
     });
+  }
+
+  async findOne(id: string) {
+    const row = await this.db
+      .select({
+        id: appointments.id,
+        start: appointments.start,
+        end: appointments.end,
+        status: appointments.status,
+        paymentStatus: appointments.paymentStatus,
+        priceCents: appointments.priceCents,
+        notes: appointments.notes,
+
+        branchId: appointments.branchId,
+        staffId: appointments.staffId,
+        serviceId: appointments.serviceId,
+        clientId: appointments.clientId,
+
+        staff: {
+          id: staff.id,
+          name: staff.name,
+        },
+        service: {
+          id: services.id,
+          name: services.name,
+          durationMin: services.durationMin,
+          priceCents: services.priceCents,
+          categoryColor: serviceCategories.colorHex,
+          categoryIcon: serviceCategories.icon,
+        },
+        client: {
+          id: clients.id,
+          name: clients.name,
+          email: clients.email,
+          phone: clients.phone,
+        },
+      })
+      .from(appointments)
+      .leftJoin(staff, eq(staff.id, appointments.staffId))
+      .leftJoin(services, eq(services.id, appointments.serviceId))
+      .leftJoin(clients, eq(clients.id, appointments.clientId))
+      .leftJoin(
+        serviceCategories,
+        eq(serviceCategories.id, services.categoryId),
+      )
+      .where(eq(appointments.id, id))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    if (!row) throw new NotFoundException('Appointment not found');
+
+    return row;
   }
 }

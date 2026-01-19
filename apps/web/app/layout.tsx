@@ -3,6 +3,8 @@ import { DM_Sans, Geist, Geist_Mono, Montserrat } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../context/AuthContext";
 import { BranchProvider } from "@/context/BranchContext";
+import { PaymentProvider } from "@/context/PaymentContext";
+import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,7 +14,7 @@ const geistSans = Geist({
 const montserrat = Montserrat({
   subsets: ["latin"],
   variable: "--font-montserrat",
-  weight: ["300","400","500","600","700","800","900"], // opcional
+  weight: ["300", "400", "500", "600", "700", "800", "900"], // opcional
   display: "swap",
 });
 
@@ -29,8 +31,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={montserrat.variable}>
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          strategy="afterInteractive"
+        />
         <BranchProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <PaymentProvider>{children}</PaymentProvider>
+          </AuthProvider>
         </BranchProvider>
       </body>
     </html>

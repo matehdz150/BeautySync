@@ -23,13 +23,62 @@ export class StaffService {
     return this.db.select().from(staff);
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user: any) {
     const person = await this.db.query.staff.findFirst({
       where: eq(staff.id, id),
+      with: {
+        schedules: true,
+        services: {
+          with: {
+            service: true,
+          },
+        },
+      },
     });
 
-    if (!person) throw new NotFoundException('Staff not found');
-    return person;
+    if (!person) {
+      throw new NotFoundException('Staff not found');
+    }
+
+    // 🔐 validar organización usando branch
+    const branch = await this.db.query.branches.findFirst({
+      where: eq(branches.id, person.branchId),
+    });
+
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    if (branch.organizationId !== user.orgId) {
+      throw new ForbiddenException('Not allowed');
+    }
+
+    return {
+      id: person.id,
+
+      /* =====================
+       BASE
+    ===================== */
+      name: person.name,
+      email: person.email,
+      avatarUrl: person.avatarUrl,
+      jobRole: person.jobRole,
+
+      /* =====================
+       SCHEDULES
+    ===================== */
+      schedules: person.schedules.map((s) => ({
+        dayOfWeek: s.dayOfWeek,
+        startTime: s.startTime,
+        endTime: s.endTime,
+      })),
+
+      /* =====================
+       SERVICES
+    ===================== */
+      services: person.services.map((ss) => ss.serviceId),
+    };
   }
 
   async create(data: CreateStaffDto) {
@@ -46,6 +95,7 @@ export class StaffService {
         name: data.name,
         email: data.email,
         avatarUrl: data.avatarUrl ?? null,
+        jobRole: data.jobRole ?? null,
 
         // 🔒 siempre pendiente al registrar
         status: 'pending',
@@ -55,14 +105,35 @@ export class StaffService {
     return created;
   }
 
-  async update(id: string, data: UpdateStaffDto) {
+  async update(id: string, data: UpdateStaffDto, user: any) {
+    if (!user) {
+      throw new ForbiddenException('Missing user');
+    }
+
+    const staffRow = await this.db.query.staff.findFirst({
+      where: eq(staff.id, id),
+    });
+
+    if (!staffRow) throw new NotFoundException('Staff not found');
+
+    const branch = await this.db.query.branches.findFirst({
+      where: eq(branches.id, staffRow.branchId),
+    });
+
+    if (!branch) throw new NotFoundException('Branch not found');
+
+    // 🔐 seguridad real
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    if (branch.organizationId !== user.orgId) {
+      throw new ForbiddenException('Not allowed');
+    }
+
     const [updated] = await this.db
       .update(staff)
       .set(data)
       .where(eq(staff.id, id))
       .returning();
 
-    if (!updated) throw new NotFoundException('Staff not found');
     return updated;
   }
 

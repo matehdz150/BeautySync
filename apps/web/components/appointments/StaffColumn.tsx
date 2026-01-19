@@ -5,6 +5,7 @@ import { AppointmentItem } from "./AppointmentItem";
 import { CalendarGrid } from "./CalendarGrid";
 import { useEffect, useState } from "react";
 import { getScheduleForStaff } from "@/lib/services/staffSchedules";
+import { useCalendarActions } from "@/context/CalendarContext";
 
 type Staff = {
   id: string;
@@ -24,6 +25,8 @@ export function StaffColumn({
   const getTimeIndex = (t: string) => timeSlots.indexOf(t);
   const [schedule, setSchedule] = useState<any[]>([]);
 
+  const { openAppointmentById } = useCalendarActions();
+
   // 📅 LOAD STAFF SCHEDULE
   useEffect(() => {
     async function load() {
@@ -32,7 +35,6 @@ export function StaffColumn({
     }
     load();
   }, [staff.id]);
-
 
   // ✔ check if slot belongs to shift
   function isInsideSchedule(time: string) {
@@ -55,7 +57,6 @@ export function StaffColumn({
       return mins >= start && mins < end;
     });
   }
-
 
   // ⬇️ BUILD OFF-HOURS BLOCKS
   function buildOffHoursBlocks() {
@@ -94,7 +95,6 @@ export function StaffColumn({
     return off;
   }
 
-
   // ⬇️ CONVERT OFF-HOURS TO APPOINTMENT-LIKE ELEMENTS
   const offBlocks = buildOffHoursBlocks().map((b) => {
     const startISO = DateTime.fromISO(date).set({
@@ -120,10 +120,8 @@ export function StaffColumn({
     };
   });
 
-
   return (
     <div className="flex-1 border-l relative h-full">
-
       {/* GRID */}
       <CalendarGrid
         timeSlots={timeSlots}
@@ -132,7 +130,6 @@ export function StaffColumn({
         selectedDate={date}
         isDisabled={(t) => !isInsideSchedule(t)}
       />
-
 
       {/* NORMAL APPOINTMENTS */}
       {appointments
@@ -144,21 +141,13 @@ export function StaffColumn({
             startIdx={getTimeIndex(a.startTime)}
             isPast={false}
             isOngoing={false}
-            onClick={(e: any) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              onEventClick(a, rect);
-            }}
+            onClick={() => openAppointmentById(a.id)}
           />
         ))}
 
-
       {/* ⬇️ OFF-HOURS APPOINTMENTS */}
       {offBlocks.map((a) => (
-        <AppointmentItem
-          key={a.id}
-          a={a}
-          OFF_HOURS
-        />
+        <AppointmentItem key={a.id} a={a} OFF_HOURS />
       ))}
     </div>
   );

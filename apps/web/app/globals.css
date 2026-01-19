@@ -130,8 +130,20 @@ html, body{
   }
 }
 
-::-webkit-scrollbar { width: 1px; }
-::-webkit-scrollbar-thumb {
-  background: #000;
-  border-radius: 999px;
+/* ===== OCULTAR SCROLLBARS GLOBALMENTE ===== */
+
+/* Chrome, Safari y derivados */
+::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: none;
+}
+
+/* IE y Edge antiguo */
+* {
+  -ms-overflow-style: none;
 }

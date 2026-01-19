@@ -40,3 +40,9 @@ export async function saveDefaultScheduleForStaff(params: {
 export async function getScheduleForStaff(staffId: string) {
   return api(`/staff-schedules/staff/${staffId}`);
 }
+
+export async function clearStaffSchedules(staffId: string) {
+  return api<{ ok: true }>(`/staff-schedules/staff/${staffId}`, {
+    method: "DELETE",
+  });
+}

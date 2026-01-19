@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
-import { IsDateString, IsOptional, IsUUID } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
 
 export class GetAvailabilityDto {
   @IsUUID()
   branchId!: string;
 
+  @IsOptional()
   @IsUUID()
-  serviceId!: string;
+  serviceId?: string;
 
   // día a consultar, formato "YYYY-MM-DD"
   @IsDateString()
@@ -15,4 +16,9 @@ export class GetAvailabilityDto {
   @IsUUID()
   @IsOptional()
   staffId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  requiredDurationMin?: number;
 }

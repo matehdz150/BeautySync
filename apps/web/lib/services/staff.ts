@@ -21,6 +21,33 @@ export type Staff = {
   organizationId: string;
   invited?: boolean;
   services: StaffService[];
+  jobRole?: string;
+};
+
+// lib/services/staff.ts
+
+export type StaffScheduleDTO = {
+  id: number;
+  dayOfWeek: number;   // 0–6
+  startTime: string;   // "09:00"
+  endTime: string;     // "18:00"
+};
+
+export type StaffEditDTO = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone?: string | null;
+  jobRole?: string | null;
+  avatarUrl?: string | null;
+
+  permissionRole: "staff" | "manager";
+
+  schedules: StaffScheduleDTO[];
+
+  services: {
+    serviceId: string;
+  }[];
 };
 
 /* ===== CREATE STAFF (sin usuario aún) ===== */
@@ -29,6 +56,8 @@ export async function createStaff(input: {
   name: string;
   email: string;
   branchId: string;
+  jobRole?: string;
+  avatarUrl?: string | null;
 }) {
   return api<Staff>("/staff", {
     method: "POST",
@@ -71,4 +100,26 @@ export async function getStaffForService(
   }).toString();
 
   return api<Staff[]>(`/staff/for-service?${params}`);
+}
+
+export async function getStaffById(staffId: string) {
+  return api<StaffEditDTO>(`/staff/${staffId}`, {
+    method: "GET",
+  });
+}
+
+export async function updateStaff(
+  staffId: string,
+  input: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    jobRole?: string;
+    avatarUrl?: string | null;
+  }
+) {
+  return api(`/staff/${staffId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }

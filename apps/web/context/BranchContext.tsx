@@ -7,6 +7,8 @@ export type Branch = {
   id: string;
   name: string;
   address?: string | null;
+  lat?: string | null;
+  lng?: string | null;
 };
 
 type BranchCtx = {

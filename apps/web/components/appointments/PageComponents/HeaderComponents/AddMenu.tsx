@@ -17,6 +17,7 @@ import {
   Wallet,
   ChevronDown,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export function AddMenu({
   onAppointment,
@@ -31,11 +32,13 @@ export function AddMenu({
   onSale: () => void;
   onQuickPayment: () => void;
 }) {
+
+  const router = useRouter()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button className="rounded-full px-5 shadow-none">
-          Add
+        <Button className="rounded-full px-5 shadow-none" variant={'primary'}>
+          Agregar
           <ChevronDown className="w-4 h-4 ml-1" />
         </Button>
       </DropdownMenuTrigger>
@@ -47,30 +50,19 @@ export function AddMenu({
       >
         <DropdownMenuItem onClick={onAppointment} className="gap-2 py-2">
           <CalendarPlus className="w-4 h-4" />
-          Appointment
-        </DropdownMenuItem>
-
-        <DropdownMenuItem onClick={onGroupAppointment} className="gap-2 py-2">
-          <Users className="w-4 h-4" />
-          Group appointment
+          Cita
         </DropdownMenuItem>
 
         <DropdownMenuItem onClick={onBlockedTime} className="gap-2 py-2">
           <Lock className="w-4 h-4" />
-          Blocked time
+          Tiempo fuera
         </DropdownMenuItem>
 
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem onClick={onSale} className="gap-2 py-2">
+        <DropdownMenuItem onClick={()=>router.push('/dashboard/order')} className="gap-2 py-2">
           <Tag className="w-4 h-4" />
-          Sale
+          Venta
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={onQuickPayment} className="gap-2 py-2">
-          <Wallet className="w-4 h-4" />
-          Quick payment
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -36,12 +36,36 @@ export class OnboardingService {
       let firstBranchId: string | null = null;
 
       for (const b of dto.branches) {
+        const latProvided = typeof b.lat === 'number';
+        const lngProvided = typeof b.lng === 'number';
+
+        if (latProvided !== lngProvided) {
+          throw new BadRequestException('lat y lng deben venir juntos');
+        }
+
+        const hasCoords = latProvided && lngProvided;
+
+        if (hasCoords) {
+          if (b.lat! < -90 || b.lat! > 90) {
+            throw new BadRequestException('lat inválida');
+          }
+          if (b.lng! < -180 || b.lng! > 180) {
+            throw new BadRequestException('lng inválida');
+          }
+        }
+
         const [branch] = await tx
           .insert(branches)
           .values({
             organizationId: org.id,
             name: b.name,
             address: b.address ?? null,
+
+            lat: hasCoords ? b.lat!.toString() : null,
+            lng: hasCoords ? b.lng!.toString() : null,
+
+            isLocationVerified: hasCoords,
+            locationUpdatedAt: hasCoords ? new Date() : null,
           })
           .returning();
 

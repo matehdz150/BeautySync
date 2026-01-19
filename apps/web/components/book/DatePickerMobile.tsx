@@ -1,0 +1,272 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getPublicAvailableDates } from "@/lib/services/public/availability";
+
+/* =====================
+   TYPES
+===================== */
+
+type Props = {
+  selectedDate?: string;
+  onSelect?: (date: string) => void;
+  requiredDurationMin: number;
+  branchSlug: string;
+  maxMonthsAhead?: number;
+};
+
+type ApiDay = {
+  date: string; // YYYY-MM-DD
+  available: boolean;
+};
+
+/* =====================
+   DATE UTILS
+===================== */
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toISODate(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d: Date, days: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
+function addMonthsClamp(d: Date, months: number) {
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const day = d.getDate();
+
+  const targetMonth = month + months;
+  const first = new Date(year, targetMonth, 1);
+  const lastDay = new Date(year, targetMonth + 1, 0).getDate();
+
+  return new Date(
+    first.getFullYear(),
+    first.getMonth(),
+    Math.min(day, lastDay)
+  );
+}
+
+function getMonthKey(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+}
+
+/* =====================
+   COMPONENT (MOBILE)
+===================== */
+
+export function DatePickerMobile({
+  selectedDate,
+  onSelect,
+  requiredDurationMin,
+  branchSlug,
+  maxMonthsAhead = 2,
+}: Props) {
+  const today = useMemo(() => startOfDay(new Date()), []);
+  const maxDate = useMemo(
+    () => addMonthsClamp(today, maxMonthsAhead),
+    [today, maxMonthsAhead]
+  );
+
+  const [windowStart, setWindowStart] = useState(today);
+  const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+
+  /* =====================
+     FETCH POR MES
+  ===================== */
+
+  const fetchedMonthsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!requiredDurationMin) return;
+
+    const visibleDates = Array.from({ length: 7 }, (_, i) =>
+      addDays(windowStart, i)
+    );
+
+    const monthsToFetch = new Set(visibleDates.map((d) => getMonthKey(d)));
+
+    const missingMonths = Array.from(monthsToFetch).filter(
+      (m) => !fetchedMonthsRef.current.has(m)
+    );
+
+    if (missingMonths.length === 0) return;
+
+    setLoading(true);
+
+    Promise.all(
+      missingMonths.map((month) =>
+        getPublicAvailableDates({
+          slug: branchSlug,
+          requiredDurationMin,
+          month,
+        })
+      )
+    )
+      .then((responses) => {
+        const next = new Set(availableDates);
+
+        responses.flat().forEach((d: ApiDay) => {
+          if (d.available) next.add(d.date);
+        });
+
+        missingMonths.forEach((m) => fetchedMonthsRef.current.add(m));
+        setAvailableDates(next);
+      })
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [windowStart, branchSlug, requiredDurationMin]);
+
+  /* =====================
+     DAYS (7)
+  ===================== */
+
+  const days = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(windowStart, i);
+      const iso = toISODate(date);
+
+      const disabled =
+        date < today || date > maxDate || !availableDates.has(iso);
+
+      return {
+        iso,
+        date,
+        day: date.getDate(),
+        weekday: date.toLocaleDateString("es-MX", { weekday: "short" }),
+        disabled,
+      };
+    });
+  }, [windowStart, today, maxDate, availableDates]);
+
+  /* =====================
+     HEADER
+  ===================== */
+
+  const headerLabel = useMemo(() => {
+    const start = days[0]?.date;
+    const end = days[6]?.date;
+    if (!start || !end) return "";
+
+    const a = start.toLocaleDateString("es-MX", {
+      month: "long",
+      year: "numeric",
+    });
+    const b = end.toLocaleDateString("es-MX", {
+      month: "long",
+      year: "numeric",
+    });
+
+    return a === b ? a : `${a} · ${b}`;
+  }, [days]);
+
+  /* =====================
+     NAV
+  ===================== */
+
+  const canPrev = addDays(windowStart, -7) >= today;
+  const canNext = addDays(windowStart, 7) <= maxDate;
+
+  function goPrev() {
+    if (canPrev) setWindowStart((s) => addDays(s, -7));
+  }
+
+  function goNext() {
+    if (canNext) setWindowStart((s) => addDays(s, 7));
+  }
+
+  /* =====================
+     RENDER
+  ===================== */
+
+  return (
+    <div className="space-y-3">
+      {/* header */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold capitalize truncate">
+            {headerLabel}
+          </p>
+          {loading && (
+            <p className="text-xs text-muted-foreground">Cargando…</p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={goPrev}
+            disabled={!canPrev}
+            className={cn(
+              "h-9 w-9 rounded-full border border-black/10 bg-white flex items-center justify-center",
+              canPrev ? "active:bg-black/[0.04]" : "opacity-40"
+            )}
+            aria-label="Semana anterior"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={goNext}
+            disabled={!canNext}
+            className={cn(
+              "h-9 w-9 rounded-full border border-black/10 bg-white flex items-center justify-center",
+              canNext ? "active:bg-black/[0.04]" : "opacity-40"
+            )}
+            aria-label="Siguiente semana"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* days scroll */}
+      <div className="-mx-4 px-4">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+          {days.map((d) => {
+            const selected = selectedDate === d.iso;
+
+            return (
+              <button
+                key={d.iso}
+                type="button"
+                disabled={d.disabled}
+                onClick={() => onSelect?.(d.iso)}
+                className={cn(
+                  "shrink-0 w-18.5 rounded-full border px-2 py-5 text-center transition",
+                  selected
+                    ? "bg-indigo-500 text-white border-indigo-500"
+                    : "bg-white border-black/10",
+                  !selected && !d.disabled && "active:bg-black/[0.03]",
+                  d.disabled && "opacity-35 cursor-not-allowed"
+                )}
+              >
+                <p className="text-xs capitalize leading-none">
+                  {d.weekday.replace(".", "")}
+                </p>
+                <p className="mt-1 text-lg font-semibold leading-none">
+                  {d.day}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}

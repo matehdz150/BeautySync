@@ -1,5 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
-import { IsString, IsUUID, MinLength, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsUUID,
+  MinLength,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateBranchDto {
   @IsUUID()
@@ -12,4 +21,25 @@ export class CreateBranchDto {
   @IsString()
   @IsOptional()
   address?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number;
 }
+
+export type BranchBasicDto = {
+  id: string;
+  name: string;
+  address: string | null;
+  description: string | null;
+};

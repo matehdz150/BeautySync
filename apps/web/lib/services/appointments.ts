@@ -50,3 +50,36 @@ export async function getAppointmentsByDay(params: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }>(`/appointments?${new URLSearchParams(params as any)}`);
 }
+
+export async function getAppointmentById(id: string) {
+  if (!id) {
+    throw new Error("appointment id is required");
+  }
+
+  return api<{
+    id: string;
+    start: string;
+    end: string;
+    status: string;
+    priceCents: number;
+
+    service: {
+      id: string;
+      name: string;
+      durationMin: number;
+      categoryColor?: string;
+      categoryIcon?: string;
+    };
+
+    client?: {
+      id: string;
+      name: string;
+      email?: string;
+    } | null;
+
+    staff: {
+      id: string;
+      name: string;
+    };
+  }>(`/appointments/${id}`);
+}

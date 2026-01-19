@@ -14,6 +14,7 @@ import { ServicesTable } from "@/components/services/ServicesTable";
 import { Button } from "@/components/ui/button";
 import { SegmentToggle } from "@/components/services/SegmentToggle";
 import { useRouter } from "next/navigation";
+import { EmptyServicesState } from "./EmptyServicesState";
 
 export type Service = {
   id: string;
@@ -76,7 +77,6 @@ export default function ServicesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branch]);
 
-
   const filtered = services.filter((s) => {
     const q = searchQuery.toLowerCase();
     return (
@@ -96,33 +96,41 @@ export default function ServicesPage() {
       </div>
 
       {/* SEARCH */}
-      <div className="flex justify-between">
+      <div className="flex justify-between bg-gray-50 py-5 px-3">
         <SegmentToggle />
 
         <div className="flex gap-2">
           <div className="relative w-70 shadow-none">
             <Search className="absolute left-3 top-4.5 -translate-y-1/2 w-4 h-4" />
             <Input
-              className="pl-10 shadow-none border rounded-2xl"
+              className="pl-10 shadow-none border rounded-2xl bg-white"
               placeholder="Buscar servicios…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button variant="outline" className=" border shadow-none">
+          <Button variant="outline" className=" border shadow-none bg-white">
             Filtros
             <Filter />
           </Button>
 
-          <Button variant={'default'} onClick={()=> router.push("/dashboard/services/serviceaction")} className="shadow-none">
+          <Button
+            variant={"default"}
+            onClick={() => router.push("/dashboard/services/serviceaction")}
+            className="shadow-none"
+          >
             Añadir servicio
-            <Plus/>
+            <Plus />
           </Button>
         </div>
       </div>
 
-      {/* TABLE */}
-      <ServicesTable services={filtered} loading={loading} />
+      {/* CONTENT */}
+      {!loading && services.length === 0 ? (
+        <EmptyServicesState />
+      ) : (
+        <ServicesTable services={filtered} loading={loading} />
+      )}
     </main>
   );
 }

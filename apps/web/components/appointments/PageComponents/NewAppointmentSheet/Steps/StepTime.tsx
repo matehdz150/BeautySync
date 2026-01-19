@@ -11,6 +11,7 @@ import { getAvailability } from "@/lib/services/availability";
 
 import { getBusyRangesForDay, overlaps } from "@/lib/helpers/scheduling";
 import { HorizontalDatePicker } from "./TimeSide/HorizontalDatePicker";
+import { ArrowRight } from "lucide-react";
 
 type Props = {
   onBack: () => void;
@@ -37,7 +38,9 @@ export function StepTime({
     if (!services.length) return undefined;
 
     if (editingServiceId) {
-      return services.find((s) => s.service.id === editingServiceId) ?? services[0];
+      return (
+        services.find((s) => s.service.id === editingServiceId) ?? services[0]
+      );
     }
 
     // flujo normal: primer servicio sin hora, o el primero
@@ -49,10 +52,7 @@ export function StepTime({
 
   // Busy ranges
   const busy = useMemo(() => {
-    return getBusyRangesForDay(
-      services,
-      DateTime.fromJSDate(date).toISODate()
-    );
+    return getBusyRangesForDay(services, DateTime.fromJSDate(date).toISODate());
   }, [services, date]);
 
   // Sincronizar la fecha con la hora del servicio actual (si ya tiene)
@@ -99,7 +99,7 @@ export function StepTime({
           </Button>
 
           <Button disabled onClick={onDone}>
-            Continue
+            Continuar
           </Button>
         </div>
       </div>
@@ -108,14 +108,6 @@ export function StepTime({
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">Services &gt; Time</p>
-
-      <h2 className="text-xl font-semibold">
-        {allSelected && !editingServiceId
-          ? "Confirm schedule"
-          : `Select a time for ${current.service.name}`}
-      </h2>
-
       <>
         {/* SERVICE SWITCHER */}
         <div className="flex gap-2 flex-wrap">
@@ -152,17 +144,17 @@ export function StepTime({
 
         <HorizontalDatePicker value={date} onChange={setDate} />
 
-        <p className="font-medium mt-2">Available times</p>
-
+        <p className="font-medium">Available times</p>
         {loading && (
-          <>
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </>
+          <div className="space-y-2 max-h-[39vh] min-h-[39vh] overflow-y-auto pr-1">
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-md" />
+            ))}
+          </div>
         )}
 
         {!loading && (
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[39vh] min-h-[39vh] overflow-y-auto pr-1">
             {slots.map((iso) => {
               const start = DateTime.fromISO(iso);
               const end = start.plus({
@@ -177,17 +169,15 @@ export function StepTime({
                   type="button"
                   disabled={isBlocked}
                   className={`
-                    w-full px-4 py-3 rounded-md border
-                    ${
-                      isBlocked
-                        ? "opacity-40 cursor-not-allowed"
-                        : "hover:bg-muted"
-                    }
-                  `}
+            w-full px-4 py-3 rounded-md border-2
+            ${
+              isBlocked
+                ? "opacity-40 border-indigo-400"
+                : "hover:border-indigo-400"
+            }
+          `}
                   onClick={() => {
                     if (isBlocked) return;
-
-                    // ✅ solo actualiza la hora, NO auto avanza de servicio
                     updateStartISO(current.service.id, iso);
                   }}
                 >
@@ -217,7 +207,8 @@ export function StepTime({
         </Button>
 
         <Button disabled={!allSelected} onClick={onDone}>
-          Continue
+          Continuar
+          <ArrowRight className="text-white" />
         </Button>
       </div>
     </div>

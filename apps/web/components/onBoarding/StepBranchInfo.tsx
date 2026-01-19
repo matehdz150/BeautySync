@@ -21,6 +21,29 @@ export function StepBranchInfo({
     >
       {/* 🔥 WRAPPER CON ANCHO UNIFICADO */}
       <div className="w-full max-w-xl space-y-8">
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 -top-60 h-125 w-255 -translate-x-1/2 z-0 rounded-full blur-3xl
+             bg-gradient-to-b from-indigo-400/75 via-indigo-400/10 to-transparent"
+          initial={{
+            opacity: 0,
+            scale: 0.92,
+            filter: "blur(90px)",
+          }}
+          animate={{
+            opacity: 1,
+            scale: [1, 1.03, 1],
+            y: [0, 10, 0],
+            filter: ["blur(50px)", "blur(58px)", "blur(50px)"],
+          }}
+          transition={{
+            opacity: { duration: 0.4, ease: "easeOut" },
+            scale: { duration: 0.5, ease: "easeInOut", repeat: Infinity },
+            y: { duration: 0.5, ease: "easeInOut", repeat: Infinity },
+            filter: { duration: 0.5, ease: "easeInOut", repeat: Infinity },
+          }}
+        />
+        
         {/* HEADER */}
         <div className="flex flex-col items-start">
           <p className="text-sm text-gray-500">Sucursal principal</p>
@@ -39,9 +62,7 @@ export function StepBranchInfo({
         {/* FORM */}
         <div className="space-y-4 text-left">
           <div className="space-y-2">
-            <Label className="text-sm font-medium">
-              Nombre de la sucursal
-            </Label>
+            <Label className="text-sm font-medium">Nombre de la sucursal</Label>
 
             <Input
               value={branchName}
@@ -52,9 +73,7 @@ export function StepBranchInfo({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-medium">
-              Dirección (opcional)
-            </Label>
+            <Label className="text-sm font-medium">Dirección</Label>
 
             <Input
               value={branchAddress}
