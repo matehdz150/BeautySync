@@ -116,7 +116,7 @@ export default function PublicBusinessPage() {
   const ratingValue = 5.0;
   const ratingCount = 17;
 
-  const openLabel = "Abierto";
+  const openLabel = "Abierto hasta 20:00";
   const nextOpenLabel = "— abre el miércoles a las 10:00";
 
   console.log(branch);
@@ -126,15 +126,14 @@ export default function PublicBusinessPage() {
       initial="hidden"
       animate="show"
       variants={stagger}
-      className="bg-white"
+      className="bg-transparent"
     >
-      <div className="pointer-events-none absolute left-1/2 -top-100 h-125 w-255 -translate-x-1/2 z-0 bg-gradient-to-b from-indigo-400/55 via-indigo-400/40 to-transparent rounded-full blur-3xl" />
       <input ref={fileRef} type="file" hidden />
 
       {/* =====================
           TOP CONTAINER (WIDER)
       ===================== */}
-      <div className="mx-auto w-full max-w-[1400px] px-8 2xl:px-16 py-5">
+      <div className="mx-auto w-full max-w-380 px-15 2xl:px-18 py-5">
         {/* =====================
             HEADER
         ===================== */}
@@ -145,59 +144,57 @@ export default function PublicBusinessPage() {
                 Establecimiento
               </p>
 
-              <h1 className="mt-3 text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.05]">
+              <h1 className="mt-3 text-5xl sm:text-5xl font-semibold tracking-tight leading-[1.05]">
                 {branch?.name ?? "—"}
               </h1>
 
-              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+              <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <span className="flex items-center gap-1 text-amber-500">
-                    <Star className="w-4 h-4 fill-amber-500" />
-                    <span className="text-black font-medium">
+                    <Star className="w-5 h-5 fill-amber-500" />
+                    <span className="text-black font-semibold text-base">
                       {ratingValue.toFixed(1)}
                     </span>
                   </span>
 
-                  <span className="underline underline-offset-4">
-                    ({ratingCount} reseñas)
+                  <span className="text-lg text-indigo-400">
+                    ({ratingCount})
                   </span>
                 </div>
 
-                <span className="text-black/30">•</span>
+                <span className="text-black text-2xl">• </span>
 
-                <span className="text-black">{openLabel}</span>
+                <span className="text-black text-lg font-light">{openLabel}</span>
 
-                <span className="text-black/30">•</span>
+                <span className="text-black text-2xl">• </span>
 
-                <span className="truncate max-w-[680px]">
+                <span className="truncate max-w-[680px] text-lg font-light">
                   {branch?.address ?? "—"}
                 </span>
 
-                <button
-                  type="button"
-                  className="text-indigo-600 underline underline-offset-4 hover:text-indigo-700 transition"
-                >
-                  Cómo llegar
-                </button>
+ 
               </div>
             </div>
 
             {/* actions */}
             <div className="flex items-center gap-2 shrink-0">
               <Button
-                className="h-11 w-11 rounded-full"
+                className="h-13 w-13 rounded-full shadow-none"
                 variant="outline"
                 aria-label="Compartir"
+                tooltip='Compartir'
               >
-                <Share2 className="w-4 h-4" />
+                <Share2 className="w-6 h-6" />
               </Button>
 
               <Button
-                className="h-11 w-11 rounded-full"
+                className="h-13 w-13 rounded-full shadow-none"
                 variant="outline"
                 aria-label="Favoritos"
+                tooltip='Favoritos'
+                
               >
-                <Heart className="w-4 h-4" />
+                <Heart className="w-6 h-6" />
               </Button>
             </div>
           </div>
@@ -208,7 +205,7 @@ export default function PublicBusinessPage() {
             - Soluciona lo de la "primera imagen"
             - Proporción editorial como referencia
         ===================== */}
-        <motion.section variants={fadeUp} className="mt-10">
+        <motion.section variants={fadeUp} className="mt-5">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
             {/* HERO */}
             <div className="lg:col-span-8">

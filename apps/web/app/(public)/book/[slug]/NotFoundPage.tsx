@@ -13,7 +13,7 @@ const images = [
 
 export default function NotFound() {
   return (
-    <div className="min-h-[80vh] bg-white flex items-center justify-center px-6">
+    <div className="min-h-[80vh] bg-transparent flex items-center justify-center px-6">
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
         {/* ================= TEXT ================= */}
         <motion.div
@@ -47,7 +47,7 @@ export default function NotFound() {
               variant="outline"
               className="rounded-full"
             >
-              <Link href="/explorar">Explorar negocios</Link>
+              <Link href="/explore">Explorar negocios</Link>
             </Button>
           </div>
         </motion.div>

@@ -15,7 +15,7 @@ export function BookingLayoutDesktopShell({
   isContinueDisabled
 }: BookingLayoutRenderProps) {
   return (
-    <div className="min-h-[60vh] bg-white flex flex-col">
+    <div className="min-h-[60vh] bg-transparent flex flex-col">
       {/* HEADER */}
       <div>
         <div className="max-w-[1400px] mx-auto px-6 py-4">

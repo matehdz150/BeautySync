@@ -17,6 +17,7 @@ import {
   appointments,
   branches,
   branchSettings,
+  publicBookings,
   services,
   staff,
 } from 'src/db/schema';
@@ -70,6 +71,7 @@ export class PublicAppointmentsService {
 
     const nowUtc = DateTime.now().toUTC();
 
+    // cursor
     // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
     let cursorUtc: DateTime | null = null;
     if (query.cursor) {
@@ -78,99 +80,88 @@ export class PublicAppointmentsService {
       cursorUtc = parsed;
     }
 
+    // UPCOMING/PAST ahora se basa en publicBookings.startsAt
     const timeFilter =
       tab === 'UPCOMING'
-        ? gte(appointments.start, nowUtc.toJSDate())
-        : lt(appointments.start, nowUtc.toJSDate());
+        ? gte(publicBookings.startsAt, nowUtc.toJSDate())
+        : lt(publicBookings.startsAt, nowUtc.toJSDate());
 
     const cursorFilter =
       cursorUtc && tab === 'UPCOMING'
-        ? gt(appointments.start, cursorUtc.toJSDate())
+        ? gt(publicBookings.startsAt, cursorUtc.toJSDate())
         : cursorUtc && tab === 'PAST'
-          ? lt(appointments.start, cursorUtc.toJSDate())
+          ? lt(publicBookings.startsAt, cursorUtc.toJSDate())
           : undefined;
 
     const where = and(
-      eq(appointments.publicUserId, publicUserId),
+      eq(publicBookings.publicUserId, publicUserId),
       timeFilter,
       cursorFilter,
-      sql`${appointments.publicBookingId} is not null`,
     );
 
-    // ✅ FIX: ORDER BY debe usar un agregado (min(start))
     const orderBy =
       tab === 'PAST'
-        ? desc(sql<Date>`min(${appointments.start})`)
-        : asc(sql<Date>`min(${appointments.start})`);
+        ? desc(publicBookings.startsAt)
+        : asc(publicBookings.startsAt);
 
+    // 1) bookings base
     const bookingRows = await this.db
       .select({
-        bookingId: appointments.publicBookingId,
-        branchId: appointments.branchId,
+        bookingId: publicBookings.id,
+        branchId: publicBookings.branchId,
 
-        startsAt: sql<Date>`min(${appointments.start})`.as('startsAt'),
-        endsAt: sql<Date>`max(${appointments.end})`.as('endsAt'),
+        startsAt: publicBookings.startsAt,
+        endsAt: publicBookings.endsAt,
 
-        itemsCount: sql<number>`count(*)`.as('itemsCount'),
-        totalPriceCents: sql<number | null>`
-        coalesce(sum(${appointments.priceCents}), 0)
-      `.as('totalPriceCents'),
+        status: publicBookings.status,
+        totalCents: publicBookings.totalCents,
       })
-      .from(appointments)
+      .from(publicBookings)
       .where(where)
-      .groupBy(appointments.publicBookingId, appointments.branchId)
       .orderBy(orderBy)
       .limit(limit + 1);
 
     const hasMore = bookingRows.length > limit;
     const slicedBookings = bookingRows.slice(0, limit);
 
-    const bookingIds = slicedBookings
-      .map((b) => b.bookingId)
-      .filter(Boolean) as string[];
-
-    if (bookingIds.length === 0) {
+    if (slicedBookings.length === 0) {
       return { items: [], nextCursor: null };
     }
 
+    const bookingIds = slicedBookings.map((b) => b.bookingId);
+    const branchIds = Array.from(
+      new Set(slicedBookings.map((b) => b.branchId)),
+    );
+
+    // 2) appointments de esos bookings para preview (servicios + staff)
     const appointmentRows = await this.db
       .select({
         bookingId: appointments.publicBookingId,
-        status: appointments.status,
 
-        branchId: appointments.branchId,
-        branchName: branches.name,
-        branchSlug: branches.publicSlug,
+        serviceId: services.id,
+        serviceName: services.name,
 
         staffId: staff.id,
         staffName: staff.name,
         staffAvatarUrl: staff.avatarUrl,
 
-        serviceId: services.id,
-        serviceName: services.name,
-
         start: appointments.start,
-        end: appointments.end,
-        priceCents: appointments.priceCents,
       })
       .from(appointments)
-      .innerJoin(branches, eq(branches.id, appointments.branchId))
-      .innerJoin(staff, eq(staff.id, appointments.staffId))
       .innerJoin(services, eq(services.id, appointments.serviceId))
+      .innerJoin(staff, eq(staff.id, appointments.staffId))
       .where(inArray(appointments.publicBookingId, bookingIds))
       .orderBy(asc(appointments.start));
 
-    const branchIds = Array.from(
-      new Set(slicedBookings.map((b) => b.branchId)),
-    );
-
+    // 3) branches + cover
     const branchesWithImages = await this.db.query.branches.findMany({
       where: inArray(branches.id, branchIds),
       with: { images: true },
     });
 
-    const coverByBranchId = new Map<string, string | null>();
+    const branchMap = new Map(branchesWithImages.map((b) => [b.id, b]));
 
+    const coverByBranchId = new Map<string, string | null>();
     for (const b of branchesWithImages) {
       const cover =
         b.images?.find((img) => img.isCover)?.url ?? b.images?.[0]?.url ?? null;
@@ -178,37 +169,21 @@ export class PublicAppointmentsService {
       coverByBranchId.set(b.id, cover);
     }
 
-    const map = new Map<string, typeof appointmentRows>();
-
+    // 4) agrupar appointments por bookingId
+    const rowsByBookingId = new Map<string, typeof appointmentRows>();
     for (const row of appointmentRows) {
       const id = row.bookingId;
       if (!id) continue;
-      if (!map.has(id)) map.set(id, []);
-      map.get(id)!.push(row);
+      if (!rowsByBookingId.has(id)) rowsByBookingId.set(id, []);
+      rowsByBookingId.get(id)!.push(row);
     }
 
+    // 5) armar respuesta final
     const items: PublicBookingListItem[] = slicedBookings.map((b) => {
-      const bookingId = b.bookingId as string;
-      const rows = map.get(bookingId) ?? [];
+      const bookingId = b.bookingId;
+      const rows = rowsByBookingId.get(bookingId) ?? [];
 
-      const first = rows[0];
-
-      const branchSlug = first?.branchSlug ?? '';
-      const branchName = first?.branchName ?? 'Sucursal';
-
-      const statusPriority = (s: string) => {
-        if (s === 'CONFIRMED') return 4;
-        if (s === 'PENDING') return 3;
-        if (s === 'COMPLETED') return 2;
-        if (s === 'CANCELLED') return 1;
-        return 0;
-      };
-
-      const status =
-        rows
-          .map((r) => r.status)
-          .sort((a, z) => statusPriority(z) - statusPriority(a))[0] ??
-        'PENDING';
+      const branch = branchMap.get(b.branchId);
 
       const uniqueServices = new Map<string, { id: string; name: string }>();
       const uniqueStaff = new Map<
@@ -231,19 +206,24 @@ export class PublicAppointmentsService {
       return {
         bookingId,
 
-        status,
+        // 👇 status ahora viene directo del booking (mejor)
+        status: b.status ?? 'PENDING',
+
         startsAtISO: new Date(b.startsAt).toISOString(),
         endsAtISO: new Date(b.endsAt).toISOString(),
 
         branch: {
           id: b.branchId,
-          name: branchName,
-          slug: branchSlug,
+          name: branch?.name ?? 'Sucursal',
+          slug: branch?.publicSlug ?? '',
           coverUrl: coverByBranchId.get(b.branchId) ?? null,
         },
 
-        totalPriceCents: b.totalPriceCents ?? null,
-        itemsCount: Number(b.itemsCount ?? 1),
+        // 👇 total ya viene del booking
+        totalPriceCents: b.totalCents ?? 0,
+
+        // 👇 itemsCount ya no lo trae booking (pero lo podemos calcular)
+        itemsCount: rows.length || 1,
 
         servicesPreview: Array.from(uniqueServices.values()).slice(0, 3),
         staffPreview: Array.from(uniqueStaff.values()).slice(0, 3),
@@ -266,23 +246,19 @@ export class PublicAppointmentsService {
     if (!publicUserId) throw new ForbiddenException('Not authenticated');
     if (!bookingId) throw new BadRequestException('bookingId is required');
 
-    // 1) traer appointments del booking
-    const rows = await this.db.query.appointments.findMany({
-      where: eq(appointments.publicBookingId, bookingId),
+    // 1) booking (source of truth)
+    const booking = await this.db.query.publicBookings.findFirst({
+      where: and(
+        eq(publicBookings.id, bookingId),
+        eq(publicBookings.publicUserId, publicUserId),
+      ),
     });
 
-    if (!rows.length) throw new NotFoundException('Booking not found');
+    if (!booking) throw new NotFoundException('Booking not found');
 
-    // 2) ownership check
-    if (rows.some((r) => r.publicUserId !== publicUserId)) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    // 3) branch
-    const branchId = rows[0].branchId;
-
+    // 2) branch
     const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.id, branchId),
+      where: eq(branches.id, booking.branchId),
       with: { images: true },
     });
 
@@ -291,12 +267,19 @@ export class PublicAppointmentsService {
       throw new ForbiddenException('Branch is not public');
     }
 
-    // 4) timezone
+    // 3) timezone
     const settings = await this.db.query.branchSettings.findFirst({
       where: eq(branchSettings.branchId, branch.id),
     });
 
     const tz = settings?.timezone ?? 'America/Mexico_City';
+
+    // 4) appointments del booking
+    const rows = await this.db.query.appointments.findMany({
+      where: eq(appointments.publicBookingId, bookingId),
+    });
+
+    if (!rows.length) throw new NotFoundException('Booking not found');
 
     // 5) load service + staff maps
     const serviceIds = Array.from(new Set(rows.map((r) => r.serviceId)));
@@ -340,7 +323,7 @@ export class PublicAppointmentsService {
 
         startIso: startUtc.setZone(tz).toISO()!,
         endIso: endUtc.setZone(tz).toISO()!,
-  
+
         durationMin: Math.round(endUtc.diff(startUtc, 'minutes').minutes),
 
         priceCents: a.priceCents ?? srv?.priceCents ?? 0,
@@ -365,20 +348,16 @@ export class PublicAppointmentsService {
     });
 
     // 9) totals + date
-    const totalCents = appointmentPayload.reduce(
-      (acc, x) => acc + (x.priceCents ?? 0),
-      0,
-    );
+    // 🔥 ya no dependemos de appointments para total/date, usamos booking
+    const totalCents = booking.totalCents ?? 0;
 
-    const firstStartDate = DateTime.fromJSDate(ordered[0].start, {
+    const firstStartDate = DateTime.fromJSDate(booking.startsAt, {
       zone: 'utc',
     })
       .setZone(tz)
       .toISODate();
 
-    const paymentMethod = ordered.some((a) => a.paymentStatus === 'PAID')
-      ? 'ONLINE'
-      : 'ONSITE';
+    const paymentMethod = booking.paymentMethod ?? 'ONSITE';
 
     return {
       ok: true,
@@ -395,7 +374,7 @@ export class PublicAppointmentsService {
 
         date: firstStartDate,
         paymentMethod,
-        notes: ordered[0].notes ?? null,
+        notes: booking.notes ?? null,
 
         totalCents,
         appointments: appointmentPayload,

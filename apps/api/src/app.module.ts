@@ -21,9 +21,36 @@ import { UploadsModule } from './uploads/uploads.module';
 import { PublicPresenceModule } from './public-presence/public-presence.module';
 import { PublicModule } from './public/public.module';
 import { IaModule } from './ia/ia.module';
+import { RedisModule } from './queues/redis/redis.module';
+import { QueuesModule } from './queues/queues.module';
+import { AvailabilityChainModule } from './core/availability-chain/availability-chain.module';
 
 @Module({
-  imports: [DbModule, UsersModule, OrganizationsModule, BranchesModule, StaffModule, StaffSchedulesModule, StaffTimeOffModule, AvailabilityModule, AppointmentsModule, ClientsModule, ServiceCategoriesModule, ServicesModule, StaffServicesModule, AuthModule, OnboardingModule, PaymentsModule, UploadsModule, PublicPresenceModule, PublicModule, IaModule],
+  imports: [
+    DbModule,
+    UsersModule,
+    OrganizationsModule,
+    BranchesModule,
+    StaffModule,
+    StaffSchedulesModule,
+    StaffTimeOffModule,
+    AvailabilityModule,
+    AppointmentsModule,
+    ClientsModule,
+    ServiceCategoriesModule,
+    ServicesModule,
+    StaffServicesModule,
+    AuthModule,
+    OnboardingModule,
+    PaymentsModule,
+    UploadsModule,
+    PublicPresenceModule,
+    PublicModule,
+    IaModule,
+    RedisModule,
+    QueuesModule,
+    AvailabilityChainModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

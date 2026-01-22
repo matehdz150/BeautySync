@@ -14,8 +14,8 @@ export default function SidebarLayout({
       <AppSidebar />
 
       {/* TODO el contenido que debe ajustarse va aquí */}
-      <SidebarInset className="flex flex-col h-screen bg-transparent pt-3 pl-6 z-10">
-        <div className="bg-white rounded-xl rounded-r-none rounded-bl-none border w-full flex flex-col overflow-hidden h-full">
+      <SidebarInset className="flex flex-col h-screen pt-3 pl-6 bg-[#111113] ">
+        <div className="bg-white rounded-xl rounded-r-none rounded-bl-none border w-full flex flex-col overflow-hidden h-full z-50">
           <Navbar />
 
           {/* Este main ya sí tiene un contenedor padre de altura fija */}

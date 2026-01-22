@@ -236,8 +236,8 @@ export function DatePicker({
               disabled={d.disabled}
               onClick={() => onSelect?.(d.iso)}
               className={cn(
-                "min-w-28 min-h-28 rounded-full border text-center transition",
-                selected && "bg-indigo-500 text-white border-indigo-500",
+                "min-w-28 min-h-28 rounded-full border text-center transition bg-white",
+                selected && "bg-indigo-400 text-white border-indigo-400",
                 !selected && !d.disabled && "hover:bg-gray-100",
                 d.disabled && "opacity-40 cursor-not-allowed"
               )}

@@ -118,7 +118,7 @@ export function TimeSlots() {
                   "relative rounded-xl border px-3 py-4 text-sm font-medium transition",
                   "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/10",
                   selected
-                    ? "bg-indigo-500 text-white border-indigo-500"
+                    ? "bg-indigo-400 text-white border-indigo-400"
                     : "bg-white hover:bg-black/[0.02] border-black/10"
                 )}
               >

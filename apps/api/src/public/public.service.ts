@@ -18,6 +18,7 @@ import {
   branches,
   branchSettings,
   clients,
+  publicBookings,
   publicUserClients,
   publicUsers,
   serviceCategories,
@@ -29,12 +30,14 @@ import { DateTime } from 'luxon';
 import { AvailabilityService } from '../availability/availability.service';
 import { CreatePublicBookingDto } from './dto/create-booking-public.dto';
 import { randomUUID } from 'crypto';
+import { PublicBookingJobsService } from 'src/queues/booking/public-booking-job.service';
 
 @Injectable()
 export class PublicService {
   constructor(
     @Inject('DB') private db: client.DB,
     private readonly availabilityService: AvailabilityService,
+    private readonly publicBookingJobsService: PublicBookingJobsService,
   ) {}
   async getServicesByBranchSlug(slug: string) {
     if (!slug) throw new NotFoundException('Branch not found');
@@ -672,26 +675,21 @@ export class PublicService {
 
   async createPublicBooking(dto: CreatePublicBookingDto, publicUserId: string) {
     async function getOrCreateClientForPublicUser(params: {
-      tx: any; // drizzle tx
+      tx: any;
       publicUser: typeof publicUsers.$inferSelect;
       branch: typeof branches.$inferSelect;
     }) {
       const { tx, publicUser, branch } = params;
 
-      // 1) buscar si ya hay client ligado a este publicUser EN ESTA ORG
       const existingLink = await tx.query.publicUserClients.findFirst({
         where: eq(publicUserClients.publicUserId, publicUser.id),
-        with: {
-          client: true,
-        },
+        with: { client: true },
       });
 
-      // OJO: eso trae cualquier client, pero tú necesitas que sea de la misma org
       if (existingLink?.client?.organizationId === branch.organizationId) {
         return existingLink.client.id;
       }
 
-      // 2) si no hay link válido para esta org, creamos client
       const [createdClient] = await tx
         .insert(clients)
         .values({
@@ -703,7 +701,6 @@ export class PublicService {
         })
         .returning({ id: clients.id });
 
-      // 3) ligamos publicUser <-> client
       await tx.insert(publicUserClients).values({
         publicUserId: publicUser.id,
         clientId: createdClient.id,
@@ -711,6 +708,7 @@ export class PublicService {
 
       return createdClient.id;
     }
+
     const { branchSlug, appointments: drafts } = dto;
 
     if (!drafts?.length) {
@@ -726,23 +724,21 @@ export class PublicService {
     }
 
     if (!publicUser.phoneE164 || publicUser.phoneE164.trim().length < 8) {
-      // 🔥 aquí lo bloqueas
       throw new ForbiddenException({
         code: 'PHONE_REQUIRED',
         message: 'Phone number is required to create an appointment',
       });
     }
 
-    // 1) branch por slug
     const branch = await this.db.query.branches.findFirst({
       where: eq(branches.publicSlug, branchSlug),
     });
 
     if (!branch) throw new NotFoundException('Branch not found');
-    if (!branch.publicPresenceEnabled)
+    if (!branch.publicPresenceEnabled) {
       throw new ForbiddenException('Branch is not public');
+    }
 
-    // 2) settings (timezone + buffers)
     const settings = await this.db.query.branchSettings.findFirst({
       where: eq(branchSettings.branchId, branch.id),
     });
@@ -753,17 +749,14 @@ export class PublicService {
 
     const BLOCK_MINUTES = 15;
 
-    // 3) Validación rápida: staffId no puede ser ANY aquí
     if (drafts.some((a) => a.staffId === 'ANY')) {
       throw new BadRequestException(
         'staffId cannot be ANY in final booking payload',
       );
     }
 
-    // ✅ bookingId para agrupar TODO
     const bookingId = randomUUID();
 
-    // 4) Construimos appointments "reales" (start/end UTC)
     const normalized = await Promise.all(
       drafts.map(async (a) => {
         const service = await this.db.query.services.findFirst({
@@ -778,7 +771,6 @@ export class PublicService {
           throw new BadRequestException(`Service not found: ${a.serviceId}`);
         }
 
-        // start viene en local ISO con offset (-06:00), lo parseamos respetando offset
         const startLocal = DateTime.fromISO(a.startIso).set({
           millisecond: 0,
           second: 0,
@@ -788,7 +780,6 @@ export class PublicService {
           throw new BadRequestException('Invalid startIso');
         }
 
-        // Validación: debe pertenecer al date del payload (en TZ del branch)
         const startInBranchTz = startLocal.setZone(tz);
         if (startInBranchTz.toISODate() !== dto.date) {
           throw new BadRequestException(
@@ -796,12 +787,10 @@ export class PublicService {
           );
         }
 
-        // duración real con buffers
         const totalMinutes = service.durationMin + bufferBefore + bufferAfter;
         const roundedMinutes =
           Math.ceil(totalMinutes / BLOCK_MINUTES) * BLOCK_MINUTES;
 
-        // convertimos a UTC (source of truth)
         const startUtc = startLocal.toUTC();
         const endUtc = startUtc.plus({ minutes: roundedMinutes }).set({
           millisecond: 0,
@@ -809,7 +798,7 @@ export class PublicService {
         });
 
         return {
-          publicBookingId: bookingId, // ✅
+          publicBookingId: bookingId,
           branchId: branch.id,
           serviceId: service.id,
           staffId: a.staffId,
@@ -821,12 +810,10 @@ export class PublicService {
       }),
     );
 
-    // 5) Ordenar por start (por si vienen desordenados)
     normalized.sort((x, y) =>
       x.startUtc.toISO()!.localeCompare(y.startUtc.toISO()),
     );
 
-    // 6) Validación: deben ser consecutivos (chain)
     for (let i = 1; i < normalized.length; i++) {
       const prev = normalized[i - 1];
       const curr = normalized[i];
@@ -838,16 +825,24 @@ export class PublicService {
       }
     }
 
-    // 7) Transacción + overlap defense
-    return this.db.transaction(async (tx) => {
-      // 🔥 7.1 resolver clientId para esta organización
+    const bookingStartsAtUtc = normalized[0].startUtc.toJSDate();
+    const bookingEndsAtUtc =
+      normalized[normalized.length - 1].endUtc.toJSDate();
+    const bookingTotalCents = normalized.reduce(
+      (acc, a) => acc + (a.priceCents ?? 0),
+      0,
+    );
+
+    // =========================
+    // ✅ TRANSACTION (DB ONLY)
+    // =========================
+    const result = await this.db.transaction(async (tx) => {
       const clientId = await getOrCreateClientForPublicUser({
         tx,
         publicUser,
         branch,
       });
 
-      // 7.2 overlap defense igual
       for (const a of normalized) {
         const overlapping = await tx
           .select()
@@ -866,7 +861,18 @@ export class PublicService {
         }
       }
 
-      // 7.3 crear appointments YA ligados
+      await tx.insert(publicBookings).values({
+        id: bookingId,
+        branchId: branch.id,
+        publicUserId,
+        startsAt: bookingStartsAtUtc,
+        endsAt: bookingEndsAtUtc,
+        status: 'CONFIRMED',
+        paymentMethod: (dto.paymentMethod ?? 'ONSITE') as 'ONSITE' | 'ONLINE',
+        totalCents: bookingTotalCents,
+        notes: dto.notes ?? null,
+      });
+
       const created = await Promise.all(
         normalized.map(async (a) => {
           const [row] = await tx
@@ -874,7 +880,7 @@ export class PublicService {
             .values({
               publicBookingId: a.publicBookingId,
               publicUserId,
-              clientId, // ✅ YA NO NULL
+              clientId,
               branchId: a.branchId,
               staffId: a.staffId,
               serviceId: a.serviceId,
@@ -905,10 +911,21 @@ export class PublicService {
         paymentMethod: dto.paymentMethod,
         discountCode: dto.discountCode ?? null,
         notes: dto.notes ?? null,
-        clientId, // 🔥 útil para el front
+        clientId,
         appointments: created,
       };
     });
+
+    // =========================
+    // ✅ OUTSIDE TRANSACTION
+    // =========================
+    await this.publicBookingJobsService.scheduleBookingLifecycle({
+      bookingId,
+      startsAtUtc: bookingStartsAtUtc,
+      endsAtUtc: bookingEndsAtUtc,
+    });
+
+    return result;
   }
 
   async getPublicBookingById(params: {
@@ -920,7 +937,20 @@ export class PublicService {
     if (!bookingId) throw new BadRequestException('bookingId is required');
     if (!publicUserId) throw new ForbiddenException('Not authenticated');
 
-    // 1) Buscar appointment(s) por publicBookingId
+    // ✅ 0) Traer booking (source of truth)
+    const booking = await this.db.query.publicBookings.findFirst({
+      where: and(
+        eq(publicBookings.id, bookingId),
+        eq(publicBookings.publicUserId, publicUserId),
+      ),
+    });
+
+    if (!booking) {
+      // same message para no filtrar info
+      throw new NotFoundException('Booking not found');
+    }
+
+    // 1) Traer appointments del booking
     const rows = await this.db.query.appointments.findMany({
       where: eq(appointments.publicBookingId, bookingId),
     });
@@ -929,18 +959,15 @@ export class PublicService {
       throw new NotFoundException('Booking not found');
     }
 
+    // (defensivo) ownership check extra
     if (rows.some((r) => r.publicUserId !== publicUserId)) {
       throw new NotFoundException('Booking not found');
     }
 
-    // 2) branch
-    const branchId = rows[0].branchId;
-
+    // 2) Branch
     const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.id, branchId),
-      with: {
-        images: true,
-      },
+      where: eq(branches.id, booking.branchId),
+      with: { images: true },
     });
 
     if (!branch) throw new NotFoundException('Branch not found');
@@ -948,7 +975,7 @@ export class PublicService {
       throw new ForbiddenException('Branch is not public');
     }
 
-    // 3) settings (timezone)
+    // 3) Settings (timezone)
     const settings = await this.db.query.branchSettings.findFirst({
       where: eq(branchSettings.branchId, branch.id),
     });
@@ -970,14 +997,14 @@ export class PublicService {
     const servicesMap = new Map(servicesRows.map((s) => [s.id, s]));
     const staffMap = new Map(staffRows.map((s) => [s.id, s]));
 
-    // 5) ordenar por start
+    // 5) ordenar appointments por start
     const ordered = [...rows].sort((a, b) => {
       const aIso = new Date(a.start).toISOString();
       const bIso = new Date(b.start).toISOString();
       return aIso.localeCompare(bIso);
     });
 
-    // 6) construir response appointments (con ISO local en tz)
+    // 6) construir payload appointments (con ISO local en tz)
     const appointmentPayload = ordered.map((a) => {
       const srv = servicesMap.get(a.serviceId);
       const st = staffMap.get(a.staffId);
@@ -987,6 +1014,7 @@ export class PublicService {
 
       return {
         id: a.id,
+        status: a.status,
 
         startIso: startUtc.setZone(tz).toISO()!,
         endIso: endUtc.setZone(tz).toISO()!,
@@ -1008,50 +1036,50 @@ export class PublicService {
             }
           : {
               id: a.staffId,
-              name: a.staffId,
+              name: 'Staff',
               avatarUrl: null,
             },
       };
     });
 
-    // 7) total + date (date local en tz del primer appointment)
-    const totalCents = appointmentPayload.reduce(
-      (acc, x) => acc + (x.priceCents ?? 0),
-      0,
-    );
-
-    const firstStart = DateTime.fromJSDate(ordered[0].start, { zone: 'utc' })
-      .setZone(tz)
-      .toISODate();
-
-    // 8) paymentMethod: si hay alguno PAID -> ONLINE, si no ONSITE
-    // (puedes ajustar lógica si quieres)
-    const paymentMethod = ordered.some((a) => a.paymentStatus === 'PAID')
-      ? 'ONLINE'
-      : 'ONSITE';
-
+    // 7) cover
     const coverUrl =
       branch.images?.find((img) => img.isCover)?.url ??
       branch.images?.[0]?.url ??
       null;
+
+    // 8) date del booking usando startsAt del booking (source of truth)
+    const bookingDate = DateTime.fromJSDate(booking.startsAt, { zone: 'utc' })
+      .setZone(tz)
+      .toISODate();
 
     return {
       ok: true,
       booking: {
         id: bookingId,
 
+        status: booking.status, // ✅ viene de public_bookings
+        startsAtISO: DateTime.fromJSDate(booking.startsAt, {
+          zone: 'utc',
+        }).toISO()!,
+        endsAtISO: DateTime.fromJSDate(booking.endsAt, {
+          zone: 'utc',
+        }).toISO()!,
+
         branch: {
+          id: branch.id,
           slug: branch.publicSlug,
           name: branch.name,
           address: branch.address ?? '',
           imageUrl: coverUrl,
         },
 
-        date: firstStart,
-        paymentMethod,
-        notes: ordered[0].notes ?? null,
+        date: bookingDate,
 
-        totalCents,
+        paymentMethod: booking.paymentMethod, // ✅ source of truth
+        notes: booking.notes ?? null, // ✅ source of truth
+
+        totalCents: booking.totalCents, // ✅ source of truth
         appointments: appointmentPayload,
       },
     };

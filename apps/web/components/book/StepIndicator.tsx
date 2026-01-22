@@ -11,7 +11,7 @@ export function BookingStepIndicator() {
   const { step } = usePublicBooking();
 
   return (
-    <div className="w-full px-6 pt-4">
+    <div className="w-full pt-4">
       <div className="flex gap-2 items-center">
         {Array.from({ length: TOTAL_STEPS }).map((_, i) => {
           const active = i + 1 <= step;

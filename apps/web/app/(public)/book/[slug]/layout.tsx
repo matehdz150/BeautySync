@@ -11,10 +11,10 @@ export default function PublicBranchLayout({
 }) {
   return (
     <PublicBookingProvider>
-      <div className="h-dvh flex flex-col bg-white w-full">
+      <div className="h-dvh flex flex-col bg-gray-50 w-full">
         <PublicHeader />
 
-        <main className="flex-1 overflow-y-auto w-full px-0 lg:px-10">
+        <main className="flex-1 overflow-y-auto w-full px-0 lg:px-0">
           {children}
         </main>
       </div>

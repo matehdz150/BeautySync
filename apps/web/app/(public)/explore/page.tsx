@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Search, ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchWithDropdown } from "@/components/Explore/SearchWithDrpdown";
 
@@ -23,9 +22,14 @@ export default function PublicLandingPage() {
   }
 
   return (
-    <div className="relative min-h-[calc(100dvh-80px)] bg-transparent">
+    <div className="relative min-h-[calc(100dvh-80px)] bg-transparent overflow-hidden">
+      {/* BACKGROUND BLUR (SIEMPRE DETRÁS) */}
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <div className="absolute left-9/12 top-80 h-355 w-255 -translate-x-1/2 rounded-full blur-3xl bg-gradient-to-b from-indigo-400/85 via-indigo-400/20 to-transparent" />
+      </div>
 
-      <div className="mx-auto w-full max-w-[1100px] px-6 py-16">
+      {/* CONTENT (ENCIMA DEL BLUR) */}
+      <div className="relative z-10 mx-auto w-full py-16">
         {/* HERO */}
         <motion.div
           variants={fadeUp}
@@ -33,25 +37,21 @@ export default function PublicLandingPage() {
           animate="show"
           className="text-center"
         >
-          <p className="text-xs tracking-[0.22em] uppercase text-muted-foreground">
-            BeautySync — momentos que sí se cumplen
-          </p>
-
           <h1 className="mt-5 text-5xl sm:text-6xl font-semibold tracking-tight leading-[1.05]">
-            Reserva tu momento
+            Encuentra tu lugar favorito
             <br />
             <span className="inline-flex items-center justify-center gap-2">
-              sin pensarlo tanto <Sparkles className="w-6 h-6 text-black/70" />
+              y reserva al instante
             </span>
           </h1>
 
           <p className="mt-5 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            No estás buscando “un servicio”.
+            Explora establecimientos cerca, mira servicios y precios,
             <span className="text-black font-medium">
               {" "}
-              Estás buscando sentirte bien.
+              y aparta tu cita en segundos.
             </span>{" "}
-            Encuentra el lugar perfecto y confirma en minutos.
+            Sin intermediarios.
           </p>
         </motion.div>
 
@@ -62,8 +62,8 @@ export default function PublicLandingPage() {
           animate="show"
           className="mt-10"
         >
-          <div className="mx-auto max-w-[860px]">
-            <SearchWithDropdown/>
+          <div className="relative mx-auto max-w-[860px]">
+            <SearchWithDropdown />
 
             {/* MICRO TRUST LINE */}
             <div className="mt-5 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
@@ -74,11 +74,26 @@ export default function PublicLandingPage() {
 
             {/* MINI “PROMPT IDEAS” */}
             <div className="mt-6 flex flex-wrap justify-center gap-2">
-              <QuickChip label="Barbería cerca" onClick={() => setQuery("barbería cerca")} />
-              <QuickChip label="Corte ejecutivo" onClick={() => setQuery("corte ejecutivo")} />
-              <QuickChip label="Uñas gel" onClick={() => setQuery("uñas gel")} />
-              <QuickChip label="Facial glow" onClick={() => setQuery("facial glow")} />
-              <QuickChip label="Spa para resetear" onClick={() => setQuery("spa")} />
+              <QuickChip
+                label="Barbería cerca"
+                onClick={() => setQuery("barbería cerca")}
+              />
+              <QuickChip
+                label="Corte ejecutivo"
+                onClick={() => setQuery("corte ejecutivo")}
+              />
+              <QuickChip
+                label="Uñas gel"
+                onClick={() => setQuery("uñas gel")}
+              />
+              <QuickChip
+                label="Facial glow"
+                onClick={() => setQuery("facial glow")}
+              />
+              <QuickChip
+                label="Spa para resetear"
+                onClick={() => setQuery("spa")}
+              />
             </div>
           </div>
         </motion.div>
@@ -98,7 +113,7 @@ function QuickChip({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full border border-black/10 bg-white/70 backdrop-blur px-4 py-2 text-xs text-muted-foreground hover:text-black transition"
+      className="rounded-full border border-black/10 bg-white backdrop-blur px-4 py-2 text-xs text-muted-foreground hover:text-black transition"
     >
       {label}
     </button>
