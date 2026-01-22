@@ -18,6 +18,7 @@ import {
   CreditCard,
   StickyNote,
   CircleCheck,
+  CheckCheck,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -131,7 +132,7 @@ function statusBadge(status: BookingStatus) {
     case "CONFIRMED":
       return {
         label: "Confirmado",
-        className: "bg-emerald-600 text-white",
+        className: "bg-indigo-400 text-white",
         icon: <CircleCheck className="h-4 w-4" />,
       };
     case "PENDING":
@@ -149,8 +150,8 @@ function statusBadge(status: BookingStatus) {
     case "COMPLETED":
       return {
         label: "Completado",
-        className: "bg-indigo-600 text-white",
-        icon: <Sparkles className="h-4 w-4" />,
+        className: "bg-lime-700 text-white",
+        icon: <CheckCheck className="h-4 w-4" />,
       };
     case "NO_SHOW":
       return {
@@ -320,6 +321,8 @@ export default function BookingDetailPage() {
   function handleClose() {
     router.push("/me/bookings");
   }
+
+  console.log(booking)
 
   if (loading) {
     return (

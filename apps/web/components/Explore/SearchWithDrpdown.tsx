@@ -70,7 +70,7 @@ export function SearchWithDropdown() {
         {/* Trigger estable */}
         <div
           className={cn(
-            "rounded-full border border-black/10 bg-white transition cursor-text",
+            "rounded-full border border-black/10 bg-white transition cursor-text z-50",
             "hover:shadow-md",
             "focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:border-indigo-500/20"
           )}
@@ -89,7 +89,7 @@ export function SearchWithDropdown() {
                 }}
                 onFocus={() => setOpen(true)}
                 placeholder={placeholder}
-                className="w-full bg-transparent outline-none text-base placeholder:text-black/30"
+                className="w-full bg-hwite outline-none text-base placeholder:text-black/30 "
               />
             </div>
 

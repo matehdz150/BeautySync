@@ -33,7 +33,7 @@ export function BookingLayoutMobileShell({
 
       {/* BOTTOM BAR FIXED */}
       {!isConfirmStep && (
-        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-black/10 bg-white/95 backdrop-blur-md">
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-black/10 bg-white backdrop-blur-md">
           <div className="px-4 pt-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">

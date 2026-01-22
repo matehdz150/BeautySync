@@ -168,26 +168,6 @@ export default function PublicStaffDesktopPage() {
   ===================== */
   return (
     <div className="space-y-10 relative">
-      {/* glow */}
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 -top-60 h-125 w-255 -translate-x-1/2 z-0 rounded-full blur-3xl
-             bg-gradient-to-b from-indigo-400/75 via-indigo-400/10 to-transparent"
-        initial={{ opacity: 0, scale: 0.92, filter: "blur(90px)" }}
-        animate={{
-          opacity: 1,
-          scale: [1, 1.03, 1],
-          y: [0, 10, 0],
-          filter: ["blur(50px)", "blur(58px)", "blur(50px)"],
-        }}
-        transition={{
-          opacity: { duration: 1.4, ease: "easeOut" },
-          scale: { duration: 1.5, ease: "easeInOut", repeat: Infinity },
-          y: { duration: 1.5, ease: "easeInOut", repeat: Infinity },
-          filter: { duration: 1.5, ease: "easeInOut", repeat: Infinity },
-        }}
-      />
-
       <motion.div
         aria-hidden
         className="pointer-events-none absolute left-7/12 top-160 h-125 w-255 -translate-x-1/2 z-0 rounded-full blur-3xl

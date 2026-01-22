@@ -1,20 +1,16 @@
-import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
+import { Global, Module } from '@nestjs/common';
+import type { Redis } from 'ioredis';
+import { createBookingQueue } from './booking/booking.queue';
 
-import { AppointmentsQueueModule } from './appointments/appointments-queue.module';
-
+@Global()
 @Module({
-  imports: [
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST ?? 'localhost',
-        port: Number(process.env.REDIS_PORT ?? 6379),
-        password: process.env.REDIS_PASSWORD,
-      },
-    }),
-
-    AppointmentsQueueModule,
+  providers: [
+    {
+      provide: 'BOOKING_QUEUE',
+      inject: ['REDIS'],
+      useFactory: (redis: Redis) => createBookingQueue(redis),
+    },
   ],
+  exports: ['BOOKING_QUEUE'],
 })
 export class QueuesModule {}

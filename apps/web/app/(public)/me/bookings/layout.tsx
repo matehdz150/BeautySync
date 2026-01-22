@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { getMyPublicAppointments } from "@/lib/services/public/me/appointments";
+import { motion } from "framer-motion";
 
 type BookingStatus =
   | "CONFIRMED"
@@ -168,8 +169,8 @@ export default function BookingsLayout({
     // DETAIL
     if (isDetailRoute) {
       return (
-        <div className="min-h-screen bg-white">
-          <div className="sticky top-0 z-20 border-b border-black/5 bg-white/90 backdrop-blur">
+        <div className="min-h-screen bg-transparent">
+          <div className="sticky top-0 z-20 border-b border-black/5 bg-transparent backdrop-blur">
             <div className="flex items-center gap-2 px-4 py-3">
               <Button
                 type="button"
@@ -191,7 +192,7 @@ export default function BookingsLayout({
           </div>
 
           <div className="px-3 pb-6 pt-3">
-            <div className="overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-[28px] border border-black/5 bg-transparent shadow-sm">
               {children}
             </div>
           </div>
@@ -201,7 +202,7 @@ export default function BookingsLayout({
 
     // LIST
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-transparent">
         <div className="px-4 pt-5">
           <p className="text-2xl font-semibold tracking-tight">Citas</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -423,7 +424,7 @@ function BookingRowMobile({ booking }: { booking: Booking }) {
     <Link
       href={`/me/bookings/${booking.id}`}
       className={cn(
-        "group block overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm",
+        "group block overflow-hidden rounded-2xl border border-black/5 bg-white",
         "active:scale-[0.99] transition"
       )}
     >
@@ -572,26 +573,37 @@ function SegmentedToggle({
   pastCount: number;
 }) {
   return (
-    <div className="rounded-full bg-gray-50 p-1">
-      <div className="grid grid-cols-2 gap-1">
+    <div className="rounded-full bg-white p-1 border border-black/10">
+      <div className="relative grid grid-cols-2 gap-1">
         <button
           type="button"
           onClick={() => onChange("UPCOMING")}
           className={cn(
-            "h-9 rounded-full px-2 text-sm font-medium transition",
+            "relative h-9 rounded-full px-2 text-sm font-medium transition",
             value === "UPCOMING"
-              ? "bg-black text-white"
+              ? "text-white"
               : "text-black/60 hover:text-black"
           )}
         >
-          Próximas{" "}
-          <span
-            className={cn(
-              "ml-1 text-xs",
-              value === "UPCOMING" ? "text-white/70" : "text-black/40"
-            )}
-          >
-            ({upcomingCount})
+          {/* PILL ANIMADO */}
+          {value === "UPCOMING" && (
+            <motion.span
+              layoutId="segmented-pill"
+              className="absolute inset-0 rounded-full bg-black"
+              transition={{ type: "spring", stiffness: 500, damping: 35 }}
+            />
+          )}
+
+          <span className="relative z-10">
+            Próximas{" "}
+            <span
+              className={cn(
+                "ml-1 text-xs",
+                value === "UPCOMING" ? "text-white/70" : "text-black/40"
+              )}
+            >
+              ({upcomingCount})
+            </span>
           </span>
         </button>
 
@@ -599,20 +611,31 @@ function SegmentedToggle({
           type="button"
           onClick={() => onChange("PAST")}
           className={cn(
-            "h-9 rounded-full px-2 text-sm font-medium transition",
+            "relative h-9 rounded-full px-2 text-sm font-medium transition",
             value === "PAST"
-              ? "bg-black text-white"
+              ? "text-white"
               : "text-black/60 hover:text-black"
           )}
         >
-          Pasadas{" "}
-          <span
-            className={cn(
-              "ml-1 text-xs",
-              value === "PAST" ? "text-white/70" : "text-black/40"
-            )}
-          >
-            ({pastCount})
+          {/* PILL ANIMADO */}
+          {value === "PAST" && (
+            <motion.span
+              layoutId="segmented-pill"
+              className="absolute inset-0 rounded-full bg-black"
+              transition={{ type: "spring", stiffness: 500, damping: 35 }}
+            />
+          )}
+
+          <span className="relative z-10">
+            Pasadas{" "}
+            <span
+              className={cn(
+                "ml-1 text-xs",
+                value === "PAST" ? "text-white/70" : "text-black/40"
+              )}
+            >
+              ({pastCount})
+            </span>
           </span>
         </button>
       </div>

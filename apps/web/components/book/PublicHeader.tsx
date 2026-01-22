@@ -4,7 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowRight,
+  Bell,
   Calendar,
+  ChevronDown,
   Contact,
   Heart,
   LogOut,
@@ -23,35 +25,41 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 export function PublicHeader() {
   const { user, loading, logout } = usePublicAuth();
+  const bookingsCount = 3;
 
   return (
-    <header className="sticky top-0 z-50 w-full transparent backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full bg-transparent backdrop-blur-md">
       {/* DESKTOP */}
-      <div className="hidden md:flex mx-auto px-10 h-20 items-center justify-between">
+      <div className="hidden md:flex mx-auto px-15 py-2 h-20 items-center justify-between">
         <Link href="/" className="flex items-center gap-3 shrink-0">
-          <span className="font-semibold text-2xl tracking-tight">
-            BeautySync
-          </span>
+          <span className="font-semibold text-3xl tracking-tight">BeautySync</span>
         </Link>
 
         <div className="flex items-center gap-3">
           {loading ? null : user ? (
             <>
-              <Link href="/me/bookings">
+              <Link href="/me/bookings" className="relative inline-flex">
                 <Button
                   variant="outline"
-                  className="rounded-full py-6 px-6 shadow-none"
+                  className="h-11 w-11 rounded-full p-0 shadow-none relative"
                 >
-                  Mis citas
+                  <Calendar className="h-5 w-5" />
                 </Button>
+
+                {bookingsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-black text-white text-[11px] font-semibold flex items-center justify-center">
+                    {bookingsCount > 99 ? "99+" : bookingsCount}
+                  </span>
+                )}
               </Link>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-3 rounded-full px-3 py-2 hover:bg-black/5 transition border">
+                  <button className="group flex items-center gap-3 rounded-full px-3 py-2 hover:bg-black/5 transition border bg-white">
                     {user.avatarUrl ? (
                       <Image
                         src={user.avatarUrl}
@@ -67,18 +75,23 @@ export function PublicHeader() {
                     <span className="text-sm font-medium">
                       {user.name ?? user.email ?? "Cuenta"}
                     </span>
+
+                    <ChevronDown
+                      strokeWidth={1.5}
+                      className="h-4 w-4 text-black/60 transition-transform duration-200 ease-out group-data-[state=open]:rotate-180"
+                    />
                   </button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-56 rounded-2xl">
-                  <DropdownMenuLabel className="truncate">
+                <DropdownMenuContent align="end" className="w-70 rounded-2xl">
+                  <DropdownMenuLabel className="truncate text-base">
                     {user.name ?? user.email ?? "Mi cuenta"}
                   </DropdownMenuLabel>
 
                   <DropdownMenuItem asChild>
                     <Link
                       href="/me/profile"
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 text-lg"
                     >
                       <Contact className="h-5 w-5" />
                       Perfil
@@ -92,6 +105,16 @@ export function PublicHeader() {
                     >
                       <Calendar className="h-4 w-4" />
                       Reservaciones
+                    </Link>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem asChild>
+                    <Link
+                      href="/me/favorites"
+                      className="flex items-center gap-2"
+                    >
+                      <Bell className="h-4 w-4" />
+                      Notificaciones
                     </Link>
                   </DropdownMenuItem>
 
@@ -157,18 +180,16 @@ export function PublicHeader() {
       </div>
 
       {/* MOBILE */}
-      <div className="flex md:hidden mx-auto px-4 h-16 items-center justify-between">
+      <div className="flex md:hidden mx-auto px-4 h-16 items-center justify-between bg-transparent">
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <span className="font-semibold text-lg tracking-tight">
-            BeautySync
-          </span>
+          <span className="font-semibold text-2xl tracking-tight">BeautySync</span>
         </Link>
 
         <div className="flex items-center gap-3">
           {loading ? null : user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 rounded-full px-2 py-1 hover:bg-black/5 transition border">
+                <button className="group flex items-center gap-2 rounded-full px-2 py-1 hover:bg-black/5 transition border bg-white">
                   {user.avatarUrl ? (
                     <Image
                       src={user.avatarUrl}
@@ -181,14 +202,30 @@ export function PublicHeader() {
                     <div className="h-8 w-8 rounded-full bg-black/10" />
                   )}
 
-                  <span className="max-w-[120px] truncate text-sm font-medium">
+                  <span className="max-w-20 truncate text-sm font-medium">
                     {user.name ?? user.email ?? "Cuenta"}
                   </span>
+
+                  <ChevronDown
+                    strokeWidth={1.5}
+                    className="h-4 w-4 text-black/60 transition-transform duration-200 ease-out group-data-[state=open]:rotate-180"
+                  />
                 </button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="w-56 rounded-sm">
-                <DropdownMenuLabel className="truncate text-base font-semibold py-2">
+              <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className={cn(
+                  "w-56 rounded-2xl border border-black/10 bg-white p-1 shadow-xl",
+                  "origin-top-right",
+                  "data-[state=open]:animate-in data-[state=closed]:animate-out",
+                  "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+                  "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+                  "data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1"
+                )}
+              >
+                <DropdownMenuLabel className="truncate text-base font-semibold py-2 px-2">
                   {user.name ?? user.email ?? "Mi cuenta"}
                 </DropdownMenuLabel>
 

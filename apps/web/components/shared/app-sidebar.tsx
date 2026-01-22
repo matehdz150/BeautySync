@@ -142,7 +142,7 @@ export function AppSidebar() {
   return (
     <Sidebar
       collapsible="icon"
-      className="bg-[#f6f6f6] border-none"
+      className=" z-50 border-none"
       style={{
         ["--sidebar-width" as any]: "280px",
         ["--sidebar-width-icon" as any]: "84px",
@@ -158,7 +158,7 @@ export function AppSidebar() {
           {!collapsed && (
             <div className="flex flex-col leading-tight w-full">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-lg text-white">BeautySync</span>
+                <span className="font-semibold text-lg text-white">Brushea</span>
                 <ChevronsUpDown size={15} />
               </div>
               <span className="text-xs text-muted-foreground">

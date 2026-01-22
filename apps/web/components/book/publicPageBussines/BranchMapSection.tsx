@@ -48,7 +48,7 @@ export function BranchMapSection({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: "easeOut" }}
         className={cn(
-          "rounded-3xl bg-white",
+          "rounded-3xl bg-transparent",
           className
         )}
       >
@@ -74,7 +74,7 @@ export function BranchMapSection({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
       className={cn(
-        "rounded-3xl bg-white overflow-hidden",
+        "rounded-3xl bg-transparent overflow-hidden",
         className
       )}
     >

@@ -80,8 +80,7 @@ export default function PublicUsersLogin({
 
       await refresh();
 
-      if (onSuccessRedirectTo) router.push(onSuccessRedirectTo);
-      else router.back();
+      router.push('/explore');
     } catch (err: any) {
       setError(err?.message ?? "Error al iniciar sesión con Google");
     } finally {

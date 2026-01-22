@@ -13,6 +13,7 @@ import { clients } from '../clients';
 import { staff } from '../staff/staff';
 import { services } from '../services';
 import { publicUsers } from '../public/public-users';
+import { publicBookings } from '../public';
 
 export type AppointmentStatus =
   | 'PENDING'
@@ -55,7 +56,12 @@ export const appointments = pgTable(
       .notNull()
       .default('UNPAID'),
 
-    publicBookingId: uuid('public_booking_id'),
+    publicBookingId: uuid('public_booking_id').references(
+      () => publicBookings.id,
+      {
+        onDelete: 'set null',
+      },
+    ),
 
     publicUserId: uuid('public_user_id').references(() => publicUsers.id, {
       onDelete: 'set null',
@@ -66,6 +72,7 @@ export const appointments = pgTable(
     notes: text('notes'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated', { withTimezone: true }).defaultNow(),
   },
 
   (table) => ({
@@ -90,6 +97,6 @@ export const appointments = pgTable(
     publicBookingIdx: index('appointment_public_booking_idx').on(
       table.publicBookingId,
     ),
-    publicUserIdx: index("appointment_public_user_idx").on(table.publicUserId),
+    publicUserIdx: index('appointment_public_user_idx').on(table.publicUserId),
   }),
 );

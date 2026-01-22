@@ -177,7 +177,7 @@ export default function PublicBusinessMobilePage() {
 }, [services]);
 
   return (
-    <div className="min-h-dvh bg-white">
+    <div className="min-h-dvh bg-gray-50">
       <input ref={fileRef} type="file" hidden />
 
       {/* =====================
@@ -305,7 +305,7 @@ export default function PublicBusinessMobilePage() {
         </div>
 
         {/* tabs */}
-        <div className="mt-4 sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-black/5">
+        <div className="mt-4 sticky top-0 z-30 bg-transparent backdrop-blur-md border-b border-black/5">
           <div className="flex gap-2 overflow-x-auto py-3 px-4 no-scrollbar">
             {tabs.map((t) => {
               const isActive = activeTab === t.id;
@@ -330,11 +330,11 @@ export default function PublicBusinessMobilePage() {
         </div>
 
         {/* list FULL WIDTH */}
-        <div className="mt-3 w-screen left-1/2 -translate-x-1/2 relative">
+        <div className="mt-0 w-screen left-1/2 -translate-x-1/2 relative">
           {visibleServices.map((service) => (
             <div
               key={service.id}
-              className="w-full border-b border-black/5 px-4 py-4"
+              className="w-full border-b border-black/5 px-4 py-4 bg-white"
             >
               <div className="flex items-center justify-between gap-4 w-full">
                 <div className="min-w-0 flex items-start gap-3">
@@ -406,9 +406,6 @@ export default function PublicBusinessMobilePage() {
           BOTTOM BAR CTA
       ===================== */}
       <div className="fixed inset-x-0 bottom-0 z-40">
-        {/* glow */}
-        <div className="pointer-events-none absolute inset-x-0 -top-10 h-40 w-100 bg-gradient-to-t from-indigo-400/450 via-indigo-400/10 to-transparent blur-2xl" />
-
         {/* bar */}
         <div className="border-t border-black/10 bg-white pt-2">
           <div className="px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+15px)]">
