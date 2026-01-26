@@ -19,7 +19,7 @@ export function getPublicAvailableDates({
   if (month) params.append("month", month);
 
   return publicFetch(
-    `/public/branches/${slug}/availability/dates?${params.toString()}`
+    `/public/${slug}/availability/dates?${params.toString()}`
   );
 }
 
@@ -42,7 +42,7 @@ export function getPublicAvailableTimes({
   if (staffId) params.append("staffId", staffId);
 
   return publicFetch(
-    `/public/branches/${slug}/availability/times?${params.toString()}`
+    `/public/${slug}/availability/times?${params.toString()}`
   );
 }
 
@@ -85,7 +85,7 @@ export async function getAvailabilityChain(params: {
   const { slug, body } = params;
 
   return publicFetch<AvailabilityChainPlan[]>(
-    `/public/branches/${slug}/availability/chain`,
+    `/public/${slug}/availability/chain`,
     {
       method: "POST",
       body: JSON.stringify(body),

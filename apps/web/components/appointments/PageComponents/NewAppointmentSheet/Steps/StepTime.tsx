@@ -1,216 +1,268 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 import { useBranch } from "@/context/BranchContext";
-import { useAppointmentBuilder } from "@/context/AppointmentBuilderContext";
-import { getAvailability } from "@/lib/services/availability";
+import { useBookingManagerDraft } from "@/context/BookingManagerDraftContext";
+import {
+  getAvailabilityChainManager,
+  type AvailabilityChainPlan,
+  type AvailabilityChainRequest,
+} from "@/lib/services/availability";
 
-import { getBusyRangesForDay, overlaps } from "@/lib/helpers/scheduling";
-import { HorizontalDatePicker } from "./TimeSide/HorizontalDatePicker";
-import { ArrowRight } from "lucide-react";
+function todayISO() {
+  return DateTime.now().setZone("America/Mexico_City").toISODate()!;
+}
 
-type Props = {
-  onBack: () => void;
-  onDone: () => void;
-  editingServiceId: string | null;
-  onChangeEditingServiceId: (id: string | null) => void;
-};
-
-export function StepTime({
-  onBack,
-  onDone,
-  editingServiceId,
-  onChangeEditingServiceId,
-}: Props) {
+export function StepPlan() {
   const { branch } = useBranch();
-  const { services, updateStartISO } = useAppointmentBuilder();
+  const { state, actions } = useBookingManagerDraft();
 
-  const [date, setDate] = useState<Date>(new Date());
-  const [slots, setSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Servicio "actual" a editar / asignar
-  const current = useMemo(() => {
-    if (!services.length) return undefined;
+  // date local state (source of truth: draft.state.date)
+  const selectedDate = state.date ?? todayISO();
 
-    if (editingServiceId) {
-      return (
-        services.find((s) => s.service.id === editingServiceId) ?? services[0]
-      );
-    }
+  // ============================
+  // VALIDACIONES
+  // ============================
 
-    // flujo normal: primer servicio sin hora, o el primero
-    return services.find((s) => !s.startISO) ?? services[0];
-  }, [services, editingServiceId]);
+  const canFetch = useMemo(() => {
+    if (!branch?.id) return false;
+    if (!state.services.length) return false;
 
-  // Todos tienen hora (para habilitar Continue)
-  const allSelected = services.length > 0 && services.every((s) => s.startISO);
+    // StepStaff debe dejar listo staffByService o ANY
+    return actions.isStep3Ready();
+  }, [branch?.id, state.services.length, actions, state.staffChoiceMode, state.singleStaffId, state.staffByService]);
 
-  // Busy ranges
-  const busy = useMemo(() => {
-    return getBusyRangesForDay(services, DateTime.fromJSDate(date).toISODate());
-  }, [services, date]);
+  // ============================
+  // HANDLERS
+  // ============================
 
-  // Sincronizar la fecha con la hora del servicio actual (si ya tiene)
-  useEffect(() => {
-    if (!current?.startISO) return;
-    const d = DateTime.fromISO(current.startISO).toJSDate();
-    setDate(d);
-  }, [current?.startISO]);
+  const handleSelectDate = useCallback(
+    (iso: string) => {
+      const next = iso.slice(0, 10);
+      actions.setDate(next);
+      actions.selectPlan(null); // limpiar selección
+    },
+    [actions]
+  );
 
-  // Cargar availability del servicio actual
-  useEffect(() => {
-    async function load() {
-      if (!branch || !current?.service?.id || !current?.staffId) return;
+  // ============================
+  // FETCH PLANS (CHAIN)
+  // ============================
+
+  const fetchPlans = useCallback(
+    async (date: string) => {
+      if (!branch?.id) return;
+      if (!state.services.length) return;
 
       setLoading(true);
+      setError(null);
 
-      const res = await getAvailability({
-        branchId: branch.id,
-        serviceId: current.service.id,
-        staffId: current.staffId,
-        date: DateTime.fromJSDate(date).toISODate(),
-      });
+      try {
+        const body: AvailabilityChainRequest = actions.buildChainDraftPayload();
 
-      const m = res?.staff?.find((x) => x.staffId === current.staffId);
+        // body ya trae date del state.date, pero por seguridad:
+        body.date = date;
 
-      setSlots(m?.slots ?? []);
-      setLoading(false);
+        // 🔥 orden estable (como público): primero servicios más largos
+        // para que el solver sea más eficiente y consistente
+        const durationByService = new Map(
+          state.services.map((s) => [s.id, s.durationMin])
+        );
+
+        body.chain = [...body.chain].sort((a, b) => {
+          const da = durationByService.get(a.serviceId) ?? 0;
+          const db = durationByService.get(b.serviceId) ?? 0;
+          return db - da;
+        });
+
+        const plans = await getAvailabilityChainManager({
+          branchId: branch.id,
+          body,
+        });
+
+        actions.setPlans(plans as any);
+        actions.selectPlan(null);
+      } catch (e: any) {
+        console.error(e);
+        actions.setPlans([]);
+        actions.selectPlan(null);
+        setError("No availability for this date");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [branch?.id, branch?.id, state.services, actions]
+  );
+
+  // Auto-fetch al entrar o cuando cambie date/staff/services
+  useEffect(() => {
+    if (!canFetch) return;
+
+    // asegura que draft tenga date
+    if (!state.date) {
+      actions.setDate(selectedDate);
+      return;
     }
 
-    load();
-  }, [branch, current?.service?.id, current?.staffId, date]);
+    fetchPlans(state.date);
+  }, [
+    canFetch,
+    state.date,
+    state.services,
+    state.staffChoiceMode,
+    state.singleStaffId,
+    state.staffByService,
+    fetchPlans,
+    actions,
+    selectedDate,
+  ]);
 
-  if (!current) {
+  // ============================
+  // DERIVADOS
+  // ============================
+
+  const plans = state.plans as unknown as AvailabilityChainPlan[];
+
+  const selectedPlan = useMemo(() => {
+    if (!state.selectedPlanStartIso) return null;
+    return plans.find((p) => p.startIso === state.selectedPlanStartIso) ?? null;
+  }, [plans, state.selectedPlanStartIso]);
+
+  // ============================
+  // UI STATES
+  // ============================
+
+  if (!branch) {
+    return <div className="py-8 text-sm text-muted-foreground">No branch</div>;
+  }
+
+  if (!state.services.length) {
     return (
-      <div className="space-y-6">
-        <p className="text-sm text-muted-foreground">Services &gt; Time</p>
-        <p className="text-sm text-muted-foreground">
-          No services selected yet.
-        </p>
-
-        <div className="border-t pt-4 flex justify-between">
-          <Button variant="outline" onClick={onBack}>
-            Back
-          </Button>
-
-          <Button disabled onClick={onDone}>
-            Continuar
-          </Button>
-        </div>
+      <div className="py-8 text-sm text-muted-foreground">
+        Select services first.
       </div>
     );
   }
 
+  if (!actions.isStep3Ready()) {
+    return (
+      <div className="py-8 text-sm text-muted-foreground">
+        Select staff first.
+      </div>
+    );
+  }
+
+  // ============================
+  // RENDER
+  // ============================
+
   return (
-    <div className="space-y-6">
-      <>
-        {/* SERVICE SWITCHER */}
-        <div className="flex gap-2 flex-wrap">
-          {services.map((s) => {
-            const active = s.service.id === current.service.id;
+    <div className="space-y-5">
+      {/* DATE PICKER SIMPLE */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Date</p>
 
-            return (
-              <button
-                key={s.service.id}
-                type="button"
-                onClick={() => onChangeEditingServiceId(s.service.id)}
-                className={`
-                  px-3 py-1 rounded-full border text-sm
-                  ${
-                    active
-                      ? "bg-indigo-400 text-white border-indigo-400"
-                      : "bg-white hover:bg-muted"
-                  }
-                `}
-              >
-                {s.service.name}
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => handleSelectDate(e.target.value)}
+          className="w-full rounded-md border px-3 py-2 text-sm"
+        />
+      </div>
 
-                {s.startISO && (
-                  <span className="ml-2 opacity-70">
-                    {DateTime.fromISO(s.startISO)
-                      .setZone("America/Mexico_City")
-                      .toFormat("h:mma")}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+      {/* TIMES */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Available times</p>
 
-        <HorizontalDatePicker value={date} onChange={setDate} />
-
-        <p className="font-medium">Available times</p>
         {loading && (
-          <div className="space-y-2 max-h-[39vh] min-h-[39vh] overflow-y-auto pr-1">
-            {[...Array(6)].map((_, i) => (
+          <div className="space-y-2">
+            {[...Array(8)].map((_, i) => (
               <Skeleton key={i} className="h-12 w-full rounded-md" />
             ))}
           </div>
         )}
 
-        {!loading && (
-          <div className="space-y-2 max-h-[39vh] min-h-[39vh] overflow-y-auto pr-1">
-            {slots.map((iso) => {
-              const start = DateTime.fromISO(iso);
-              const end = start.plus({
-                minutes: current.service.durationMin,
-              });
-
-              const isBlocked = overlaps(start, end, busy);
+        {!loading && plans.length > 0 && (
+          <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
+            {plans.map((p) => {
+              const isSelected = state.selectedPlanStartIso === p.startIso;
 
               return (
                 <button
-                  key={iso}
+                  key={p.startIso}
                   type="button"
-                  disabled={isBlocked}
-                  className={`
-            w-full px-4 py-3 rounded-md border-2
-            ${
-              isBlocked
-                ? "opacity-40 border-indigo-400"
-                : "hover:border-indigo-400"
-            }
-          `}
-                  onClick={() => {
-                    if (isBlocked) return;
-                    updateStartISO(current.service.id, iso);
-                  }}
+                  onClick={() => actions.selectPlan(p.startIso)}
+                  className={cn(
+                    "w-full px-4 py-3 rounded-md border-2 text-left transition",
+                    isSelected
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "hover:border-indigo-400"
+                  )}
                 >
-                  {start.setZone("America/Mexico_City").toFormat("h:mma")}
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{p.startLocalLabel}</span>
+
+                    {isSelected && (
+                      <span className="text-xs font-medium text-indigo-600">
+                        Selected
+                      </span>
+                    )}
+                  </div>
+
+                  {/* preview mini del chain */}
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {p.assignments.length} services •{" "}
+                    {p.assignments
+                      .map((a) => {
+                        const srv = state.services.find((s) => s.id === a.serviceId);
+                        return srv?.name ?? "Service";
+                      })
+                      .join(" → ")}
+                  </div>
                 </button>
               );
             })}
           </div>
         )}
 
-        {!loading && slots.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            No available times for this day
-          </p>
+        {!loading && plans.length === 0 && (
+          <div className="py-6 text-sm text-muted-foreground">
+            {error ?? "No available times for this date."}
+          </div>
         )}
-      </>
-
-      <div className="border-t pt-4 flex justify-between">
-        <Button
-          variant="outline"
-          onClick={() => {
-            onChangeEditingServiceId(null);
-            onBack();
-          }}
-        >
-          Back
-        </Button>
-
-        <Button disabled={!allSelected} onClick={onDone}>
-          Continuar
-          <ArrowRight className="text-white" />
-        </Button>
       </div>
+
+      {/* DEBUG / SUMMARY */}
+      {selectedPlan && (
+        <div className="rounded-md border p-3 bg-muted/30">
+          <p className="text-sm font-medium">Plan details</p>
+
+          <div className="mt-2 space-y-2">
+            {selectedPlan.assignments.map((a, idx) => {
+              const srv = state.services.find((s) => s.id === a.serviceId);
+              const start = DateTime.fromISO(a.startLocalIso).toFormat("HH:mm");
+              const end = DateTime.fromISO(a.endLocalIso).toFormat("HH:mm");
+
+              return (
+                <div key={`${a.serviceId}-${idx}`} className="text-xs">
+                  <span className="font-medium">{srv?.name ?? "Service"}</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    • {start} - {end}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
