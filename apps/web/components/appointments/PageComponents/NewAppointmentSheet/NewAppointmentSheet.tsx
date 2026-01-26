@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -15,19 +15,30 @@ import {
 } from "@/context/AppointmentBuilderContext";
 
 import { StepServices } from "./Steps/StepServices";
-import { StepServiceSummary } from "./Steps/StepServiceSummary";
-import { StepTime } from "./Steps/StepTime";
-import { createAppointment } from "@/lib/services/appointments";
+import { StepConfirm } from "./Steps/StepConfirm";
+
 import { useBranch } from "@/context/BranchContext";
 import { DateTime } from "luxon";
-import { ClientSidebar } from "./Steps/ClientSide/ClientSidebar";
-import { StepConfirm } from "./Steps/StepConfirm";
+
 import { useCalendarActions } from "@/context/CalendarContext";
 import { ClientHeaderBar } from "./Steps/ClientSide/ClientHeaderBar";
+
+import {
+  BookingManagerDraftProvider,
+  useBookingManagerDraft,
+} from "@/context/BookingManagerDraftContext";
+
+// 👇 nuevos steps
+import { StepStaff } from "./Steps/StepStaff";
+import { StepPlan } from "./Steps/StepPlan";
+
+// 👇 nuevos endpoints
+import { createManagerBooking } from "@/lib/services/appointments";
 
 type InnerProps = {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+
   defaultStaffId?: string;
   startISO?: string;
   presetServices?: Service[];
@@ -41,9 +52,15 @@ function InnerSheet({
   presetServices,
 }: InnerProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const { services, client, clear } = useAppointmentBuilder();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // legacy context (lo seguimos usando para client / clear UI actual)
+  const { client, clear } = useAppointmentBuilder();
+
+  // draft context (SOURCE OF TRUTH para steps)
+  const { state: draft, actions: draftActions } = useBookingManagerDraft();
+
   const { branch } = useBranch();
-  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const { addAppointments } = useCalendarActions();
 
   // ¿Venimos del grid?
@@ -53,126 +70,286 @@ function InnerSheet({
   const wasOpen = useRef(false);
   useEffect(() => {
     if (open && !wasOpen.current) {
-      // se acaba de abrir
       wasOpen.current = true;
       setStep(1);
     }
 
     if (!open && wasOpen.current) {
-      // se acaba de cerrar
       wasOpen.current = false;
+
+      // reset legacy UI
       clear();
+
+      // reset draft
+      draftActions.reset();
+
       setStep(1);
     }
-  }, [open, clear]);
+  }, [open, clear, draftActions]);
+
+  // ============================
+  // ✅ VALIDACIONES POR STEP (DRAFT)
+  // ============================
+
+  const step1Valid = useMemo(() => {
+    // mínimo 1 servicio seleccionado
+    return draft.services.length >= 1;
+  }, [draft.services.length]);
+
+  const step2Valid = useMemo(() => {
+    // regla: staff ready según tu draft
+    return step1Valid && draftActions.isStep3Ready();
+  }, [step1Valid, draftActions]);
+
+  const step3Valid = useMemo(() => {
+    // regla: ya hay fecha + plan seleccionado
+    return step2Valid && !!draft.date && !!draft.selectedPlanStartIso;
+  }, [step2Valid, draft.date, draft.selectedPlanStartIso]);
+
+  const canContinue = useMemo(() => {
+    if (fromGrid) {
+      // grid flow: step1 -> step4 (confirm)
+      if (step === 1) return step1Valid;
+      return true;
+    }
+
+    if (step === 1) return step1Valid;
+    if (step === 2) return step2Valid;
+    if (step === 3) return step3Valid;
+    if (step === 4) return true;
+
+    return false;
+  }, [fromGrid, step, step1Valid, step2Valid, step3Valid]);
+
+  const canGoBack = useMemo(() => step !== 1, [step]);
+
+  // ============================
+  // ✅ ACCIONES CONTINUE / BACK
+  // ============================
+
+  function handleBack() {
+    if (!canGoBack) return;
+
+    if (fromGrid) {
+      if (step === 4) return setStep(1);
+      return setStep(1);
+    }
+
+    if (step === 2) return setStep(1);
+    if (step === 3) return setStep(2);
+    if (step === 4) return setStep(3);
+  }
+
+  function handleContinue() {
+    if (!canContinue) return;
+
+    if (fromGrid) {
+      if (step === 1) return setStep(4);
+      return;
+    }
+
+    if (step === 1) return setStep(2);
+    if (step === 2) return setStep(3);
+    if (step === 3) return setStep(4);
+  }
+
+  // ============================
+  // ✅ CONFIRMAR BOOKING (MANAGER)
+  // ============================
 
   async function handleConfirmBooking() {
-    if (!branch) return;
+    if (isSubmitting) return;
 
-    const ready = services.every((s) => s.staffId && s.startISO);
-    if (!ready) return;
+    // 🔥 IMPORTANTE: branch.id debe existir
+    if (!branch?.id) {
+      console.error("[CONFIRM] Missing branch.id", { branch });
+      return;
+    }
 
-    const created = await Promise.all(
-      services.map(async (s) => {
-        const startUtc = DateTime.fromISO(s.startISO!, {
-          zone: "America/Mexico_City",
-        })
-          .toUTC()
-          .toISO();
+    // 🔥 IMPORTANTE: draft.date es requerido por el DTO
+    if (!draft.date) {
+      console.error("[CONFIRM] Missing draft.date", { draft });
+      return;
+    }
 
-        return await createAppointment({
-          branchId: branch.id,
-          serviceId: s.service.id,
-          staffId: s.staffId!,
-          start: startUtc,
-          clientId: client?.id,
-        });
-      })
-    );
+    // plan seleccionado
+    const selectedPlan = draftActions.getSelectedPlan();
+    if (!selectedPlan) {
+      console.error("[CONFIRM] Missing selectedPlan");
+      return;
+    }
 
-    const enriched = created.map((a, i) => {
-      const s = services[i];
-      const start = DateTime.fromISO(a.start);
-      const end = DateTime.fromISO(a.end);
+    // 🔥 NO puede haber ANY aquí (tu DTO dice staffId UUID)
+    const hasAny = selectedPlan.assignments.some((a) => a.staffId === "ANY");
+    if (hasAny) {
+      console.error(
+        "[CONFIRM] Plan has ANY staffId, invalid for manager booking"
+      );
+      return;
+    }
 
-      return {
-        id: a.id,
-        staffId: a.staffId,
-        staffName: s.staffName ?? "Staff",
-        client: client?.name ?? "Cliente",
-        serviceName: s.service.name,
-        serviceColor: s.service.category?.colorHex ?? "#A78BFA",
-        priceCents: s.service.priceCents,
-        startISO: a.start,
-        endISO: a.end,
-        startTime: start.toLocal().toFormat("H:mm"),
-        minutes: end.diff(start, "minutes").minutes,
+    setIsSubmitting(true);
+
+    try {
+      // payload EXACTO al DTO de tu API (NO cambiar)
+      const payload = {
+        branchId: branch.id,
+        clientId: draft.clientId ?? client?.id ?? null,
+        date: draft.date!,
+        notes: draft.notes ?? null,
+
+        appointments: selectedPlan.assignments.map((a) => ({
+          serviceId: a.serviceId,
+          staffId: a.staffId, // UUID
+          startIso: a.startIso, // UTC ISO
+          durationMin: a.durationMin, // opcional
+        })),
       };
-    });
 
-    addAppointments(enriched);
-    clear();
-    onOpenChange(false);
+      console.log("[CONFIRM] createManagerBooking payload:", payload);
+
+      const res = await createManagerBooking(payload);
+
+      // ✅ ENRICHED CORRECTO PARA CALENDAR (UTC REAL)
+      const enriched = selectedPlan.assignments.map((a) => {
+        const service = draft.services.find((s) => s.id === a.serviceId);
+
+        // source of truth: UTC ISO
+        const startUtc = DateTime.fromISO(a.startIso);
+        const endUtc = a.endIso
+          ? DateTime.fromISO(a.endIso)
+          : startUtc.plus({ minutes: a.durationMin ?? 0 });
+
+        const minutes = Math.round(endUtc.diff(startUtc, "minutes").minutes);
+
+        return {
+          id: crypto.randomUUID(),
+          staffId: a.staffId,
+          staffName: "Staff",
+          client: client?.name ?? "Cliente",
+
+          serviceName: service?.name ?? "Servicio",
+
+          // ✅ color correcto
+          serviceColor:
+            service?.category?.colorHex ??
+            // por si en tu modelo existe directo
+            (service as any)?.categoryColor ??
+            "#A78BFA",
+
+          priceCents: service?.priceCents ?? 0,
+
+          // ✅ esto es lo que tu calendar usa para pintar/ordenar
+          startISO: startUtc.toISO()!,
+          endISO: endUtc.toISO()!,
+          startTime: startUtc.toLocal().toFormat("H:mm"),
+          minutes,
+        };
+      });
+
+      addAppointments(enriched);
+
+      // limpiar todo
+      clear();
+      draftActions.reset();
+      onOpenChange(false);
+
+      return res;
+    } catch (e) {
+      console.error("[CONFIRM] createManagerBooking failed:", e);
+      throw e;
+    } finally {
+      setIsSubmitting(false);
+    }
   }
+
+  // ============================
+  // ✅ TITLES
+  // ============================
+
+  const title = useMemo(() => {
+    if (step === 1) return "Select services";
+    if (step === 2) return "Select staff";
+    if (step === 3) return "Select date & time";
+    return "Confirm";
+  }, [step]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full !max-w-[32rem] bg-white">
-        <div className="flex flex-col h-full">
-          <div className="border-b">
-            <ClientHeaderBar />
+      <SheetContent
+        side="right"
+        className="
+          w-full !max-w-[32rem] bg-white
+          p-0
+          flex flex-col
+          h-[100dvh]
+        "
+      >
+        {/* Header fijo */}
+        <div className="border-b shrink-0">
+          <ClientHeaderBar />
+        </div>
+
+        <div className="flex-1 flex flex-col min-h-0">
+          <SheetHeader className="px-6 py-4 text-2xl shrink-0">
+            <SheetTitle>{title}</SheetTitle>
+          </SheetHeader>
+
+          {/* Body scrolleable */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
+            {step === 1 && <StepServices />}
+
+            {!fromGrid && step === 2 && <StepStaff />}
+
+            {!fromGrid && step === 3 && <StepPlan />}
+
+            {step === 4 && (
+              <StepConfirm
+                onBack={handleBack}
+                onConfirm={handleConfirmBooking}
+              />
+            )}
           </div>
 
-          <div className="flex-1 flex flex-col">
-            <SheetHeader className="px-6 py-4 text-2xl">
-              <SheetTitle>
-                {step === 1 && "Select a service"}
-                {step === 2 && "Services"}
-                {step === 3 && "Select a time"}
-                {step === 4 && "Confirm"}
-              </SheetTitle>
-            </SheetHeader>
+          {/* Footer SIEMPRE visible */}
+          {step !== 4 && (
+            <div
+              className="
+                sticky bottom-0 z-20
+                border-t bg-white
+                px-6 py-4
+                flex items-center justify-between
+                shadow-[0_-6px_18px_rgba(0,0,0,0.06)]
+                pb-[calc(env(safe-area-inset-bottom)+16px)]
+              "
+            >
+              <button
+                onClick={handleBack}
+                disabled={!canGoBack}
+                className={`text-sm ${
+                  canGoBack ? "text-black" : "text-gray-400"
+                }`}
+              >
+                Back
+              </button>
 
-            <div className="flex-1 px-6 pb-6 overflow-y-auto">
-              {step === 1 && (
-                <StepServices
-                  defaultStaffId={defaultStaffId}
-                  startISO={startISO}
-                  presetServices={presetServices}
-                  // 👇 si vengo del grid → después de elegir servicio voy directo a Confirm
-                  onSelect={() => setStep(fromGrid ? 4 : 2)}
-                />
-              )}
-
-              {/* Flujo largo solo si NO venimos del grid */}
-              {!fromGrid && step === 2 && (
-                <StepServiceSummary
-                  onContinue={() => setStep(3)}
-                  onAddService={() => setStep(1)}
-                  onEditTimes={(serviceId) => {
-                    setEditingServiceId(serviceId);
-                    setStep(3);
-                  }}
-                />
-              )}
-
-              {!fromGrid && step === 3 && (
-                <StepTime
-                  onBack={() => setStep(2)}
-                  onDone={() => setStep(4)}
-                  editingServiceId={editingServiceId}
-                  setEditingServiceId={setEditingServiceId}
-                />
-              )}
-
-              {step === 4 && (
-                <StepConfirm
-                  onBack={() => setStep(fromGrid ? 1 : 3)}
-                  onConfirm={handleConfirmBooking}
-                />
-              )}
+              <button
+                onClick={handleContinue}
+                disabled={!canContinue}
+                className={`
+                  rounded-md px-4 py-2 text-sm font-medium
+                  transition
+                  ${
+                    canContinue
+                      ? "bg-black text-white hover:opacity-90"
+                      : "bg-gray-200 text-gray-500"
+                  }
+                `}
+              >
+                Continue
+              </button>
             </div>
-          </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
@@ -181,8 +358,10 @@ function InnerSheet({
 
 export function NewAppointmentSheet(props: any) {
   return (
-    <AppointmentBuilderProvider>
-      <InnerSheet {...props} />
-    </AppointmentBuilderProvider>
+    <BookingManagerDraftProvider>
+      <AppointmentBuilderProvider>
+        <InnerSheet {...props} />
+      </AppointmentBuilderProvider>
+    </BookingManagerDraftProvider>
   );
 }

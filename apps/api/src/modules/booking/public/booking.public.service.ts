@@ -1,0 +1,25 @@
+import { Injectable } from '@nestjs/common';
+import type { CreatePublicBookingDto } from '../dto/create-booking-public.dto';
+import { BookingsCoreService } from '../booking.core.service';
+
+@Injectable()
+export class BookingsPublicService {
+  constructor(private readonly core: BookingsCoreService) {}
+
+  async createPublicBooking(dto: CreatePublicBookingDto, publicUserId: string) {
+    const res = await this.core.createPublicBooking(dto, publicUserId);
+
+    return {
+      ok: true,
+      bookingId: res.bookingId,
+    };
+  }
+
+  getPublicBookingById(params: { bookingId: string; publicUserId: string }) {
+    return this.core.getPublicBookingById(params);
+  }
+
+  setPhone(params: { publicUserId: string; phoneE164: string }) {
+    return this.core.setPhone(params);
+  }
+}

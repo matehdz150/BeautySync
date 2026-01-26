@@ -8,6 +8,6 @@ export function getPublicStaffForService({
   serviceId: string;
 }): Promise<PublicStaff[]> {
   return publicFetch(
-    `/public/branches/${slug}/services/${serviceId}/staff`
+    `/public/${slug}/services/${serviceId}/staff`
   );
 }

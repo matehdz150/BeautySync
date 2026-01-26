@@ -83,3 +83,48 @@ export async function getAppointmentById(id: string) {
     };
   }>(`/appointments/${id}`);
 }
+
+export type ManagerPaymentMethod = "ONSITE" | "ONLINE";
+
+export type CreateManagerAppointmentDraft = {
+  serviceId: string;
+  staffId: string; // UUID (NO "ANY" aquí)
+  startIso: string; // ISO con offset o UTC ISO (como ya lo manejas)
+  endIso: string;
+  durationMin?: number;
+};
+
+export type CreateManagerBookingDto = {
+  branchId: string;
+
+  // opcionales
+  clientId?: string | null;
+
+  // si quieres linkearlo manualmente, pero normalmente esto lo deduces
+  publicUserId?: string | null;
+
+  date: string; // YYYY-MM-DD
+  paymentMethod: ManagerPaymentMethod;
+
+  discountCode?: string | null;
+  notes?: string | null;
+
+  appointments: CreateManagerAppointmentDraft[];
+};
+
+export type CreateManagerBookingResponse = {
+  ok: true;
+  publicBookingId: string | null;
+  publicUserId: string | null;
+  clientId: string | null;
+  appointmentIds: string[];
+};
+
+export async function createManagerBooking(
+  payload: CreateManagerBookingDto
+): Promise<CreateManagerBookingResponse> {
+  return api(`/manager/booking/appointments`, {
+    method: "POST",
+    body: JSON.stringify(payload), // ✅ ACOPLADO a tu api()
+  });
+}

@@ -35,7 +35,7 @@ export type CreatePublicBookingResponse = {
 export async function createPublicBooking(
   payload: CreatePublicBookingPayload
 ): Promise<CreatePublicBookingResponse> {
-  return publicFetch<CreatePublicBookingResponse>(`/public/branches/appointments`, {
+  return publicFetch<CreatePublicBookingResponse>(`/public/booking/appointments`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -94,6 +94,6 @@ export async function getPublicBookingById(
   }
 
   return publicFetch<GetPublicBookingResponse>(
-    `/public/branches/bookings/${bookingId}`
+    `/public/bookings/${bookingId}`
   );
 }

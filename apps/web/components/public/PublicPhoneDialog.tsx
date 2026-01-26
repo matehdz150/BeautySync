@@ -94,7 +94,7 @@ export function PublicPhoneDialog({ open, onOpenChange, onSaved }: Props) {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/public/branches/phone`,
+        `${process.env.NEXT_PUBLIC_API_URL}/public/phone`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
