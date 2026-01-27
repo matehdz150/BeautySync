@@ -35,7 +35,6 @@ export class AvailabilityService {
 
   async getAvailability(query: GetAvailabilityDto) {
     const { branchId, serviceId, date, staffId, requiredDurationMin } = query;
-    const isByDuration = typeof requiredDurationMin === 'number';
     const isByService = typeof serviceId === 'string';
     const SLOT_MIN = 15;
 
@@ -433,5 +432,102 @@ export class AvailabilityService {
         (b) => startMin >= b.startMin && endMin <= b.endMin,
       );
     });
+  }
+
+  async getAvailableServicesAt(params: { branchId: string; datetime: string }) {
+    const { branchId, datetime } = params;
+
+    // 1️⃣ Settings
+    const settings = await this.db.query.branchSettings.findFirst({
+      where: eq(branchSettings.branchId, branchId),
+    });
+
+    const tz = settings?.timezone ?? 'America/Mexico_City';
+
+    const startLocal = DateTime.fromISO(datetime, { zone: tz });
+    if (!startLocal.isValid) {
+      throw new BadRequestException('Invalid datetime');
+    }
+
+    const date = startLocal.toISODate(); // YYYY-MM-DD
+
+    // ⏱️ normalizar start al step de 15 min (UTC)
+    const startUtcStep = startLocal
+      .toUTC()
+      .startOf('minute')
+      .plus({ minutes: (15 - (startLocal.minute % 15)) % 15 })
+      .toISO();
+
+    // 2️⃣ Servicios activos del branch
+    const activeServices = await this.db.query.services.findMany({
+      where: and(eq(services.branchId, branchId), eq(services.isActive, true)),
+      with: {
+        category: true,
+      },
+    });
+
+    if (!activeServices.length) return [];
+
+    // 3️⃣ Resultado final
+    const available: {
+      id: string;
+      name: string;
+      durationMin: number;
+      priceCents: number;
+      categoryColor: string | null;
+      allowAny: boolean;
+      staff: {
+        id: string;
+        name: string;
+        avatarUrl?: string | null;
+      }[];
+    }[] = [];
+
+    // 4️⃣ Probar cada servicio
+    for (const srv of activeServices) {
+      try {
+        const availability = await this.getAvailability({
+          branchId,
+          serviceId: srv.id,
+          date,
+        });
+
+        // staff que pueden empezar EXACTAMENTE en este slot
+        const eligibleStaffIds = availability.staff
+          .filter((s) => s.slots.includes(startUtcStep))
+          .map((s) => s.staffId);
+
+        if (!eligibleStaffIds.length) continue;
+
+        const staffMembers = await this.db.query.staff.findMany({
+          where: and(
+            eq(staff.branchId, branchId),
+            inArray(staff.id, eligibleStaffIds),
+            eq(staff.isActive, true),
+          ),
+        });
+
+        available.push({
+          id: srv.id,
+          name: srv.name,
+          durationMin: srv.durationMin,
+          priceCents: srv.priceCents ?? 0,
+          categoryColor: srv.category?.colorHex ?? null,
+
+          allowAny: staffMembers.length > 1,
+
+          staff: staffMembers.map((st) => ({
+            id: st.id,
+            name: st.name,
+            avatarUrl: st.avatarUrl ?? null,
+          })),
+        });
+      } catch {
+        // si algo falla en disponibilidad → se ignora el servicio
+        continue;
+      }
+    }
+
+    return available;
   }
 }

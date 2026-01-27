@@ -128,3 +128,90 @@ export async function createManagerBooking(
     body: JSON.stringify(payload), // ✅ ACOPLADO a tu api()
   });
 }
+
+export type StaffChoice = string | "ANY";
+
+export type ChainItem = {
+  serviceId: string;
+  staffId: StaffChoice;
+};
+
+export type ManagerChainBaseDto = {
+  branchId: string;
+  date: string; // YYYY-MM-DD
+  pinnedStartIso: string; // ISO (local o utc)
+  chain: ChainItem[];
+};
+
+export type ManagerChainNextServicesDto = ManagerChainBaseDto;
+
+export type ManagerChainNextStaffOptionsDto = ManagerChainBaseDto & {
+  nextServiceId: string;
+};
+
+export type ManagerChainBuildDto = ManagerChainBaseDto;
+
+export type ManagerChainNextServicesResponse = {
+  ok: true;
+  nextServices: {
+    id: string;
+    name: string;
+    durationMin: number;
+    priceCents: number;
+    categoryColor: string | null;
+  }[];
+};
+
+export type ManagerChainNextStaffOptionsResponse = {
+  ok: true;
+  allowAny: boolean;
+  staff: { id: string; name: string; avatarUrl?: string | null }[];
+};
+
+export type ManagerChainBuildResponse = {
+  ok: true;
+  plan: {
+    startIso: string;
+    assignments: {
+      serviceId: string;
+      staffId: string;
+      startIso: string;
+      endIso: string;
+      durationMin: number;
+      priceCents: number;
+    }[];
+    totalMinutes: number;
+    totalCents: number;
+  };
+};
+
+// ===============================
+// API calls
+// ===============================
+
+export async function managerChainNextServices(
+  payload: ManagerChainNextServicesDto
+): Promise<ManagerChainNextServicesResponse> {
+  return api(`/manager/booking/chain/next-services`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function managerChainNextStaffOptions(
+  payload: ManagerChainNextStaffOptionsDto
+): Promise<ManagerChainNextStaffOptionsResponse> {
+  return api(`/manager/booking/chain/next-staff-options`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function managerChainBuild(
+  payload: ManagerChainBuildDto
+): Promise<ManagerChainBuildResponse> {
+  return api(`/manager/booking/chain/build`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

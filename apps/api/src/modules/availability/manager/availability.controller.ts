@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { AvailabilityService } from '../availability.service';
 import { GetAvailabilityDto } from '../dto/create-availability.dto';
-import { GetAvailabilityForSlotDto } from '../dto/get-availability-for-slot.dto';
+import {
+  AvailableServicesAtDto,
+  GetAvailabilityForSlotDto,
+} from '../dto/get-availability-for-slot.dto';
 import { AvailabilityManagerService } from './availability.manager.service';
 
 @Controller('availability')
@@ -44,5 +47,15 @@ export class AvailabilityController {
     });
 
     return res;
+  }
+
+  @Post('available-services-at')
+  async availableServicesAt(@Body() dto: AvailableServicesAtDto) {
+    const services = await this.service.getAvailableServicesAt(dto);
+
+    return {
+      ok: true,
+      services,
+    };
   }
 }

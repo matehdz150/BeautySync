@@ -16,6 +16,7 @@ import { NewAppointmentSheet } from "@/components/appointments/PageComponents/Ne
 import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
 import AppointmentDetailSheet from "@/components/appointments/PageComponents/AppointmentDetailSheet/AppointmentDetailSheet";
 import { EmptyStaffState } from "./EmptyState";
+import SlotBookingSheet from "@/components/appointments/PageComponents/SlootBookingSheet/SlotBookingSheet";
 
 const ROW_HEIGHT = 40;
 const MINUTES_PER_SLOT = 30;
@@ -28,7 +29,7 @@ const timeSlots = Array.from({ length: (24 - 6) * 4 + 1 }, (_, i) => {
 });
 
 export default function Calendar() {
-  const { state, dispatch,visibleStaff } = useCalendar();
+  const { state, dispatch, visibleStaff } = useCalendar();
   const { setDate, openNewAppointment, clearEvent } = useCalendarActions();
 
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -51,7 +52,6 @@ export default function Calendar() {
     ((minutesToday - firstSlotMinutes) / MINUTES_PER_SLOT) * ROW_HEIGHT - 10;
 
   const hasStaff = state.staff.length > 0;
-
 
   return (
     <div className="mx-auto bg-white">
@@ -116,6 +116,13 @@ export default function Calendar() {
           />
 
           <AppointmentDetailSheet />
+
+          <SlotBookingSheet
+            open={state.slotDialogOpen}
+            onOpenChange={() => dispatch({ type: "CLOSE_SLOT_SHEET" })}
+            pinnedStaffId={state.slotPrefill?.pinnedStaffId}
+            pinnedStartIso={state.slotPrefill?.pinnedStartIso}
+          />
         </>
       )}
     </div>

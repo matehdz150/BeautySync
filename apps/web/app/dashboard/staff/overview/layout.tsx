@@ -49,13 +49,13 @@ export default function StaffLayout({
           <aside
             className={cn(
               "relative transition-all duration-300 ease-in-out",
-              open ? "w-54" : "w-2"
+              open ? "w-54" : "w-12"
             )}
           >
             {/* CONTENEDOR */}
             <div
               className={cn(
-                "bg-white border-r py-3 px-2 sticky top-0 h-screen overflow-y-auto transition-all duration-300",
+                "bg-white py-3 px-2 sticky top-0 h-screen overflow-y-auto transition-all duration-300",
                 open ? "opacity-100" : "opacity-0 pointer-events-none"
               )}
             >

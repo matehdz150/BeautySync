@@ -687,4 +687,346 @@ export class BookingsCoreService {
 
     return result;
   }
+
+  private roundToBlock(totalMinutes: number, blockMinutes = 15) {
+    return Math.ceil(totalMinutes / blockMinutes) * blockMinutes;
+  }
+
+  private async getBranchAndSettings(branchId: string) {
+    const branch = await this.db.query.branches.findFirst({
+      where: eq(branches.id, branchId),
+    });
+
+    if (!branch) throw new NotFoundException('Branch not found');
+
+    const settings = await this.db.query.branchSettings.findFirst({
+      where: eq(branchSettings.branchId, branch.id),
+    });
+
+    const tz = settings?.timezone ?? 'America/Mexico_City';
+    const bufferBefore = settings?.bufferBeforeMin ?? 0;
+    const bufferAfter = settings?.bufferAfterMin ?? 0;
+
+    return { branch, settings, tz, bufferBefore, bufferAfter };
+  }
+
+  private async hasOverlap(params: {
+    branchId: string;
+    staffId: string;
+    startUtc: DateTime;
+    endUtc: DateTime;
+  }) {
+    const { branchId, staffId, startUtc, endUtc } = params;
+
+    const overlapping = await this.db
+      .select()
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.branchId, branchId),
+          eq(appointments.staffId, staffId),
+          lt(appointments.start, endUtc.toJSDate()),
+          gt(appointments.end, startUtc.toJSDate()),
+        ),
+      );
+
+    return overlapping.length > 0;
+  }
+
+  private async computeSegment(params: {
+    branchId: string;
+    tz: string;
+    bufferBefore: number;
+    bufferAfter: number;
+    startUtc: DateTime;
+    serviceId: string;
+  }) {
+    const { branchId, bufferBefore, bufferAfter, startUtc, serviceId } = params;
+
+    const srv = await this.db.query.services.findFirst({
+      where: and(
+        eq(services.id, serviceId),
+        eq(services.branchId, branchId),
+        eq(services.isActive, true),
+      ),
+    });
+
+    if (!srv) throw new BadRequestException(`Service not found: ${serviceId}`);
+
+    const total = srv.durationMin + bufferBefore + bufferAfter;
+    const rounded = this.roundToBlock(total, 15);
+
+    const endUtc = startUtc.plus({ minutes: rounded }).set({
+      millisecond: 0,
+      second: 0,
+    });
+
+    return {
+      service: srv,
+      startUtc,
+      endUtc,
+      durationMin: rounded,
+      priceCents: srv.priceCents ?? 0,
+    };
+  }
+
+  async managerChainBuild(dto: {
+    branchId: string;
+    date: string;
+    pinnedStartIso: string;
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    chain: { serviceId: string; staffId: string | 'ANY' }[];
+  }) {
+    const { branchId, date, pinnedStartIso, chain } = dto;
+
+    if (!branchId) throw new BadRequestException('branchId is required');
+    if (!date) throw new BadRequestException('date is required');
+    if (!pinnedStartIso)
+      throw new BadRequestException('pinnedStartIso is required');
+    if (!chain?.length) throw new BadRequestException('chain is required');
+
+    const { branch, tz, bufferBefore, bufferAfter } =
+      await this.getBranchAndSettings(branchId);
+
+    const pinnedLocal = DateTime.fromISO(pinnedStartIso).set({
+      millisecond: 0,
+      second: 0,
+    });
+
+    if (!pinnedLocal.isValid) {
+      throw new BadRequestException('Invalid pinnedStartIso');
+    }
+
+    const pinnedInTz = pinnedLocal.setZone(tz);
+    if (pinnedInTz.toISODate() !== date) {
+      throw new BadRequestException(
+        `pinnedStartIso does not match date ${date}`,
+      );
+    }
+
+    let cursorUtc = pinnedLocal.toUTC();
+
+    const assignments: {
+      serviceId: string;
+      staffId: string;
+      startUtc: DateTime;
+      endUtc: DateTime;
+      durationMin: number;
+      priceCents: number;
+    }[] = [];
+
+    for (const item of chain) {
+      const seg = await this.computeSegment({
+        branchId: branch.id,
+        tz,
+        bufferBefore,
+        bufferAfter,
+        startUtc: cursorUtc,
+        serviceId: item.serviceId,
+      });
+
+      // Resolver staff final
+      let finalStaffId: string;
+
+      if (item.staffId === 'ANY') {
+        const candidates = await this.db.query.staff.findMany({
+          where: and(eq(staff.branchId, branch.id), eq(staff.isActive, true)),
+          columns: { id: true },
+        });
+
+        if (!candidates.length) {
+          throw new BadRequestException('No staff available in branch');
+        }
+
+        const available: string[] = [];
+        for (const s of candidates) {
+          const overlap = await this.hasOverlap({
+            branchId: branch.id,
+            staffId: s.id,
+            startUtc: seg.startUtc,
+            endUtc: seg.endUtc,
+          });
+          if (!overlap) available.push(s.id);
+        }
+
+        if (!available.length) {
+          throw new BadRequestException('No staff available for this timeslot');
+        }
+
+        finalStaffId = available[0];
+      } else {
+        finalStaffId = item.staffId;
+
+        const overlap = await this.hasOverlap({
+          branchId: branch.id,
+          staffId: finalStaffId,
+          startUtc: seg.startUtc,
+          endUtc: seg.endUtc,
+        });
+
+        if (overlap) {
+          throw new BadRequestException('Timeslot already booked');
+        }
+      }
+
+      assignments.push({
+        serviceId: seg.service.id,
+        staffId: finalStaffId,
+        startUtc: seg.startUtc,
+        endUtc: seg.endUtc,
+        durationMin: seg.durationMin,
+        priceCents: seg.priceCents,
+      });
+
+      cursorUtc = seg.endUtc;
+    }
+
+    const totalMinutes = assignments.reduce((acc, a) => acc + a.durationMin, 0);
+    const totalCents = assignments.reduce(
+      (acc, a) => acc + (a.priceCents ?? 0),
+      0,
+    );
+
+    return {
+      ok: true,
+      plan: {
+        startIso: assignments[0].startUtc.toISO()!,
+        assignments: assignments.map((a) => ({
+          serviceId: a.serviceId,
+          staffId: a.staffId,
+          startIso: a.startUtc.toISO()!,
+          endIso: a.endUtc.toISO()!,
+          durationMin: a.durationMin,
+          priceCents: a.priceCents,
+        })),
+        totalMinutes,
+        totalCents,
+      },
+    };
+  }
+
+  async managerChainNextServices(dto: {
+    branchId: string;
+    date: string;
+    pinnedStartIso: string;
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    chain: { serviceId: string; staffId: string | 'ANY' }[];
+  }) {
+    const { branchId } = dto;
+
+    if (!branchId) throw new BadRequestException('branchId is required');
+
+    const { branch } = await this.getBranchAndSettings(branchId);
+
+    const activeServices = await this.db.query.services.findMany({
+      where: and(eq(services.branchId, branch.id), eq(services.isActive, true)),
+      with: {
+        category: true,
+      },
+    });
+
+    const possible: {
+      id: string;
+      name: string;
+      durationMin: number;
+      priceCents: number;
+      categoryColor: string | null;
+    }[] = [];
+
+    for (const srv of activeServices) {
+      try {
+        await this.managerChainBuild({
+          ...dto,
+          chain: [...dto.chain, { serviceId: srv.id, staffId: 'ANY' }],
+        });
+
+        possible.push({
+          id: srv.id,
+          name: srv.name,
+          durationMin: srv.durationMin,
+          priceCents: srv.priceCents ?? 0,
+          categoryColor: srv.category?.colorHex ?? null,
+        });
+      } catch {
+        // si falla, no se incluye
+      }
+    }
+
+    return { ok: true, nextServices: possible };
+  }
+
+  async managerChainNextStaffOptions(dto: {
+    branchId: string;
+    date: string;
+    pinnedStartIso: string;
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    chain: { serviceId: string; staffId: string | 'ANY' }[];
+    nextServiceId: string;
+  }) {
+    const { branchId, nextServiceId } = dto;
+
+    if (!branchId) throw new BadRequestException('branchId is required');
+    if (!nextServiceId)
+      throw new BadRequestException('nextServiceId is required');
+
+    const { branch, tz, bufferBefore, bufferAfter } =
+      await this.getBranchAndSettings(branchId);
+
+    // plan parcial para saber cursor (end)
+    const partial =
+      dto.chain.length > 0
+        ? await this.managerChainBuild({
+            branchId: dto.branchId,
+            date: dto.date,
+            pinnedStartIso: dto.pinnedStartIso,
+            chain: dto.chain,
+          })
+        : null;
+
+    const cursorStartIso = partial?.plan.assignments.length
+      ? partial.plan.assignments[partial.plan.assignments.length - 1].endIso
+      : DateTime.fromISO(dto.pinnedStartIso).toUTC().toISO()!;
+
+    const startUtc = DateTime.fromISO(cursorStartIso).toUTC();
+
+    const seg = await this.computeSegment({
+      branchId: branch.id,
+      tz,
+      bufferBefore,
+      bufferAfter,
+      startUtc,
+      serviceId: nextServiceId,
+    });
+
+    const staffRows = await this.db.query.staff.findMany({
+      where: and(eq(staff.branchId, branch.id), eq(staff.isActive, true)),
+      columns: { id: true, name: true, avatarUrl: true },
+    });
+
+    const available: { id: string; name: string; avatarUrl?: string | null }[] =
+      [];
+
+    for (const s of staffRows) {
+      const overlap = await this.hasOverlap({
+        branchId: branch.id,
+        staffId: s.id,
+        startUtc: seg.startUtc,
+        endUtc: seg.endUtc,
+      });
+
+      if (!overlap) {
+        available.push({
+          id: s.id,
+          name: s.name,
+          avatarUrl: s.avatarUrl ?? null,
+        });
+      }
+    }
+
+    return {
+      ok: true,
+      allowAny: true,
+      staff: available,
+    };
+  }
 }

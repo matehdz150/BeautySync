@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { StaffAvatarGroup } from "./Table/StaffAvatarGroup";
 import { CategoryBadgeIcon } from "./Table/CategoryBadgeIcon";
 import { useRouter } from "next/navigation";
-import type { Service } from "@/app/dashboard/services/page";
+import type { Service } from "@/app/dashboard/services/overview/page";
 import { Skeleton } from "../ui/skeleton";
 
 export function ServicesTable({

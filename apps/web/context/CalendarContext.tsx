@@ -29,6 +29,11 @@ export type Prefill = {
   }[];
 };
 
+export type SlotPrefill = {
+  pinnedStaffId: string;
+  pinnedStartIso: string;
+};
+
 type CalendarState = {
   date: string;
 
@@ -46,6 +51,9 @@ type CalendarState = {
   anchorRect: DOMRect | null;
 
   view: CalendarViewState;
+
+  slotDialogOpen: boolean;
+  slotPrefill: SlotPrefill | null;
 };
 
 type CalendarViewState = {
@@ -69,6 +77,8 @@ type Action =
   | { type: "CLOSE_APPOINTMENT" }
   | { type: "SET_MAX_VISIBLE_STAFF"; payload: number }
   | { type: "SET_STAFF_OFFSET"; payload: number }
+  | { type: "OPEN_SLOT_SHEET"; payload: SlotPrefill }
+  | { type: "CLOSE_SLOT_SHEET" }
   | { type: "SET_ENABLED_STAFF"; payload: string[] };
 
 /* ---------- INITIAL STATE ---------- */
@@ -93,6 +103,9 @@ const initialState: CalendarState = {
     staffOffset: 0,
     enabledStaffIds: [],
   },
+
+  slotDialogOpen: false,
+  slotPrefill: null,
 };
 
 /* ---------- REDUCER ---------- */
@@ -186,6 +199,12 @@ function calendarReducer(state: CalendarState, action: Action): CalendarState {
           staffOffset: 0,
         },
       };
+
+    case "OPEN_SLOT_SHEET":
+      return { ...state, slotDialogOpen: true, slotPrefill: action.payload };
+
+    case "CLOSE_SLOT_SHEET":
+      return { ...state, slotDialogOpen: false, slotPrefill: null };
 
     default:
       return state;
@@ -379,5 +398,10 @@ export function useCalendarActions() {
 
     setEnabledStaff: (ids: string[]) =>
       dispatch({ type: "SET_ENABLED_STAFF", payload: ids }),
+
+    openSlotBooking: (payload: SlotPrefill) =>
+      dispatch({ type: "OPEN_SLOT_SHEET", payload }),
+
+    closeSlotBooking: () => dispatch({ type: "CLOSE_SLOT_SHEET" }),
   };
 }

@@ -21,7 +21,7 @@ export default function StaffLayout({
 }) {
   const pathname = usePathname();
 
-  const BASE = "/dashboard/services";
+  const BASE = "/dashboard/services/overview";
 
   const nav = [
     { label: "Catálogo de servicios", href: `${BASE}` },
@@ -45,14 +45,14 @@ export default function StaffLayout({
           {/* SIDEBAR */}
           <aside
             className={cn(
-              "relative transition-all duration-300 ease-in-out",
-              open ? "w-54" : "w-2"
+              "relative transition-all duration-300 ease-in-out border-r",
+              open ? "w-54" : "w-12"
             )}
           >
             {/* CONTENEDOR */}
             <div
               className={cn(
-                "bg-white border-r py-3 px-2 sticky top-0 h-screen overflow-y-auto transition-all duration-300",
+                "bg-white py-3 px-2 sticky top-0 h-screen overflow-y-auto transition-all duration-300",
                 open ? "opacity-100" : "opacity-0 pointer-events-none"
               )}
             >
