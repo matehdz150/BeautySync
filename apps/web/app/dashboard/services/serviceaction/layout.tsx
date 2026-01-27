@@ -68,7 +68,7 @@ export default function NewServiceLayout({
                       className={cn(
                         "block w-full text-left px-3 py-2 rounded-md text-sm",
                         isActive(item.href)
-                          ? "bg-indigo-500 text-white font-medium"
+                          ? "bg-indigo-400 text-white font-medium"
                           : "text-gray-700 hover:bg-gray-50"
                       )}
                     >
@@ -127,7 +127,7 @@ function HeaderActions() {
       ]);
 
       dispatch({ type: "RESET" });
-      router.push("/dashboard/services");
+      router.push("/dashboard/services/overview");
     } catch (err) {
       console.error(err);
     }
@@ -135,7 +135,7 @@ function HeaderActions() {
 
   function handleCancel() {
     dispatch({ type: "RESET" });
-    router.push("/dashboard/services");
+    router.push("/dashboard/services/overview");
   }
 
   return (

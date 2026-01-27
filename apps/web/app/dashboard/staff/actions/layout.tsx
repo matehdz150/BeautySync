@@ -99,7 +99,7 @@ function HeaderActions() {
         await submitCreate();
       }
 
-      router.push("/dashboard/staff");
+      router.push("/dashboard/staff/overview");
     } catch (e) {
       console.error(e);
       alert("Error al guardar staff");

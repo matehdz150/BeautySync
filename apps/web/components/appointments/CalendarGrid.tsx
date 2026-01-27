@@ -23,7 +23,7 @@ export function CalendarGrid({
 }: Props) {
   const [hoverTime, setHoverTime] = useState<string | null>(null);
   const [hoverY, setHoverY] = useState<number>(0);
-  const { openNewAppointment } = useCalendarActions();
+  const { openSlotBooking } = useCalendarActions();
   const { branch } = useBranch();
 
   return (
@@ -79,10 +79,9 @@ export function CalendarGrid({
 
               console.log("Servicios disponibles en esa hora:", services);
 
-              openNewAppointment({
-                defaultStaffId: staffId,
-                startISO,
-                presetServices: services,
+              openSlotBooking({
+                pinnedStaffId: staffId,
+                pinnedStartIso: startISO!,
               });
             }}
           />

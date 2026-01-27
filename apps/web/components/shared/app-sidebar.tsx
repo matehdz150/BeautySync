@@ -66,7 +66,7 @@ const items: NavItem[] = [
   {
     label: "Servicios y productos",
     icon: Scissors,
-    href: "/dashboard/services",
+    href: "/dashboard/services/overview",
     allow: ["owner", "manager"],
   },
   {
