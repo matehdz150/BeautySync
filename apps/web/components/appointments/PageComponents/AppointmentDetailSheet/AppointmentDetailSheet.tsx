@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -11,162 +12,195 @@ import { Button } from "@/components/ui/button";
 import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
 import { DateTime } from "luxon";
 import { cn } from "@/lib/utils";
-import { CalendarSync, ChevronDown, EllipsisVertical, RefreshCwOff } from "lucide-react";
-import { usePayment } from "@/context/PaymentContext";
-import { useRouter } from "next/navigation";
-import { AppointmentBillingSection } from "./AppointmentBillingSection";
+import { ChevronDown, RefreshCwOff, CalendarSync } from "lucide-react";
+import { getManagerBookingById } from "@/lib/services/appointments";
 
 export default function AppointmentDetailSheet() {
-  const router = useRouter();
-  const { dispatch } = usePayment();
   const { state } = useCalendar();
   const { closeAppointment } = useCalendarActions();
 
-  const a: any = state.selectedAppointment;
-  console.log("SELECTED", state.selectedAppointment);
-  const open = !!a;
+  const appointment = state.appointments.find(
+    (a: any) => a.id === state.selectedAppointmentId
+  );
+  const bookingId: string | null = appointment?.bookingId ?? null;
 
-  // 🛑 Si no hay cita → no calcules nada
-  const start = a?.startISO
-    ? DateTime.fromISO(a.startISO).toLocal()
-    : undefined;
+  const [booking, setBooking] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
-  const conceptualStatus = a?.conceptualStatus;
+  console.log(bookingId);
 
-  const conceptualLabel =
-    conceptualStatus === "past"
-      ? "Finalizada"
-      : conceptualStatus === "ongoing"
-      ? "En curso"
-      : "Proxima";
+  const open = !!appointment;
 
-  function handlePay() {
-    if (!a) return;
-    router.push(`/dashboard/order/${a.id}`);
+  /* ============================
+     Load booking by bookingId
+  ============================ */
+  useEffect(() => {
+    if (!bookingId) {
+      setBooking(null);
+      setNotFound(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setNotFound(false);
+
+      try {
+        const res = await getManagerBookingById(bookingId);
+        console.log(res);
+
+        if (!cancelled) {
+          setBooking(res.booking);
+        }
+      } catch {
+        if (!cancelled) {
+          setBooking(null);
+          setNotFound(true);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingId]);
+
+  /* ============================
+     EMPTY / LOADING STATES
+  ============================ */
+  if (loading) {
+    return (
+      <Sheet open={open} onOpenChange={(o) => !o && closeAppointment()}>
+        <SheetContent side="right" className="w-full !max-w-[30rem]">
+          <p className="text-sm text-muted-foreground p-6">Cargando booking…</p>
+        </SheetContent>
+      </Sheet>
+    );
   }
 
+  if (notFound) {
+    return (
+      <Sheet open={open} onOpenChange={(o) => !o && closeAppointment()}>
+        <SheetContent side="right" className="w-full !max-w-[30rem]">
+          <SheetHeader>
+            <SheetTitle>;</SheetTitle>
+          </SheetHeader>
+          <div className="p-6 space-y-2">
+            <h3 className="font-semibold text-base">
+              Esta cita no pertenece a un booking
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Puede tratarse de una cita antigua o creada sin flujo de booking.
+            </p>
+
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={closeAppointment}
+            >
+              Cerrar
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  if (!booking) return null;
+
+  const start = DateTime.fromISO(booking.startsAtISO).toLocal();
+
+  /* ============================
+     BOOKING UI
+  ============================ */
   return (
     <Sheet open={open} onOpenChange={(o) => !o && closeAppointment()}>
       <SheetContent
         side="right"
-        className={cn(
-          "w-full !max-w-[30rem] flex flex-col",
-          a?.raw?.paymentStatus === "PAID" ? "bg-gray-50" : "bg-white"
-        )}
+        className={cn("w-full !max-w-[30rem] flex flex-col bg-white")}
       >
-        {!a ? null : (
-          <div className="flex h-full">
-            {/* 👉 LEFT CLIENT SIDEBAR */}
+        <div className="flex h-full">
+          <div className="flex-1 flex flex-col">
+            {/* HEADER */}
+            <SheetHeader className="text-left px-5 py-8 bg-indigo-400">
+              <SheetTitle className="text-white">
+                {booking.client?.name ?? "Cliente"}
+              </SheetTitle>
 
-            {/* 👉 MAIN PANEL */}
-            <div className="flex-1 flex flex-col">
-              <SheetHeader className="text-left px-5 py-8 bg-indigo-400">
-                <SheetTitle className="text-white">
-                  {a.client ?? "Client"}
-                </SheetTitle>
+              <SheetDescription className="text-white flex items-center justify-between">
+                {start.toFormat("ccc d LLL")} • {start.toFormat("t")}
+                <Button variant="outline" className="bg-transparent">
+                  Ver cliente
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </SheetDescription>
+            </SheetHeader>
 
-                <SheetDescription className="text-white w-full flex items-center justify-between">
-                  {start && (
-                    <>
-                      {start.toFormat("ccc d LLL")} • {start.toFormat("t")}
-                    </>
-                  )}
-                  <Button variant={"outline"} className="bg-transparent">
-                    Ver cliente
-                    <ChevronDown />
-                  </Button>
-                </SheetDescription>
-              </SheetHeader>
+            {/* BODY */}
+            <div className="flex flex-col gap-6 flex-1 overflow-y-auto px-5 py-4">
+              {/* STATUS */}
+              <div>
+                <span className="px-4 py-2 text-sm rounded-full bg-indigo-50 text-indigo-700">
+                  Booking confirmado
+                </span>
+              </div>
 
-              <div className="flex flex-col gap-6 flex-1 overflow-y-auto">
-                <div className="px-5 py-4">
-                  <div className="pb-2 pt-3">
-                    <span
-                      className={cn(
-                        "px-5 py-2 text-sm capitalize transition-all",
-                        conceptualStatus === "ongoing" &&
-                          "bg-black text-white rounded-2xl",
-                        conceptualStatus === "past" &&
-                          "bg-white text-black border rounded-2xl",
-                        conceptualStatus !== "ongoing" &&
-                          conceptualStatus !== "past" &&
-                          "bg-indigo-50 text-indigo-700 rounded-full"
-                      )}
-                    >
-                      {conceptualLabel}
-                    </span>
-                  </div>
-                  <AppointmentBillingSection
-                    appointmentId={a.id}
-                    paymentStatus={a?.raw?.paymentStatus}
-                    fallbackService={{
-                      name: a?.serviceName,
-                      color: a?.serviceColor,
-                      staffName: a?.staffName,
-                      minutes: a?.minutes,
-                      start,
-                      priceCents: a.priceCents
-                    }}
-                  />
+              {/* SERVICES */}
+              <div className="space-y-4">
+                {booking.appointments.map((a: any, i: number) => {
+                  const s = DateTime.fromISO(a.startIso).toLocal();
+
+                  return (
+                    <div key={a.id} className="border rounded-md p-4 space-y-1">
+                      <div className="font-medium">
+                        {i + 1}. {a.service.name}
+                      </div>
+
+                      <div className="text-sm text-muted-foreground">
+                        {s.toFormat("t")} • {a.durationMin} min • {a.staff.name}
+                      </div>
+
+                      <div className="text-sm font-medium">
+                        ${(a.priceCents / 100).toFixed(2)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex-1" />
+
+              {/* FOOTER ACTIONS */}
+              <div className="border-t pt-4 space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="font-semibold text-base">Total</span>
+                  <span className="font-semibold text-base">
+                    ${(booking.totalCents / 100).toFixed(2)}
+                  </span>
                 </div>
 
-                <div className="flex-1" />
-                <div className="border-t p-4 space-y-3">
-                  {a?.raw?.paymentStatus === "PAID" ? (
-                    <>
-                      {/* ===== PAID STATE ===== */}
-                      <Button
-                        variant="default"
-                        className="w-full py-6 shadow-none"
-                        onClick={() => {
-                          router.push(`/dashboard/order/${a.id}`);
-                        }}
-                      >
-                        Ver orden
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      {/* ===== UNPAID STATE ===== */}
-                      <div className="flex justify-between text-sm">
-                        <span className="font-semibold text-base">Total</span>
-                        <span className="font-semibold text-base">
-                          $
-                          {(a.priceCents / 100).toFixed(2)}
-                        </span>
-                      </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1">
+                    <RefreshCwOff className="mr-2 h-4 w-4" />
+                    Cancelar
+                  </Button>
 
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          className="rounded-md py-6 shadow-none w-15"
-                          tooltip="Cancelar cita"
-                        >
-                          <RefreshCwOff />
-                        </Button>
-                         <Button
-                          variant="outline"
-                          className="rounded-md py-6 shadow-none w-15"
-                          tooltip="Reagendar cita"
-                        >
-
-                         <CalendarSync/>
-                        </Button>
-
-                        <Button
-                          className="flex-1 shadow-none py-6"
-                          onClick={handlePay}
-                        >
-                          Pagar
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                  <Button variant="outline" className="flex-1">
+                    <CalendarSync className="mr-2 h-4 w-4" />
+                    Reagendar
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
       </SheetContent>
     </Sheet>
   );

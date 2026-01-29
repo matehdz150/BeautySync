@@ -1,4 +1,12 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 
 import { JwtAuthGuard } from 'src/modules/auth/manager/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/modules/auth/manager/guards/roles.guard';
@@ -10,6 +18,11 @@ import * as managerChainDto from '../dto/manager-chain.dto';
 @Controller('manager/booking')
 export class BookingsManagerController {
   constructor(private readonly service: BookingsManagerService) {}
+
+  @Get(':bookingId')
+  getManagerBookingById(@Param('bookingId') bookingId: string) {
+    return this.service.getManagerBookingById({ bookingId });
+  }
 
   // POST /manager/booking/appointments
   @Post('appointments')

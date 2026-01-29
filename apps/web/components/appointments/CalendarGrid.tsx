@@ -9,6 +9,7 @@ import { useBranch } from "@/context/BranchContext";
 type Props = {
   timeSlots: string[];
   staffId: string;
+  staffName: string,
   selectedDate: string;
   onSlotClick?: (startISO: string, staffId: string) => void;
   isDisabled?: (time: string) => boolean;
@@ -18,6 +19,7 @@ export function CalendarGrid({
   timeSlots,
   staffId,
   selectedDate,
+  staffName,
   onSlotClick,
   isDisabled,
 }: Props) {
@@ -82,6 +84,7 @@ export function CalendarGrid({
               openSlotBooking({
                 pinnedStaffId: staffId,
                 pinnedStartIso: startISO!,
+                pinnedStaffName: staffName,
               });
             }}
           />

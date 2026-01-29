@@ -65,12 +65,15 @@ export function StepPickFirstService() {
 
     actions.addService({
       serviceId: service.id,
-      staffId: pinnedStaffId, // 🔒 primer servicio siempre pinned
+      serviceName: service.name, // ✅ GUARDAR NOMBRE
+
+      staffId: pinnedStaffId, // 🔒 pinned
+      staffName: state.pinnedStaffName, // ✅ VIENE DEL CONTEXTO
+
       durationMin: service.durationMin,
     });
 
-    // ❌ no llamamos nextStep
-    // el reducer ya mueve step → 2 automáticamente
+    // el reducer ya mueve al step 2
   }
 
   // ============================
@@ -86,9 +89,7 @@ export function StepPickFirstService() {
       </div>
 
       {loading && (
-        <div className="text-sm text-muted-foreground">
-          Loading services…
-        </div>
+        <div className="text-sm text-muted-foreground">Loading services…</div>
       )}
 
       {!loading && services.length === 0 && (
@@ -125,8 +126,7 @@ export function StepPickFirstService() {
                 <span
                   className="h-3 w-3 rounded-full border"
                   style={{
-                    backgroundColor:
-                      s.category?.colorHex ?? "#A78BFA",
+                    backgroundColor: s.category?.colorHex ?? "#A78BFA",
                   }}
                 />
                 <Badge variant="secondary">Select</Badge>

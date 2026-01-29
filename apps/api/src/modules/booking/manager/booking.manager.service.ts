@@ -15,6 +15,10 @@ export class BookingsManagerService {
     return this.core.createManagerBooking(dto);
   }
 
+  getManagerBookingById(params: { bookingId: string }) {
+    return this.core.getManagerBookingById(params);
+  }
+
   chainNextServices(dto: ManagerChainNextServicesDto) {
     return this.core.managerChainNextServices(dto);
   }
