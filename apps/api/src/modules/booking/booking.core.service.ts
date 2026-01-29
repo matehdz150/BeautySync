@@ -26,6 +26,7 @@ import {
   publicBookings,
   publicUserClients,
   publicUsers,
+  serviceCategories,
   services,
   staff,
 } from 'src/modules/db/schema';
@@ -1027,6 +1028,155 @@ export class BookingsCoreService {
       ok: true,
       allowAny: true,
       staff: available,
+    };
+  }
+
+  async getManagerBookingById(params: { bookingId: string }) {
+    const { bookingId } = params;
+
+    if (!bookingId) {
+      throw new BadRequestException('bookingId is required');
+    }
+
+    // 1) Traer appointments del booking
+    const rows = await this.db.query.appointments.findMany({
+      where: eq(appointments.publicBookingId, bookingId),
+    });
+
+    if (!rows.length) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    // 👉 branch desde el booking
+    const branchId = rows[0].branchId;
+
+    // 2) Branch
+    const branch = await this.db.query.branches.findFirst({
+      where: eq(branches.id, branchId),
+    });
+
+    if (!branch) throw new NotFoundException('Branch not found');
+
+    // 3) Settings (timezone)
+    const settings = await this.db.query.branchSettings.findFirst({
+      where: eq(branchSettings.branchId, branch.id),
+    });
+
+    const tz = settings?.timezone ?? 'America/Mexico_City';
+
+    // 4) Cliente (puede ser null)
+    const clientId = rows[0].clientId;
+
+    const clientRow = clientId
+      ? await this.db.query.clients.findFirst({
+          where: eq(clients.id, clientId),
+        })
+      : null;
+
+    // 5) Services & Staff
+    const serviceIds = Array.from(new Set(rows.map((r) => r.serviceId)));
+    const staffIds = Array.from(new Set(rows.map((r) => r.staffId)));
+
+    const servicesRows = await this.db.query.services.findMany({
+      where: inArray(services.id, serviceIds),
+      with: { category: true },
+    });
+
+    const staffRows = await this.db.query.staff.findMany({
+      where: inArray(staff.id, staffIds),
+    });
+
+    const servicesMap = new Map(servicesRows.map((s) => [s.id, s]));
+    const staffMap = new Map(staffRows.map((s) => [s.id, s]));
+
+    // 6) Ordenar appointments
+    const ordered = [...rows].sort(
+      (a, b) => a.start.getTime() - b.start.getTime(),
+    );
+
+    // 7) Appointments payload
+    const appointmentPayload = ordered.map((a) => {
+      const srv = servicesMap.get(a.serviceId);
+      const st = staffMap.get(a.staffId);
+
+      const startUtc = DateTime.fromJSDate(a.start, { zone: 'utc' });
+      const endUtc = DateTime.fromJSDate(a.end, { zone: 'utc' });
+
+      return {
+        id: a.id,
+        status: a.status,
+        paymentStatus: a.paymentStatus,
+
+        startIso: startUtc.setZone(tz).toISO()!,
+        endIso: endUtc.setZone(tz).toISO()!,
+
+        durationMin: Math.round(endUtc.diff(startUtc, 'minutes').minutes),
+        priceCents: a.priceCents ?? srv?.priceCents ?? 0,
+
+        service: {
+          id: srv?.id ?? a.serviceId,
+          name: srv?.name ?? 'Servicio',
+          categoryColor: srv?.category?.colorHex ?? '#A78BFA',
+        },
+
+        staff: st
+          ? {
+              id: st.id,
+              name: st.name,
+              avatarUrl: st.avatarUrl ?? null,
+            }
+          : {
+              id: a.staffId,
+              name: 'Staff',
+              avatarUrl: null,
+            },
+      };
+    });
+
+    // 8) Totales
+    const bookingStartsAtUtc = ordered[0].start;
+    const bookingEndsAtUtc = ordered[ordered.length - 1].end;
+
+    const totalCents = ordered.reduce((acc, a) => acc + (a.priceCents ?? 0), 0);
+
+    const bookingDate = DateTime.fromJSDate(bookingStartsAtUtc, { zone: 'utc' })
+      .setZone(tz)
+      .toISODate();
+
+    return {
+      ok: true,
+      booking: {
+        id: bookingId,
+        date: bookingDate,
+
+        startsAtISO: DateTime.fromJSDate(bookingStartsAtUtc, {
+          zone: 'utc',
+        }).toISO()!,
+        endsAtISO: DateTime.fromJSDate(bookingEndsAtUtc, {
+          zone: 'utc',
+        }).toISO()!,
+
+        branch: {
+          id: branch.id,
+          name: branch.name,
+        },
+
+        client: clientRow
+          ? {
+              id: clientRow.id,
+              name: clientRow.name,
+              phone: clientRow.phone,
+              email: clientRow.email,
+            }
+          : null,
+
+        paymentStatus: ordered.every((a) => a.paymentStatus === 'PAID')
+          ? 'PAID'
+          : 'UNPAID',
+
+        totalCents,
+        appointments: appointmentPayload,
+      },
     };
   }
 }

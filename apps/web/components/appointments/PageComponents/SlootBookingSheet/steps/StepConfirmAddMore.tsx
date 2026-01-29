@@ -6,6 +6,7 @@ import { DateTime } from "luxon";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 
 import { useSlotBooking } from "@/context/SlotBookingContext";
 import { api } from "@/lib/services/api";
@@ -17,7 +18,6 @@ import { api } from "@/lib/services/api";
 type StaffOption = {
   id: string;
   name: string;
-  avatarUrl?: string | null;
 };
 
 type AvailableService = {
@@ -25,8 +25,6 @@ type AvailableService = {
   name: string;
   durationMin: number;
   priceCents?: number | null;
-  categoryColor?: string | null;
-
   allowAny: boolean;
   staff: StaffOption[];
 };
@@ -43,9 +41,11 @@ type AvailableServicesResponse = {
 export function StepConfirmAddMore() {
   const { state, actions } = useSlotBooking();
 
-  const [availableServices, setAvailableServices] =
-    useState<AvailableService[]>([]);
+  const [availableServices, setAvailableServices] = useState<
+    AvailableService[]
+  >([]);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
 
   const { branchId, services } = state;
   const lastService = services[services.length - 1];
@@ -57,8 +57,7 @@ export function StepConfirmAddMore() {
   const nextStartIso = useMemo(() => {
     if (!lastService) return null;
 
-    return DateTime
-      .fromISO(lastService.startIso)
+    return DateTime.fromISO(lastService.startIso)
       .plus({ minutes: lastService.durationMin })
       .toISO();
   }, [lastService]);
@@ -95,29 +94,32 @@ export function StepConfirmAddMore() {
     }
 
     load();
-
     return () => {
       cancelled = true;
     };
   }, [branchId, nextStartIso]);
 
   /* ============================
+     Search
+  ============================ */
+
+  const filteredServices = useMemo(() => {
+    if (!search.trim()) return availableServices;
+    const q = search.toLowerCase();
+    return availableServices.filter((s) => s.name.toLowerCase().includes(q));
+  }, [availableServices, search]);
+
+  /* ============================
      Actions
   ============================ */
 
-  function addService(
-    service: AvailableService,
-    staffId: string | "ANY"
-  ) {
+  function addService(service: AvailableService) {
     actions.addService({
       serviceId: service.id,
-      staffId,
+      serviceName: service.name,
+      staffId: "ANY",
       durationMin: service.durationMin,
     });
-  }
-
-  function goToReview() {
-    actions.setStep(3);
   }
 
   /* ============================
@@ -125,32 +127,59 @@ export function StepConfirmAddMore() {
   ============================ */
 
   return (
-    <div className="space-y-5">
-      {/* Summary */}
+    <div className="space-y-6">
+      {/* ================= Current booking ================= */}
       <div>
         <h3 className="text-sm font-semibold">Current booking</h3>
 
-        <div className="space-y-2 pt-2">
+        <div className="space-y-3 pt-3">
           {services.map((s, i) => {
             const start = DateTime.fromISO(s.startIso).toLocal();
 
+            const staffOptions =
+              availableServices.find((av) => av.id === s.serviceId)?.staff ??
+              [];
+
             return (
-              <div
-                key={i}
-                className="rounded-md border px-3 py-2 text-sm flex justify-between"
-              >
-                <div>
-                  <div className="font-medium">
-                    {i + 1}. {s.serviceId}
+              <div key={i} className="rounded-md border p-3 space-y-2">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-medium">
+                      {i + 1}. {s.serviceName}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {start.toFormat("HH:mm")} · {s.durationMin} min
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {start.toFormat("HH:mm")} · {s.durationMin}m
-                  </div>
+
+                  <Badge variant="outline">
+                    {s.staffId === "ANY" ? "Staff not assigned" : s.staffName}
+                  </Badge>
                 </div>
 
-                <Badge variant="outline">
-                  {s.staffId === "ANY" ? "Any staff" : s.staffId}
-                </Badge>
+                {/* STAFF DROPDOWN */}
+                <select
+                  className="w-full border rounded-md px-2 py-1 text-sm"
+                  value={s.staffId}
+                  onChange={(e) => {
+                    const staffId = e.target.value as string | "ANY";
+
+                    const staff =
+                      staffId === "ANY"
+                        ? undefined
+                        : staffOptions.find((st) => st.id === staffId);
+
+                    actions.setStaffForService(i, staffId, staff?.name);
+                  }}
+                >
+                  <option value="ANY">Any staff</option>
+
+                  {staffOptions.map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             );
           })}
@@ -159,80 +188,51 @@ export function StepConfirmAddMore() {
 
       <Separator />
 
-      {/* Add more */}
-      <div>
+      {/* ================= Add service ================= */}
+      <div className="space-y-2">
         <h3 className="text-sm font-semibold">Add another service</h3>
         <p className="text-xs text-muted-foreground">
-          Select a service and assign a staff member.
+          Select a service to add it to the booking.
         </p>
+
+        <Input
+          placeholder="Search service…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
       {loading && (
+        <div className="text-sm text-muted-foreground">Loading services…</div>
+      )}
+
+      {!loading && filteredServices.length === 0 && (
         <div className="text-sm text-muted-foreground">
-          Loading services…
+          No services match your search.
         </div>
       )}
 
-      {!loading && availableServices.length === 0 && (
-        <div className="text-sm text-muted-foreground">
-          No more services available.
-        </div>
-      )}
-
-      <div className="space-y-4">
-        {availableServices.map((s) => (
+      <div className="space-y-3">
+        {filteredServices.map((s) => (
           <div
             key={s.id}
-            className="rounded-lg border p-4 space-y-3"
+            className="rounded-lg border px-4 py-3 flex justify-between items-center"
           >
-            {/* Service info */}
-            <div className="flex justify-between items-center">
-              <div>
-                <div className="font-medium">{s.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {s.durationMin} min
-                  {s.priceCents != null && (
-                    <> · ${(s.priceCents / 100).toFixed(2)}</>
-                  )}
-                </div>
+            <div>
+              <div className="font-medium">{s.name}</div>
+              <div className="text-xs text-muted-foreground">
+                {s.durationMin} min
+                {s.priceCents != null && (
+                  <> · ${(s.priceCents / 100).toFixed(2)}</>
+                )}
               </div>
-
-              <Badge variant="secondary">Select staff</Badge>
             </div>
 
-            {/* Staff selection */}
-            <div className="flex flex-wrap gap-2">
-              {s.allowAny && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => addService(s, "ANY")}
-                >
-                  Any staff
-                </Button>
-              )}
-
-              {s.staff.map((st) => (
-                <Button
-                  key={st.id}
-                  size="sm"
-                  variant="outline"
-                  onClick={() => addService(s, st.id)}
-                >
-                  {st.name}
-                </Button>
-              ))}
-            </div>
+            <Button size="sm" onClick={() => addService(s)}>
+              Add
+            </Button>
           </div>
         ))}
-      </div>
-
-      <Separator />
-
-      <div className="flex justify-end">
-        <Button onClick={goToReview}>
-          Review booking
-        </Button>
       </div>
     </div>
   );

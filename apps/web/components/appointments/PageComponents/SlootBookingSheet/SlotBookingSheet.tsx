@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { DateTime } from "luxon";
 
 import {
@@ -17,10 +17,12 @@ import {
   useSlotBooking,
 } from "@/context/SlotBookingContext";
 
-// Steps (vamos a ir creándolos)
 import { StepPickFirstService } from "./steps/StepPickFirstService";
 import { StepConfirmAddMore } from "./steps/StepConfirmAddMore";
 import { StepReviewBooking } from "./steps/StepReviewBooking";
+
+import { SlotBookingClientHeader } from "./SlotBookingClientHeader";
+import { SlotBookingClientSelector } from "./SlotBookingClientSelector";
 
 type Props = {
   open: boolean;
@@ -28,6 +30,7 @@ type Props = {
 
   pinnedStaffId: string | null;
   pinnedStartIso: string | null;
+  pinnedStaffName: string | null;
 };
 
 function InnerSlotBookingSheet({
@@ -35,29 +38,30 @@ function InnerSlotBookingSheet({
   onOpenChange,
   pinnedStaffId,
   pinnedStartIso,
+  pinnedStaffName,
 }: Props) {
   const { branch } = useBranch();
   const { state, actions } = useSlotBooking();
 
-  // ============================
-  // Init slot ONLY once when opening
-  // ============================
+  /* ============================
+     Init slot (solo al abrir)
+  ============================ */
   useEffect(() => {
     if (!open) return;
     if (!branch?.id) return;
-    if (!pinnedStaffId) return;
-    if (!pinnedStartIso) return;
+    if (!pinnedStaffId || !pinnedStartIso || !pinnedStaffName) return;
 
     actions.initSlot({
       branchId: branch.id,
       pinnedStaffId,
+      pinnedStaffName,
       pinnedStartIso,
     });
-  }, [open, branch?.id, pinnedStaffId, pinnedStartIso]); // 👈 actions NO es necesaria
+  }, [open, branch?.id, pinnedStaffId, pinnedStaffName, pinnedStartIso]);
 
-  // ============================
-  // Title
-  // ============================
+  /* ============================
+     Title
+  ============================ */
   const title = useMemo(() => {
     if (!pinnedStartIso) return "New booking";
 
@@ -65,9 +69,9 @@ function InnerSlotBookingSheet({
     return `New booking · ${dt.toFormat("ccc dd LLL")} · ${dt.toFormat("HH:mm")}`;
   }, [pinnedStartIso]);
 
-  // ============================
-  // Render step
-  // ============================
+  /* ============================
+     Steps
+  ============================ */
   function renderStep() {
     switch (state.step) {
       case 1:
@@ -75,11 +79,16 @@ function InnerSlotBookingSheet({
       case 2:
         return <StepConfirmAddMore />;
       case 3:
-        return <StepReviewBooking/>;
+        return <StepReviewBooking />;
       default:
         return null;
     }
   }
+
+  const hasUnassignedStaff = useMemo(
+    () => state.services.some((s) => s.staffId === "ANY"),
+    [state.services]
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -92,30 +101,69 @@ function InnerSlotBookingSheet({
           h-[100dvh]
         "
       >
-        {/* HEADER */}
+        {/* ================= HEADER ================= */}
         <div className="border-b shrink-0">
-          <SheetHeader className="px-6 py-4">
+          <SheetHeader className="px-6 py-4 space-y-3">
             <SheetTitle className="text-xl">{title}</SheetTitle>
+
+            {/* 👇 HEADER DE CLIENTE */}
+            <SlotBookingClientHeader />
           </SheetHeader>
         </div>
 
-        {/* BODY */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6">
-          {renderStep()}
+        {/* ================= BODY ================= */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {state.isSelectingClient ? (
+            /* 🔥 CLIENT SELECTOR = FULL HEIGHT */
+            <div className="h-full flex flex-col">
+              {branch && (
+                <SlotBookingClientSelector
+                  orgId={branch.organizationId}
+                  clientId={state.client?.id}
+                  onSelect={(client) => actions.setClient(client)}
+                  onClose={() => actions.closeClientSelector()}
+                />
+              )}
+            </div>
+          ) : (
+            /* 🔁 NORMAL FLOW */
+            <div className="h-full overflow-y-auto px-6 py-6">
+              {renderStep()}
+            </div>
+          )}
         </div>
 
-        {/* FOOTER */}
-        <div className="border-t shrink-0 px-6 py-4 flex justify-between">
-          <Button
-            variant="ghost"
-            onClick={() => {
-              actions.reset();
-              onOpenChange(false);
-            }}
-          >
-            Cancel
-          </Button>
-        </div>
+        {/* ================= FOOTER ================= */}
+        {!state.isSelectingClient && (
+          <div className="border-t shrink-0 px-6 py-4 flex justify-between items-center">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                actions.reset();
+                onOpenChange(false);
+              }}
+            >
+              Cancel
+            </Button>
+
+            {state.step < 3 && (
+              <div className="flex flex-col items-end gap-1">
+                <Button
+                  onClick={() => actions.nextStep()}
+                  disabled={hasUnassignedStaff}
+                >
+                  Continue
+                </Button>
+
+                {hasUnassignedStaff && (
+                  <span className="text-xs text-destructive">
+                    Please assign a staff member to all services
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );

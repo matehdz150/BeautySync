@@ -192,6 +192,7 @@ export class AppointmentsService {
       this.db
         .select({
           id: appointments.id,
+          bookingId: appointments.publicBookingId,
           start: appointments.start,
           end: appointments.end,
           status: appointments.status,

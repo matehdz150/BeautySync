@@ -18,7 +18,6 @@ export function StaffColumn({
   staff,
   appointments,
   timeSlots,
-  onEventClick,
   onSlotClick,
   date,
 }: any) {
@@ -126,6 +125,7 @@ export function StaffColumn({
       <CalendarGrid
         timeSlots={timeSlots}
         staffId={staff.id}
+        staffName={staff.name}
         onSlotClick={onSlotClick}
         selectedDate={date}
         isDisabled={(t) => !isInsideSchedule(t)}

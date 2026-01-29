@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { DateTime } from "luxon";
+import { Briefcase, Clock, User, Lock, Pencil, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,183 +9,174 @@ import { Separator } from "@/components/ui/separator";
 
 import { useSlotBooking } from "@/context/SlotBookingContext";
 import { api } from "@/lib/services/api";
-
-/* =========================
-   Types
-========================= */
-
-type StaffOption = {
-  id: string;
-  name: string;
-};
-
-/* =========================
-   Component
-========================= */
+import { useState } from "react";
+import { createManagerBooking } from "@/lib/services/appointments";
+import { useCalendarActions } from "@/context/CalendarContext";
 
 export function StepReviewBooking() {
   const { state, actions } = useSlotBooking();
   const { branchId, services } = state;
+  const { addAppointments, closeSlotBooking } = useCalendarActions();
 
-  const [staffOptions, setStaffOptions] = useState<
-    Record<number, StaffOption[]>
-  >({});
-
-  const [loadingStaff, setLoadingStaff] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  /* ============================
-     Load staff for a service
-  ============================ */
+  const hasUnassignedStaff = services.some(
+    (s, i) => i !== 0 && s.staffId === "ANY"
+  );
 
-  async function loadStaff(index: number, serviceId: string) {
-    if (!branchId) return;
+  const SLOT_MINUTES = 15;
 
-    setLoadingStaff(index);
-
-    try {
-      const res = await api<{ staff: StaffOption[] }>(
-        `/staff/for-service?branchId=${branchId}&serviceId=${serviceId}`
-      );
-
-      setStaffOptions((prev) => ({
-        ...prev,
-        [index]: res.staff ?? [],
-      }));
-    } finally {
-      setLoadingStaff(null);
-    }
+  function roundUpToSlot(minutes: number) {
+    return Math.ceil(minutes / SLOT_MINUTES) * SLOT_MINUTES;
   }
-
-  /* ============================
-     Confirm booking
-  ============================ */
 
   async function confirmBooking() {
     if (!branchId) return;
+    if (hasUnassignedStaff) return;
+    if (services.length === 0) return;
 
     setSubmitting(true);
 
     try {
-      await api("/bookings", {
-        method: "POST",
-        body: JSON.stringify({
-          branchId,
-          services: services.map((s) => ({
-            serviceId: s.serviceId,
-            staffId: s.staffId,
-            startIso: s.startIso,
-            durationMin: s.durationMin,
-          })),
-        }),
+      // ============================
+      // Build appointments payload
+      // ============================
+      const appointments = services.map((s) => {
+        const roundedDuration = roundUpToSlot(s.durationMin);
+
+        const start = DateTime.fromISO(s.startIso);
+        const end = start.plus({ minutes: roundedDuration });
+
+        return {
+          serviceId: s.serviceId,
+          staffId: s.staffId as string, // 🔒 validado (NO "ANY")
+          startIso: start.toISO()!,
+          endIso: end.toISO()!,
+          durationMin: roundedDuration,
+        };
       });
 
+      // ============================
+      // Create booking (BACKEND)
+      // ============================
+      await createManagerBooking({
+        branchId,
+        clientId: state.client?.id ?? null, // ✅ CLIENTE AQUÍ
+        date: DateTime.fromISO(services[0].startIso).toISODate()!,
+        paymentMethod: "ONSITE",
+        appointments,
+      });
+
+      // ============================
+      // ENRICH + ADD TO CALENDAR
+      // ============================
+      const enriched = services.map((s) => {
+        const roundedDuration = roundUpToSlot(s.durationMin);
+
+        const startUtc = DateTime.fromISO(s.startIso);
+        const endUtc = startUtc.plus({ minutes: roundedDuration });
+
+        return {
+          id: crypto.randomUUID(), // temporal
+          staffId: s.staffId as string,
+          staffName: s.staffName ?? "Staff",
+
+          client: state.client?.name ?? "Walk-in", // ✅ CLIENTE AQUÍ
+          serviceName: s.serviceName,
+          serviceColor: "#A78BFA",
+
+          startISO: startUtc.toISO()!,
+          endISO: endUtc.toISO()!,
+          startTime: startUtc.toLocal().toFormat("H:mm"),
+          minutes: roundedDuration,
+        };
+      });
+
+      addAppointments(enriched);
+
+      // ============================
+      // Close + reset
+      // ============================
+      closeSlotBooking();
       actions.reset();
+    } catch (error) {
+      console.error("Error creating booking:", error);
     } finally {
       setSubmitting(false);
     }
   }
 
-  /* ============================
-     Render
-  ============================ */
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* HEADER */}
       <div>
         <h3 className="text-sm font-semibold">Review booking</h3>
         <p className="text-xs text-muted-foreground">
-          Assign staff for each service before confirming.
+          Review your services before confirming.
         </p>
       </div>
 
       <Separator />
 
+      {/* SERVICES */}
       <div className="space-y-4">
         {services.map((s, index) => {
           const start = DateTime.fromISO(s.startIso).toLocal();
           const isFirst = index === 0;
 
           return (
-            <div
-              key={index}
-              className="rounded-lg border p-4 space-y-3"
-            >
-              {/* Header */}
+            <div key={index} className="rounded-lg border p-4 space-y-3">
+              {/* HEADER */}
               <div className="flex justify-between items-start">
-                <div>
-                  <div className="font-medium">
-                    {index + 1}. {s.serviceId}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-medium">
+                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+                    {s.serviceName}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
                     {start.toFormat("HH:mm")} · {s.durationMin} min
                   </div>
                 </div>
 
                 <Badge variant={isFirst ? "secondary" : "outline"}>
-                  {s.staffId === "ANY" ? "Any staff" : s.staffId}
+                  {isFirst ? (
+                    <>
+                      <Lock className="h-3 w-3 mr-1" />
+                      Fixed
+                    </>
+                  ) : (
+                    s.staffName
+                  )}
                 </Badge>
               </div>
 
-              {/* First service locked */}
-              {isFirst && (
-                <div className="text-xs text-muted-foreground">
-                  Staff for the first service is fixed.
+              {/* STAFF INFO */}
+              {!isFirst && (
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    {s.staffName}
+                  </div>
+
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => actions.setStep(2)}
+                  >
+                    <Pencil className="h-4 w-4 mr-1" />
+                    Edit
+                  </Button>
                 </div>
               )}
 
-              {/* Staff actions (only for services > 1) */}
-              {!isFirst && (
-                <>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant={
-                        s.staffId === "ANY" ? "default" : "outline"
-                      }
-                      onClick={() =>
-                        actions.setStaffForService(index, "ANY")
-                      }
-                    >
-                      Any staff
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        loadStaff(index, s.serviceId)
-                      }
-                      disabled={loadingStaff === index}
-                    >
-                      {loadingStaff === index
-                        ? "Loading staff…"
-                        : "Choose staff"}
-                    </Button>
-                  </div>
-
-                  {/* Staff list */}
-                  {staffOptions[index] && (
-                    <div className="pt-2 grid grid-cols-2 gap-2">
-                      {staffOptions[index].map((st) => (
-                        <Button
-                          key={st.id}
-                          size="sm"
-                          variant={
-                            s.staffId === st.id
-                              ? "default"
-                              : "outline"
-                          }
-                          onClick={() =>
-                            actions.setStaffForService(index, st.id)
-                          }
-                        >
-                          {st.name}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </>
+              {/* FIRST SERVICE INFO */}
+              {isFirst && (
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Lock className="h-3 w-3" />
+                  Staff for the first service is fixed.
+                </div>
               )}
             </div>
           );
@@ -194,21 +185,26 @@ export function StepReviewBooking() {
 
       <Separator />
 
-      <div className="flex justify-between">
-        <Button
-          variant="ghost"
-          onClick={() => actions.setStep(2)}
-        >
-          Back
+      {/* ACTIONS */}
+      <div className="flex justify-between items-center">
+        <Button variant="ghost" onClick={() => actions.setStep(2)}>
+          <Plus className="h-4 w-4 mr-1" />
+          Add another service
         </Button>
 
         <Button
           onClick={confirmBooking}
-          disabled={submitting}
+          disabled={submitting || hasUnassignedStaff}
         >
           {submitting ? "Confirming…" : "Confirm booking"}
         </Button>
       </div>
+
+      {hasUnassignedStaff && (
+        <p className="text-xs text-destructive">
+          Please assign a staff member to all services before confirming.
+        </p>
+      )}
     </div>
   );
 }

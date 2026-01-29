@@ -215,3 +215,60 @@ export async function managerChainBuild(
     body: JSON.stringify(payload),
   });
 }
+
+export type ManagerBooking = {
+  id: string;
+  date: string;
+
+  startsAtISO: string;
+  endsAtISO: string;
+
+  branch: {
+    id: string;
+    name: string;
+  };
+
+  client: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+  } | null;
+
+  paymentStatus: "PAID" | "UNPAID";
+
+  totalCents: number;
+
+  appointments: {
+    id: string;
+    status: string;
+    paymentStatus: "PAID" | "UNPAID";
+
+    startIso: string;
+    endIso: string;
+    durationMin: number;
+
+    priceCents: number;
+
+    service: {
+      id: string;
+      name: string;
+      categoryColor: string;
+    };
+
+    staff: {
+      id: string;
+      name: string;
+      avatarUrl?: string | null;
+    };
+  }[];
+};
+
+export async function getManagerBookingById(bookingId: string) {
+  if (!bookingId) throw new Error("bookingId is required");
+
+  return api<{
+    ok: true;
+    booking: ManagerBooking;
+  }>(`/manager/booking/${bookingId}`);
+}

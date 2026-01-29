@@ -122,6 +122,7 @@ export default function Calendar() {
             onOpenChange={() => dispatch({ type: "CLOSE_SLOT_SHEET" })}
             pinnedStaffId={state.slotPrefill?.pinnedStaffId}
             pinnedStartIso={state.slotPrefill?.pinnedStartIso}
+            pinnedStaffName={state.slotPrefill?.pinnedStaffName}
           />
         </>
       )}

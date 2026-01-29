@@ -34,7 +34,9 @@ export type PendingService = {
 
 export type SlotServiceItem = {
   serviceId: string;
+  serviceName: string;
   staffId: string | "ANY";
+  staffName?: string;
   durationMin: number;
   startIso: string; // UTC, calculado
 };
@@ -45,6 +47,12 @@ export type SlotBookingState = {
   // pinned
   pinnedStartIso: string | null;
   pinnedStaffId: string | null;
+  pinnedStaffName: string | null;
+
+  client?: {
+    id: string;
+    name: string;
+  } | null;
 
   // chain
   services: SlotServiceItem[];
@@ -61,13 +69,18 @@ type Action =
         branchId: string;
         pinnedStartIso: string;
         pinnedStaffId: string;
+        pinnedStaffName: string; // ✅
       };
     }
   | {
       type: "ADD_SERVICE";
       payload: {
         serviceId: string;
+        serviceName: string;
+
         staffId: string | "ANY";
+        staffName?: string;
+
         durationMin: number;
       };
     }
@@ -77,10 +90,13 @@ type Action =
       payload: {
         index: number;
         staffId: string | "ANY";
+        staffName?: string;
       };
     }
   | { type: "SET_PENDING_SERVICE"; payload: PendingService | null }
   | { type: "SET_STEP"; payload: SlotBookingState["step"] }
+  | { type: "SET_CLIENT"; payload: SlotBookingState["client"] }
+  | { type: "CLEAR_CLIENT" }
   | { type: "RESET" };
 
 /* =========================
@@ -92,6 +108,9 @@ const initialState: SlotBookingState = {
 
   pinnedStartIso: null,
   pinnedStaffId: null,
+  pinnedStaffName: null,
+
+  client: null,
 
   services: [],
   pendingService: null,
@@ -111,6 +130,7 @@ function reducer(state: SlotBookingState, action: Action): SlotBookingState {
         branchId: action.payload.branchId,
         pinnedStartIso: action.payload.pinnedStartIso,
         pinnedStaffId: action.payload.pinnedStaffId,
+        pinnedStaffName: action.payload.pinnedStaffName,
       };
     }
 
@@ -127,19 +147,24 @@ function reducer(state: SlotBookingState, action: Action): SlotBookingState {
 
       const startIso = ceilToStep(rawStartIso);
 
+      const isFirstService = state.services.length === 0;
+
       return {
         ...state,
         services: [
           ...state.services,
           {
             serviceId: action.payload.serviceId,
+            serviceName: action.payload.serviceName,
+
             staffId: action.payload.staffId,
+            staffName: action.payload.staffName,
+
             durationMin: action.payload.durationMin,
             startIso,
           },
         ],
-        // 👇 al agregar el primer servicio avanzamos a step 2
-        step: state.services.length === 0 ? 2 : state.step,
+        step: isFirstService ? 2 : state.step, // 👈 🔥 CLAVE
       };
     }
 
@@ -155,11 +180,16 @@ function reducer(state: SlotBookingState, action: Action): SlotBookingState {
 
     case "SET_STAFF_FOR_SERVICE": {
       const services = [...state.services];
-      if (!services[action.payload.index]) return state;
+      const current = services[action.payload.index];
+      if (!current) return state;
 
       services[action.payload.index] = {
-        ...services[action.payload.index],
+        ...current,
         staffId: action.payload.staffId,
+        staffName:
+          action.payload.staffId === "ANY"
+            ? undefined
+            : action.payload.staffName,
       };
 
       return { ...state, services };
@@ -170,6 +200,12 @@ function reducer(state: SlotBookingState, action: Action): SlotBookingState {
         ...state,
         pendingService: action.payload,
       };
+
+    case "SET_CLIENT":
+      return { ...state, client: action.payload };
+
+    case "CLEAR_CLIENT":
+      return { ...state, client: null };
 
     case "SET_STEP":
       return { ...state, step: action.payload };
@@ -193,11 +229,16 @@ type Ctx = {
       branchId: string;
       pinnedStartIso: string;
       pinnedStaffId: string;
+      pinnedStaffName: string;
     }): void;
 
     addService(params: {
       serviceId: string;
+      serviceName: string;
+
       staffId: string | "ANY";
+      staffName?: string;
+
       durationMin: number;
     }): void;
 
@@ -207,6 +248,9 @@ type Ctx = {
     setStep(step: SlotBookingState["step"]): void;
     nextStep(): void;
     prevStep(): void;
+
+    setClient(): void;
+    clearClient():void;
 
     reset(): void;
   };
@@ -233,11 +277,16 @@ export function SlotBookingProvider({
 
       removeLastService: () => dispatch({ type: "REMOVE_LAST_SERVICE" }),
 
-      setStaffForService: (index, staffId) =>
+      setStaffForService(
+        index: number,
+        staffId: string | "ANY",
+        staffName?: string
+      ) {
         dispatch({
           type: "SET_STAFF_FOR_SERVICE",
-          payload: { index, staffId },
-        }),
+          payload: { index, staffId, staffName },
+        });
+      },
 
       setPendingService(service) {
         dispatch({ type: "SET_PENDING_SERVICE", payload: service });
@@ -256,6 +305,11 @@ export function SlotBookingProvider({
           type: "SET_STEP",
           payload: Math.max(state.step - 1, 1) as SlotBookingState["step"],
         }),
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setClient: (client: any) => dispatch({ type: "SET_CLIENT", payload: client }),
+
+      clearClient: () => dispatch({ type: "CLEAR_CLIENT" }),
 
       reset: () => dispatch({ type: "RESET" }),
     };

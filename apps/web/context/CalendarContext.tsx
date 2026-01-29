@@ -32,6 +32,7 @@ export type Prefill = {
 export type SlotPrefill = {
   pinnedStaffId: string;
   pinnedStartIso: string;
+  pinnedStaffName: string;
 };
 
 type CalendarState = {
@@ -46,6 +47,7 @@ type CalendarState = {
   prefill: Prefill;
 
   selectedAppointment?: any; // 👈 NEW
+  selectedAppointmentId?: string;
 
   selectedEvent: unknown | null;
   anchorRect: DOMRect | null;
@@ -153,22 +155,16 @@ function calendarReducer(state: CalendarState, action: Action): CalendarState {
         ),
       };
 
-    /* ---------- NEW ---------- */
-    case "OPEN_APPOINTMENT": {
-      const appointment = state.appointments.find(
-        (a) => a.id === action.payload
-      );
-
+    case "OPEN_APPOINTMENT":
       return {
         ...state,
-        selectedAppointment: appointment,
+        selectedAppointmentId: action.payload,
       };
-    }
 
     case "CLOSE_APPOINTMENT":
       return {
         ...state,
-        selectedAppointment: undefined,
+        selectedAppointmentId: undefined,
       };
 
     case "SET_MAX_VISIBLE_STAFF":
@@ -254,6 +250,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
       return {
         id: a.id,
+        bookingId: a.bookingId ?? null,
         priceCents: a.priceCents ?? a.service?.priceCents ?? 0,
         staffId: a.staff.id,
         staffName: a.staff.name,
