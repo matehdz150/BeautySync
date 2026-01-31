@@ -13,7 +13,7 @@ import {
 
 import { randomUUID } from 'crypto';
 import { DateTime } from 'luxon';
-import { and, eq, gt, inArray, lt } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import * as client from 'src/modules/db/client';
 
@@ -26,13 +26,14 @@ import {
   publicBookings,
   publicUserClients,
   publicUsers,
-  serviceCategories,
   services,
   staff,
 } from 'src/modules/db/schema';
 
 import { CreatePublicBookingDto } from './dto/create-booking-public.dto';
 import { PublicBookingJobsService } from '../queues/booking/public-booking-job.service';
+
+import { buildAppointmentOverlapWhere } from '../lib/booking/booking.overlap';
 
 @Injectable()
 export class BookingsCoreService {
@@ -216,15 +217,15 @@ export class BookingsCoreService {
           .select()
           .from(appointments)
           .where(
-            and(
-              eq(appointments.branchId, a.branchId),
-              eq(appointments.staffId, a.staffId),
-              lt(appointments.start, a.endUtc.toJSDate()),
-              gt(appointments.end, a.startUtc.toJSDate()),
-            ),
+            buildAppointmentOverlapWhere({
+              branchId: a.branchId,
+              staffId: a.staffId,
+              startUtc: a.startUtc,
+              endUtc: a.endUtc,
+            }),
           );
 
-        if (overlapping.length > 0) {
+        if (overlapping.length) {
           throw new BadRequestException('Timeslot already booked');
         }
       }
@@ -492,7 +493,6 @@ export class BookingsCoreService {
     const branch = await this.db.query.branches.findFirst({
       where: eq(branches.id, branchId),
     });
-
     if (!branch) throw new NotFoundException('Branch not found');
 
     // 2) Settings
@@ -503,10 +503,9 @@ export class BookingsCoreService {
     const tz = settings?.timezone ?? 'America/Mexico_City';
     const bufferBefore = settings?.bufferBeforeMin ?? 0;
     const bufferAfter = settings?.bufferAfterMin ?? 0;
-
     const BLOCK_MINUTES = 15;
 
-    // 3) Normalizar appointments (igual que public)
+    // 3) Normalizar appointments
     const normalized = await Promise.all(
       drafts.map(async (a) => {
         const service = await this.db.query.services.findFirst({
@@ -516,7 +515,6 @@ export class BookingsCoreService {
             eq(services.isActive, true),
           ),
         });
-
         if (!service) {
           throw new BadRequestException(`Service not found: ${a.serviceId}`);
         }
@@ -525,7 +523,6 @@ export class BookingsCoreService {
           millisecond: 0,
           second: 0,
         });
-
         if (!startLocal.isValid) {
           throw new BadRequestException('Invalid startIso');
         }
@@ -558,15 +555,12 @@ export class BookingsCoreService {
       }),
     );
 
-    normalized.sort((x, y) =>
-      x.startUtc.toISO()!.localeCompare(y.startUtc.toISO()),
+    normalized.sort((a, b) =>
+      a.startUtc.toISO()!.localeCompare(b.startUtc.toISO()),
     );
 
     for (let i = 1; i < normalized.length; i++) {
-      const prev = normalized[i - 1];
-      const curr = normalized[i];
-
-      if (prev.endUtc.toISO() !== curr.startUtc.toISO()) {
+      if (normalized[i - 1].endUtc.toISO() !== normalized[i].startUtc.toISO()) {
         throw new BadRequestException(
           'appointments must be consecutive without gaps',
         );
@@ -581,6 +575,9 @@ export class BookingsCoreService {
       0,
     );
 
+    // 🔑 BOOKING ID SIEMPRE
+    const bookingId = randomUUID();
+
     // =========================
     // ✅ TRANSACTION
     // =========================
@@ -591,51 +588,43 @@ export class BookingsCoreService {
           .select()
           .from(appointments)
           .where(
-            and(
-              eq(appointments.branchId, a.branchId),
-              eq(appointments.staffId, a.staffId),
-              lt(appointments.start, a.endUtc.toJSDate()),
-              gt(appointments.end, a.startUtc.toJSDate()),
-            ),
+            buildAppointmentOverlapWhere({
+              branchId: a.branchId,
+              staffId: a.staffId,
+              startUtc: a.startUtc,
+              endUtc: a.endUtc,
+            }),
           );
 
-        if (overlapping.length > 0) {
+        if (overlapping.length) {
           throw new BadRequestException('Timeslot already booked');
         }
       }
 
-      // B) Resolver publicUserId si hay clientId
+      // B) Resolver publicUserId (puede ser null)
       let publicUserId: string | null = null;
-
       if (clientId) {
         const link = await tx.query.publicUserClients.findFirst({
           where: eq(publicUserClients.clientId, clientId),
           columns: { publicUserId: true },
         });
-
         publicUserId = link?.publicUserId ?? null;
       }
 
-      // C) Crear publicBooking solo si hay publicUserId
-      let publicBookingId: string | null = null;
+      // C) 👉 CREAR BOOKING SIEMPRE
+      await tx.insert(publicBookings).values({
+        id: bookingId,
+        branchId: branch.id,
+        publicUserId, // 👈 nullable
+        startsAt: bookingStartsAtUtc,
+        endsAt: bookingEndsAtUtc,
+        status: 'CONFIRMED',
+        paymentMethod: 'ONSITE',
+        totalCents: bookingTotalCents,
+        notes: dto.notes ?? null,
+      });
 
-      if (publicUserId) {
-        publicBookingId = randomUUID();
-
-        await tx.insert(publicBookings).values({
-          id: publicBookingId,
-          branchId: branch.id,
-          publicUserId,
-          startsAt: bookingStartsAtUtc,
-          endsAt: bookingEndsAtUtc,
-          status: 'CONFIRMED',
-          paymentMethod: 'ONSITE',
-          totalCents: bookingTotalCents,
-          notes: dto.notes ?? null,
-        });
-      }
-
-      // D) Insert appointments
+      // D) Insert appointments (siempre con bookingId)
       const created = await Promise.all(
         normalized.map(async (a) => {
           const [row] = await tx
@@ -652,8 +641,8 @@ export class BookingsCoreService {
               notes: dto.notes ?? null,
 
               clientId: clientId ?? null,
-              publicUserId: publicUserId,
-              publicBookingId: publicBookingId,
+              publicUserId,
+              publicBookingId: bookingId, // ✅ SIEMPRE
             })
             .returning();
 
@@ -669,18 +658,18 @@ export class BookingsCoreService {
 
       return {
         ok: true,
-        bookingId: publicBookingId ?? null, // ojo: esto es publicBookingId
-        publicBookingId,
+        bookingId,
+        publicBookingId: bookingId,
         publicUserId,
         clientId: clientId ?? null,
         appointments: created,
       };
     });
 
-    // Jobs solo si existe publicBooking
-    if (result.publicBookingId) {
+    // ⏱ Jobs SOLO si hay usuario público ligado
+    if (result.publicUserId) {
       await this.publicBookingJobsService.scheduleBookingLifecycle({
-        bookingId: result.publicBookingId,
+        bookingId,
         startsAtUtc: bookingStartsAtUtc,
         endsAtUtc: bookingEndsAtUtc,
       });
@@ -717,19 +706,10 @@ export class BookingsCoreService {
     startUtc: DateTime;
     endUtc: DateTime;
   }) {
-    const { branchId, staffId, startUtc, endUtc } = params;
-
     const overlapping = await this.db
-      .select()
+      .select({ id: appointments.id })
       .from(appointments)
-      .where(
-        and(
-          eq(appointments.branchId, branchId),
-          eq(appointments.staffId, staffId),
-          lt(appointments.start, endUtc.toJSDate()),
-          gt(appointments.end, startUtc.toJSDate()),
-        ),
-      );
+      .where(buildAppointmentOverlapWhere(params));
 
     return overlapping.length > 0;
   }
@@ -1047,6 +1027,15 @@ export class BookingsCoreService {
       throw new NotFoundException('Booking not found');
     }
 
+    // 🔑 1.5) Traer booking real (FUENTE DE VERDAD)
+    const bookingRow = await this.db.query.publicBookings.findFirst({
+      where: eq(publicBookings.id, bookingId),
+    });
+
+    if (!bookingRow) {
+      throw new NotFoundException('Public booking not found');
+    }
+
     // 👉 branch desde el booking
     const branchId = rows[0].branchId;
 
@@ -1143,10 +1132,13 @@ export class BookingsCoreService {
       .setZone(tz)
       .toISODate();
 
+    // ✅ RESPONSE FINAL (YA CON STATUS)
     return {
       ok: true,
       booking: {
         id: bookingId,
+        status: bookingRow.status, // 🔥 AQUÍ ESTÁ LO QUE FALTABA
+
         date: bookingDate,
 
         startsAtISO: DateTime.fromJSDate(bookingStartsAtUtc, {
@@ -1178,5 +1170,155 @@ export class BookingsCoreService {
         appointments: appointmentPayload,
       },
     };
+  }
+
+  async assignClientToBooking(params: { bookingId: string; clientId: string }) {
+    const { bookingId, clientId } = params;
+
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!clientId) throw new BadRequestException('clientId is required');
+
+    return this.db.transaction(async (tx) => {
+      // 1) Booking
+      const booking = await tx.query.publicBookings.findFirst({
+        where: eq(publicBookings.id, bookingId),
+      });
+
+      if (!booking) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      if (booking.publicUserId) {
+        throw new BadRequestException(
+          'Booking already has a public user assigned',
+        );
+      }
+
+      // 2) Resolver publicUserId desde clientId
+      const link = await tx.query.publicUserClients.findFirst({
+        where: eq(publicUserClients.clientId, clientId),
+        columns: { publicUserId: true },
+      });
+
+      if (!link?.publicUserId) {
+        throw new BadRequestException(
+          'Client is not linked to any public user',
+        );
+      }
+
+      const publicUserId = link.publicUserId;
+
+      // 3) Actualizar booking
+      await tx
+        .update(publicBookings)
+        .set({ publicUserId })
+        .where(eq(publicBookings.id, bookingId));
+
+      // 4) Actualizar appointments
+      await tx
+        .update(appointments)
+        .set({
+          publicUserId,
+          clientId,
+        })
+        .where(eq(appointments.publicBookingId, bookingId));
+
+      // 5) Schedule jobs (🔥 AQUÍ es el único lugar)
+      await this.publicBookingJobsService.scheduleBookingLifecycle({
+        bookingId,
+        startsAtUtc: booking.startsAt,
+        endsAtUtc: booking.endsAt,
+      });
+
+      return {
+        ok: true,
+        bookingId,
+        publicUserId,
+        clientId,
+      };
+    });
+  }
+
+  async cancelBooking(params: {
+    bookingId: string;
+    cancelledBy: 'PUBLIC' | 'MANAGER';
+    reason?: string;
+  }) {
+    const { bookingId, cancelledBy, reason } = params;
+
+    if (!bookingId) {
+      throw new BadRequestException('bookingId is required');
+    }
+
+    const nowUtc = DateTime.utc();
+
+    // =========================
+    // ✅ DB TRANSACTION ONLY
+    // =========================
+    const result = await this.db.transaction(async (tx) => {
+      const booking = await tx.query.publicBookings.findFirst({
+        where: eq(publicBookings.id, bookingId),
+      });
+
+      if (!booking) throw new NotFoundException('Booking not found');
+
+      if (booking.status === 'CANCELLED') {
+        throw new BadRequestException('Booking already cancelled');
+      }
+
+      if (booking.status === 'COMPLETED') {
+        throw new BadRequestException('Completed booking cannot be cancelled');
+      }
+
+      const startsAtUtc = DateTime.fromJSDate(booking.startsAt, {
+        zone: 'utc',
+      });
+      if (startsAtUtc <= nowUtc) {
+        throw new BadRequestException(
+          'Booking already started and cannot be cancelled',
+        );
+      }
+
+      await tx
+        .update(publicBookings)
+        .set({ status: 'CANCELLED', updatedAt: new Date() })
+        .where(eq(publicBookings.id, bookingId));
+
+      const affectedAppointments = await tx
+        .update(appointments)
+        .set({ status: 'CANCELLED', updatedAt: new Date() })
+        .where(eq(appointments.publicBookingId, bookingId))
+        .returning({ id: appointments.id });
+
+      for (const a of affectedAppointments) {
+        await tx.insert(appointmentStatusHistory).values({
+          appointmentId: a.id,
+          newStatus: 'CANCELLED',
+          reason:
+            reason ??
+            (cancelledBy === 'PUBLIC'
+              ? 'Cancelled by client'
+              : 'Cancelled by manager'),
+        });
+      }
+
+      return {
+        bookingId,
+        cancelledBy,
+        cancelledAppointments: affectedAppointments.length,
+      };
+    });
+
+    // =========================
+    // ✅ SIDE EFFECTS (OUTSIDE)
+    // =========================
+    await this.publicBookingJobsService.cancelScheduledJobs(bookingId);
+
+    await this.publicBookingJobsService.scheduleCancellationMail({
+      bookingId,
+      cancelledBy,
+    });
+
+    return { ok: true, ...result };
   }
 }

@@ -6,34 +6,43 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
 import { DateTime } from "luxon";
 import { cn } from "@/lib/utils";
-import { ChevronDown, RefreshCwOff, CalendarSync } from "lucide-react";
-import { getManagerBookingById } from "@/lib/services/appointments";
+import { RefreshCwOff, CalendarSync } from "lucide-react";
+import {
+  assignClientToBooking,
+  getManagerBookingById,
+} from "@/lib/services/appointments";
+import { BookingHeader } from "./BookingHeader";
+import { useBranch } from "@/context/BranchContext";
+import { buildBookingClientAssignedAlert } from "@/lib/ui/bookingAlerts";
+import { useUIAlerts } from "@/context/UIAlertsContext";
+import { getBookingStatusUI } from "@/lib/ui/bookingStatus";
+import { CancelBookingButton } from "./detailButtons/CancelBookingButton";
 
 export default function AppointmentDetailSheet() {
   const { state } = useCalendar();
   const { closeAppointment } = useCalendarActions();
+  const { branch } = useBranch();
+  const { showAlert } = useUIAlerts();
 
   const appointment = state.appointments.find(
     (a: any) => a.id === state.selectedAppointmentId
   );
+
   const bookingId: string | null = appointment?.bookingId ?? null;
 
   const [booking, setBooking] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
-  console.log(bookingId);
-
   const open = !!appointment;
 
   /* ============================
-     Load booking by bookingId
+     Load booking
   ============================ */
   useEffect(() => {
     if (!bookingId) {
@@ -50,11 +59,7 @@ export default function AppointmentDetailSheet() {
 
       try {
         const res = await getManagerBookingById(bookingId);
-        console.log(res);
-
-        if (!cancelled) {
-          setBooking(res.booking);
-        }
+        if (!cancelled) setBooking(res.booking);
       } catch {
         if (!cancelled) {
           setBooking(null);
@@ -66,32 +71,46 @@ export default function AppointmentDetailSheet() {
     }
 
     load();
-
     return () => {
       cancelled = true;
     };
   }, [bookingId]);
 
+  if (!booking) return null;
+
+  const statusUI = getBookingStatusUI(booking.status);
+
+  const firstAppointment = booking.appointments[0];
+  const clientName = booking.client?.name ?? null;
+
   /* ============================
-     EMPTY / LOADING STATES
+     Loading state
   ============================ */
   if (loading) {
     return (
       <Sheet open={open} onOpenChange={(o) => !o && closeAppointment()}>
         <SheetContent side="right" className="w-full !max-w-[30rem]">
+          <SheetHeader>
+            <SheetTitle className="sr-only">Cargando booking</SheetTitle>
+          </SheetHeader>
+
           <p className="text-sm text-muted-foreground p-6">Cargando booking…</p>
         </SheetContent>
       </Sheet>
     );
   }
 
+  /* ============================
+     Not found
+  ============================ */
   if (notFound) {
     return (
       <Sheet open={open} onOpenChange={(o) => !o && closeAppointment()}>
         <SheetContent side="right" className="w-full !max-w-[30rem]">
           <SheetHeader>
-            <SheetTitle>;</SheetTitle>
+            <SheetTitle className="sr-only">Booking no encontrado</SheetTitle>
           </SheetHeader>
+
           <div className="p-6 space-y-2">
             <h3 className="font-semibold text-base">
               Esta cita no pertenece a un booking
@@ -113,91 +132,106 @@ export default function AppointmentDetailSheet() {
     );
   }
 
-  if (!booking) return null;
-
-  const start = DateTime.fromISO(booking.startsAtISO).toLocal();
-
   /* ============================
-     BOOKING UI
+     Booking UI
   ============================ */
   return (
     <Sheet open={open} onOpenChange={(o) => !o && closeAppointment()}>
       <SheetContent
         side="right"
-        className={cn("w-full !max-w-[30rem] flex flex-col bg-white")}
+        className="w-full !max-w-[30rem] flex flex-col bg-white"
       >
-        <div className="flex h-full">
-          <div className="flex-1 flex flex-col">
-            {/* HEADER */}
-            <SheetHeader className="text-left px-5 py-8 bg-indigo-400">
-              <SheetTitle className="text-white">
-                {booking.client?.name ?? "Cliente"}
-              </SheetTitle>
+        <SheetHeader>
+          <SheetTitle className="sr-only">Detalle del booking</SheetTitle>
+        </SheetHeader>
 
-              <SheetDescription className="text-white flex items-center justify-between">
-                {start.toFormat("ccc d LLL")} • {start.toFormat("t")}
-                <Button variant="outline" className="bg-transparent">
-                  Ver cliente
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </SheetDescription>
-            </SheetHeader>
+        {/* HEADER */}
+        <BookingHeader
+          booking={booking}
+          orgId={branch.organizationId}
+          onAssignClient={async (clientId) => {
+            await assignClientToBooking({
+              bookingId: booking.id,
+              clientId,
+            });
 
-            {/* BODY */}
-            <div className="flex flex-col gap-6 flex-1 overflow-y-auto px-5 py-4">
-              {/* STATUS */}
-              <div>
-                <span className="px-4 py-2 text-sm rounded-full bg-indigo-50 text-indigo-700">
-                  Booking confirmado
-                </span>
-              </div>
+            const res = await getManagerBookingById(booking.id);
+            setBooking(res.booking);
+            showAlert(
+              buildBookingClientAssignedAlert({
+                clientName: res.booking.client?.name,
+                startIso: res.booking.startsAtISO,
+              })
+            );
+          }}
+        />
 
-              {/* SERVICES */}
-              <div className="space-y-4">
-                {booking.appointments.map((a: any, i: number) => {
-                  const s = DateTime.fromISO(a.startIso).toLocal();
+        {/* BODY */}
+        <div className="flex flex-col gap-6 flex-1 overflow-y-auto px-5 py-4">
+          <div>
+            <span
+              className={cn(
+                "px-4 py-2 text-sm rounded-full",
+                statusUI.className
+              )}
+            >
+              {statusUI.label}
+            </span>
+          </div>
 
-                  return (
-                    <div key={a.id} className="border rounded-md p-4 space-y-1">
-                      <div className="font-medium">
-                        {i + 1}. {a.service.name}
-                      </div>
+          <div className="space-y-4">
+            {booking.appointments.map((a: any, i: number) => {
+              const s = DateTime.fromISO(a.startIso).toLocal();
 
-                      <div className="text-sm text-muted-foreground">
-                        {s.toFormat("t")} • {a.durationMin} min • {a.staff.name}
-                      </div>
+              return (
+                <div key={a.id} className="border rounded-md p-4 space-y-1">
+                  <div className="font-medium">
+                    {i + 1}. {a.service.name}
+                  </div>
 
-                      <div className="text-sm font-medium">
-                        ${(a.priceCents / 100).toFixed(2)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                  <div className="text-sm text-muted-foreground">
+                    {s.toFormat("t")} • {a.durationMin} min • {a.staff.name}
+                  </div>
 
-              <div className="flex-1" />
-
-              {/* FOOTER ACTIONS */}
-              <div className="border-t pt-4 space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="font-semibold text-base">Total</span>
-                  <span className="font-semibold text-base">
-                    ${(booking.totalCents / 100).toFixed(2)}
-                  </span>
+                  <div className="text-sm font-medium">
+                    ${(a.priceCents / 100).toFixed(2)}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
 
-                <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1">
-                    <RefreshCwOff className="mr-2 h-4 w-4" />
-                    Cancelar
-                  </Button>
+          <div className="flex-1" />
 
-                  <Button variant="outline" className="flex-1">
-                    <CalendarSync className="mr-2 h-4 w-4" />
-                    Reagendar
+          {/* ACTIONS */}
+          <div className="border-t pt-4 space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="font-semibold text-base">Total</span>
+              <span className="font-semibold text-base">
+                ${(booking.totalCents / 100).toFixed(2)}
+              </span>
+            </div>
+
+            <div className="flex gap-2">
+              {booking.status === "CONFIRMED" && (
+                <>
+                  <CancelBookingButton
+                    bookingId={booking.id}
+                    clientName={clientName}
+                    startIso={firstAppointment.startIso}
+                  />
+
+                  <Button
+                    variant="outline"
+                    className="h-12 w-12"
+                    tooltip="Reagendar"
+                  >
+                    <CalendarSync className="h-4 w-4" />
                   </Button>
-                </div>
-              </div>
+                </>
+              )}
+
+              <Button className="flex-1 py-6">Pagar</Button>
             </div>
           </div>
         </div>

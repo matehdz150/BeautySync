@@ -66,8 +66,14 @@ function InnerSlotBookingSheet({
     if (!pinnedStartIso) return "New booking";
 
     const dt = DateTime.fromISO(pinnedStartIso);
-    return `New booking · ${dt.toFormat("ccc dd LLL")} · ${dt.toFormat("HH:mm")}`;
+    return `New booking · ${dt.toFormat("ccc dd LLL")} · ${dt.toFormat(
+      "HH:mm"
+    )}`;
   }, [pinnedStartIso]);
+
+  const isFirstStepWithoutService = useMemo(() => {
+    return state.step === 1 && state.services.length === 0;
+  }, [state.step, state.services.length]);
 
   /* ============================
      Steps
@@ -150,7 +156,7 @@ function InnerSlotBookingSheet({
               <div className="flex flex-col items-end gap-1">
                 <Button
                   onClick={() => actions.nextStep()}
-                  disabled={hasUnassignedStaff}
+                  disabled={hasUnassignedStaff || isFirstStepWithoutService}
                 >
                   Continue
                 </Button>

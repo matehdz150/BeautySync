@@ -23,6 +23,8 @@ import { DateTime } from "luxon";
 import { useCalendarActions } from "@/context/CalendarContext";
 import { ClientHeaderBar } from "./Steps/ClientSide/ClientHeaderBar";
 
+import { buildBookingSuccessAlert } from "@/lib/ui/bookingAlerts";
+
 import {
   BookingManagerDraftProvider,
   useBookingManagerDraft,
@@ -34,6 +36,7 @@ import { StepPlan } from "./Steps/StepPlan";
 
 // 👇 nuevos endpoints
 import { createManagerBooking } from "@/lib/services/appointments";
+import { useUIAlerts } from "@/context/UIAlertsContext";
 
 type InnerProps = {
   open: boolean;
@@ -56,6 +59,7 @@ function InnerSheet({
 
   // legacy context (lo seguimos usando para client / clear UI actual)
   const { client, clear } = useAppointmentBuilder();
+  const { showAlert } = useUIAlerts();
 
   // draft context (SOURCE OF TRUTH para steps)
   const { state: draft, actions: draftActions } = useBookingManagerDraft();
@@ -211,39 +215,38 @@ function InnerSheet({
       const res = await createManagerBooking(payload);
 
       // ✅ ENRICHED CORRECTO PARA CALENDAR (UTC REAL)
-      const enriched = selectedPlan.assignments.map((a) => {
+      const enriched = selectedPlan.assignments.map((a, index) => {
         const service = draft.services.find((s) => s.id === a.serviceId);
 
-        // source of truth: UTC ISO
         const startUtc = DateTime.fromISO(a.startIso);
         const endUtc = a.endIso
           ? DateTime.fromISO(a.endIso)
           : startUtc.plus({ minutes: a.durationMin ?? 0 });
 
-        const minutes = Math.round(endUtc.diff(startUtc, "minutes").minutes);
-
         return {
-          id: crypto.randomUUID(),
+          // 🔑 USAR appointmentId REAL DEL BACKEND
+          id: res.appointmentIds[index],
+
+          // 🔑 GUARDAR bookingId
+          bookingId: res.publicBookingId,
+
           staffId: a.staffId,
           staffName: "Staff",
+
           client: client?.name ?? "Cliente",
 
           serviceName: service?.name ?? "Servicio",
-
-          // ✅ color correcto
           serviceColor:
             service?.category?.colorHex ??
-            // por si en tu modelo existe directo
             (service as any)?.categoryColor ??
             "#A78BFA",
 
           priceCents: service?.priceCents ?? 0,
 
-          // ✅ esto es lo que tu calendar usa para pintar/ordenar
           startISO: startUtc.toISO()!,
           endISO: endUtc.toISO()!,
           startTime: startUtc.toLocal().toFormat("H:mm"),
-          minutes,
+          minutes: Math.round(endUtc.diff(startUtc, "minutes").minutes),
         };
       });
 
@@ -253,6 +256,15 @@ function InnerSheet({
       clear();
       draftActions.reset();
       onOpenChange(false);
+      // 🔔 Datos para la alerta
+      const firstAppointment = selectedPlan.assignments[0];
+
+      showAlert(
+        buildBookingSuccessAlert({
+          clientName: client?.name,
+          startIso: firstAppointment.startIso,
+        })
+      );
 
       return res;
     } catch (e) {

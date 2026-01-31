@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 import { getMyPublicBookingById } from "@/lib/services/public/me/appointments";
+import { cancelPublicBooking } from "@/lib/services/appointments";
 
 type BookingStatus =
   | "CONFIRMED"
@@ -177,25 +178,58 @@ function durationLabel(startsAtISO: string, endsAtISO: string) {
   return `${hours}h ${rest}min de duración`;
 }
 
-function ActionRow({
-  icon,
-  title,
-  subtitle,
-  href,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "flex items-center gap-4 rounded-2xl px-2 py-3 transition",
-        "hover:bg-black/[0.03] active:scale-[0.99]"
-      )}
-    >
+type ActionRowProps =
+  | {
+      icon: React.ReactNode;
+      title: string;
+      subtitle: string;
+      href: string;
+      onClick?: never;
+      disabled?: boolean;
+      className?: string;
+    }
+  | {
+      icon: React.ReactNode;
+      title: string;
+      subtitle: string;
+      onClick: () => void | Promise<void>;
+      href?: never;
+      disabled?: boolean;
+      className?: string;
+    };
+
+type ActionRowProps =
+  | {
+      icon: React.ReactNode;
+      title: string;
+      subtitle: string;
+      href: string;
+      onClick?: never;
+      disabled?: boolean;
+      className?: string;
+    }
+  | {
+      icon: React.ReactNode;
+      title: string;
+      subtitle: string;
+      onClick: () => void | Promise<void>;
+      href?: never;
+      disabled?: boolean;
+      className?: string;
+    };
+
+export function ActionRow(props: ActionRowProps) {
+  const { icon, title, subtitle, disabled, className } = props;
+
+  const baseClass = cn(
+    "flex items-center gap-4 rounded-2xl px-2 py-3 transition",
+    "hover:bg-black/[0.03] active:scale-[0.99]",
+    disabled && "pointer-events-none opacity-50",
+    className
+  );
+
+  const content = (
+    <>
       <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600">
         {icon}
       </div>
@@ -206,6 +240,27 @@ function ActionRow({
         </p>
         <p className="text-sm text-muted-foreground truncate">{subtitle}</p>
       </div>
+    </>
+  );
+
+  // 🔘 ACTION
+  if ("onClick" in props) {
+    return (
+      <button
+        type="button"
+        onClick={props.onClick}
+        disabled={disabled}
+        className={cn(baseClass, "w-full text-left")}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  // 🔗 LINK (aquí TS ya sabe que href es string)
+  return (
+    <Link href={props.href} className={baseClass}>
+      {content}
     </Link>
   );
 }
@@ -280,6 +335,7 @@ export default function BookingDetailPage() {
   const [booking, setBooking] = useState<BookingDetailVM | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -322,7 +378,32 @@ export default function BookingDetailPage() {
     router.push("/me/bookings");
   }
 
-  console.log(booking)
+  async function handleCancelBooking() {
+    if (!booking?.bookingId) return;
+
+    if (booking.status !== "CONFIRMED") {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "¿Seguro que quieres cancelar tu cita? Esta acción no se puede deshacer."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setCancelling(true);
+      await cancelPublicBooking(booking.bookingId);
+
+      // Redirigir a listado
+      router.push("/me/bookings");
+    } catch (error) {
+      console.error(error);
+      alert("No se pudo cancelar la cita. Intenta de nuevo.");
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -484,6 +565,22 @@ export default function BookingDetailPage() {
                   : "/explore"
               }
             />
+
+            {/* 🔴 Cancelar SOLO si está CONFIRMED */}
+            {booking.status === "CONFIRMED" && (
+              <>
+                <div className="my-2 h-px bg-black/10" />
+
+                <ActionRow
+                  icon={<XCircle className="h-5 w-5 text-red-600" />}
+                  title={cancelling ? "Cancelando..." : "Cancelar cita"}
+                  subtitle="Esta acción no se puede deshacer"
+                  onClick={handleCancelBooking}
+                  disabled={cancelling}
+                  className="text-red-600"
+                />
+              </>
+            )}
           </div>
 
           {/* Resumen */}

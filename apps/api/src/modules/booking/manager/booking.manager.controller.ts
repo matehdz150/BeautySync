@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 
 import { JwtAuthGuard } from 'src/modules/auth/manager/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/modules/auth/manager/guards/roles.guard';
@@ -36,6 +28,28 @@ export class BookingsManagerController {
       clientId: res.clientId ?? null,
       appointmentIds: res.appointments.map((a) => a.id),
     };
+  }
+
+  @Post(':bookingId/cancel')
+  async cancelBooking(
+    @Param('bookingId') bookingId: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.service.cancelBooking({
+      bookingId,
+      reason: body?.reason,
+    });
+  }
+
+  @Post(':bookingId/assign-client')
+  async assignClientToBooking(
+    @Param('bookingId') bookingId: string,
+    @Body() body: { clientId: string },
+  ) {
+    return this.service.assignClientToBooking({
+      bookingId,
+      clientId: body.clientId,
+    });
   }
 
   @Post('chain/next-services')

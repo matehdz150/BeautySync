@@ -23,6 +23,7 @@ import {
   subtractBusy,
 } from './time-helpers';
 import { DateTime } from 'luxon';
+import { BLOCKING_APPOINTMENT_STATUSES } from '../lib/booking/booking.constants';
 
 type StaffAvailability = {
   staffId: string;
@@ -53,7 +54,6 @@ export class AvailabilityService {
       if (!service.durationMin)
         throw new BadRequestException('Service duration not configured');
 
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       durationMin = service.durationMin;
     } else {
       throw new BadRequestException(
@@ -186,11 +186,7 @@ export class AvailabilityService {
           inArray(appointments.staffId, staffIds),
           lt(appointments.start, dayEndUtc),
           gte(appointments.end, dayStartUtc),
-          inArray(appointments.status, [
-            'PENDING',
-            'CONFIRMED',
-            'COMPLETED',
-          ] as any),
+          inArray(appointments.status, BLOCKING_APPOINTMENT_STATUSES as any),
         ),
       );
 

@@ -15,6 +15,10 @@ export class BookingsManagerService {
     return this.core.createManagerBooking(dto);
   }
 
+  assignClientToBooking(params: { bookingId: string; clientId: string }) {
+    return this.core.assignClientToBooking(params);
+  }
+
   getManagerBookingById(params: { bookingId: string }) {
     return this.core.getManagerBookingById(params);
   }
@@ -29,5 +33,15 @@ export class BookingsManagerService {
 
   chainBuild(dto: ManagerChainBuildDto) {
     return this.core.managerChainBuild(dto);
+  }
+
+  cancelBooking(params: { bookingId: string; reason?: string }) {
+    const { bookingId, reason } = params;
+
+    return this.core.cancelBooking({
+      bookingId,
+      cancelledBy: 'MANAGER',
+      reason,
+    });
   }
 }
