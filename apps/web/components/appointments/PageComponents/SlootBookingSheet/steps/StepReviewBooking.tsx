@@ -8,15 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
 import { useSlotBooking } from "@/context/SlotBookingContext";
-import { api } from "@/lib/services/api";
 import { useState } from "react";
 import { createManagerBooking } from "@/lib/services/appointments";
 import { useCalendarActions } from "@/context/CalendarContext";
+import { buildBookingSuccessAlert } from "@/lib/ui/bookingAlerts";
+import { useUIAlerts } from "@/context/UIAlertsContext";
 
 export function StepReviewBooking() {
   const { state, actions } = useSlotBooking();
   const { branchId, services } = state;
   const { addAppointments, closeSlotBooking } = useCalendarActions();
+  const { showAlert } = useUIAlerts();
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -59,7 +61,7 @@ export function StepReviewBooking() {
       // ============================
       // Create booking (BACKEND)
       // ============================
-      await createManagerBooking({
+      const res = await createManagerBooking({
         branchId,
         clientId: state.client?.id ?? null, // ✅ CLIENTE AQUÍ
         date: DateTime.fromISO(services[0].startIso).toISODate()!,
@@ -70,18 +72,23 @@ export function StepReviewBooking() {
       // ============================
       // ENRICH + ADD TO CALENDAR
       // ============================
-      const enriched = services.map((s) => {
+      const enriched = services.map((s, index) => {
         const roundedDuration = roundUpToSlot(s.durationMin);
 
         const startUtc = DateTime.fromISO(s.startIso);
         const endUtc = startUtc.plus({ minutes: roundedDuration });
 
         return {
-          id: crypto.randomUUID(), // temporal
+          // 🔑 ID REAL DEL BACKEND
+          id: res.appointmentIds[index],
+
+          // 🔑 BOOKING ID (CLAVE)
+          bookingId: res.publicBookingId,
+
           staffId: s.staffId as string,
           staffName: s.staffName ?? "Staff",
 
-          client: state.client?.name ?? "Walk-in", // ✅ CLIENTE AQUÍ
+          client: state.client?.name ?? "Cliente",
           serviceName: s.serviceName,
           serviceColor: "#A78BFA",
 
@@ -98,6 +105,12 @@ export function StepReviewBooking() {
       // Close + reset
       // ============================
       closeSlotBooking();
+      showAlert(
+        buildBookingSuccessAlert({
+          clientName: state.client?.name,
+          startIso: services[0].startIso,
+        })
+      );
       actions.reset();
     } catch (error) {
       console.error("Error creating booking:", error);

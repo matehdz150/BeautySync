@@ -66,4 +66,43 @@ export class PublicBookingJobsService {
       { jobId: jid('markPast'), delay: delayMs(end.plus({ minutes: 1 })) },
     );
   }
+
+  async cancelScheduledJobs(bookingId: string) {
+    const suffixes = [
+      'confirmation',
+      'reminder24h',
+      'reminder2h',
+      'reminder30m',
+      'followup5m',
+      'markPast',
+    ];
+
+    for (const suffix of suffixes) {
+      const jobId = `booking:${bookingId}:${suffix}`;
+
+      try {
+        await this.queue.remove(jobId);
+      } catch {
+        // job ya ejecutado o no existe → no pasa nada
+      }
+    }
+
+    console.log('🛑 cancelled scheduled jobs for booking', bookingId);
+  }
+
+  async scheduleCancellationMail(params: {
+    bookingId: string;
+    cancelledBy: 'PUBLIC' | 'MANAGER';
+  }) {
+    const { bookingId, cancelledBy } = params;
+
+    await this.queue.add(
+      'booking.cancelled',
+      { bookingId, cancelledBy },
+      {
+        jobId: `booking:${bookingId}:cancelled`,
+        delay: 0,
+      },
+    );
+  }
 }

@@ -13,7 +13,6 @@ export function AppointmentItem({
   MINUTES_PER_SLOT = 15,
   OFF_HOURS = false,
 }: any) {
-
   const base = colorFromName(a.staffName ?? "");
   const bg = OFF_HOURS ? "rgb(249 250 251)" : base;
 
@@ -63,7 +62,12 @@ export function AppointmentItem({
         {!OFF_HOURS && (
           <>
             {" "}
-            · <span className="font-semibold">{a.client}</span>
+            ·{" "}
+            <span className="font-semibold">
+              {a.client && a.client.length > 14
+                ? `${a.client.slice(0, 14)}…`
+                : a.client}
+            </span>
           </>
         )}
       </p>

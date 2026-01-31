@@ -5,6 +5,7 @@ import { AuthProvider } from "../context/AuthContext";
 import { BranchProvider } from "@/context/BranchContext";
 import { PaymentProvider } from "@/context/PaymentContext";
 import Script from "next/script";
+import { UIAlertsProvider } from "@/context/UIAlertsContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,11 +40,13 @@ export default function RootLayout({
           src="https://accounts.google.com/gsi/client"
           strategy="afterInteractive"
         />
-        <BranchProvider>
+        <UIAlertsProvider>
+          <BranchProvider>
           <AuthProvider>
             <PaymentProvider>{children}</PaymentProvider>
           </AuthProvider>
         </BranchProvider>
+        </UIAlertsProvider>
       </body>
     </html>
   );

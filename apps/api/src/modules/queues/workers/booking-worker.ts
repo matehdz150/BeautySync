@@ -220,20 +220,52 @@ async function handler(name: string, data: any) {
     return;
   }
 
-  // 👇 IMPORTANTE:
-  // A TS le está llegando un union raro, entonces casteamos a string
-  // para permitir comparar con CANCELLED sin TS2367.
+  // Asegura "status" (en tu snippet lo usas pero no existe)
   const status = booking.status as unknown as string;
 
-  // 🚫 Si está cancelado, no mandes nada
+  // ==========================
+  // ✅ CANCELLED (PRIMERO SIEMPRE)
+  // ==========================
+  if (name === 'booking.cancelled') {
+    const payload = await buildBookingMailPayload(bookingId);
+
+    if (!payload) {
+      console.log('⚠️ cancellation payload missing', { bookingId });
+      return;
+    }
+
+    await mailQueue.add(
+      'mail.booking.cancelled',
+      {
+        ...payload,
+        cancelledBy: data.cancelledBy ?? 'PUBLIC',
+        // opcional si luego agregas reason:
+        // cancelReason: data.reason ?? null,
+      },
+      {
+        jobId: `mail:${bookingId}:cancelled`,
+      },
+    );
+
+    console.log('📧 cancellation mail queued', { bookingId });
+    return;
+  }
+
+  // ==========================
+  // 🚫 SI YA ESTÁ CANCELADA, NO EJECUTES NADA MÁS
+  // ==========================
   if (status === 'CANCELLED') {
-    console.log('ℹ️ booking cancelled, skipping mail events', {
+    console.log('ℹ️ booking cancelled, skipping non-cancellation jobs', {
       bookingId,
       status,
+      job: name,
     });
     return;
   }
 
+  // ==========================
+  // 📦 PAYLOAD NORMAL (solo si NO está cancelada)
+  // ==========================
   const payload = await buildBookingMailPayload(bookingId);
 
   if (!payload) {
@@ -343,7 +375,7 @@ async function handler(name: string, data: any) {
   // MARK PAST
   // ==========================
   if (name === 'booking.markPast') {
-    // aquí sí tiene sentido no tocar cancelados/completed
+    // ✅ no tocar cancelados/completed
     if (status === 'CANCELLED' || status === 'COMPLETED') {
       console.log('ℹ booking already finished, skipping', {
         bookingId,

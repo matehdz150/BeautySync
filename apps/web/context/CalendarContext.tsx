@@ -244,6 +244,8 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       date: state.date,
     });
 
+    console.log('Daily: ',res)
+
     const mappedAppointments = res.data.map((a: any) => {
       const start = DateTime.fromISO(a.start);
       const end = DateTime.fromISO(a.end);

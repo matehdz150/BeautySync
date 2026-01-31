@@ -36,6 +36,18 @@ export class BookingsPublicController {
     };
   }
 
+  @Post(':bookingId/cancel')
+  @UseGuards(PublicAuthGuard)
+  cancelBooking(
+    @Param('bookingId') bookingId: string,
+    @PublicUser() session: { publicUserId: string },
+  ) {
+    return this.publicService.cancelBooking({
+      bookingId,
+      publicUserId: session.publicUserId,
+    });
+  }
+
   @UseGuards(PublicAuthGuard)
   @Get('bookings/:bookingId')
   getPublicBooking(

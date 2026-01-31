@@ -24,8 +24,8 @@
     "db:migrate": "drizzle-kit migrate --config=src/modules/db/drizzle.config.ts",
     "seed": "ts-node -r tsconfig-paths/register src/modules/scripts/seed.ts",
     "CategoriesSeed": "ts-node -r tsconfig-paths/register src/scripts/categoriesSeed.ts",
-    "worker:mail": "ts-node src/queues/workers/mail.worker.ts",
-    "worker:reminders": "ts-node src/queues/workers/booking-worker.ts"
+    "worker:mail": "ts-node src/modules/queues/workers/mail.worker.ts",
+    "worker:reminders": "ts-node src/modules/queues/workers/booking-worker.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",

@@ -8,6 +8,7 @@ import { PublicBookingReminder24hEmail } from '../templates/PublicBookingReminde
 import { PublicBookingReminder2hEmail } from '../templates/PublicBookingReminder2hEmail';
 import { PublicBookingFollowup5mEmail } from '../templates/PublicBookingFollowup5mEmail';
 import { PublicBookingReminder30mEmail } from '../templates/PublicBookingReminder30mEmail';
+import { PublicBookingCancelledEmail } from '../templates/PublicBookingCancelledEmail';
 
 type MailBuildResult = {
   subject: string;
@@ -148,6 +149,48 @@ export async function buildBookingMail(
           establishmentUrl: data.establishmentUrl ?? undefined,
           serviceLine: data.serviceLine ?? undefined,
           staffLine: data.staffLine ?? undefined,
+        }),
+      );
+
+      return { subject, html };
+    }
+
+    case 'mail.booking.cancelled': {
+      const subject = 'Tu cita fue cancelada';
+
+      // URLs: usa PUBLIC_APP_URL si la tienes; si no, fallback al manageUrl ya construido
+      const appUrl =
+        process.env.PUBLIC_APP_URL ?? process.env.PUBLIC_WEB_URL ?? '';
+      const manageUrl = data.manageUrl.startsWith('http')
+        ? data.manageUrl
+        : `${appUrl}${data.manageUrl}`;
+
+      // rebookUrl: puedes apuntar a la sucursal (si la tienes) o a "nueva reserva"
+      const rebookUrl = data.rebookUrl?.startsWith('http')
+        ? data.rebookUrl
+        : data.rebookUrl
+          ? `${appUrl}${data.rebookUrl}`
+          : `${appUrl}`; // fallback (mejor que quede tu home)
+
+      const html = await renderEmail(
+        React.createElement(PublicBookingCancelledEmail, {
+          customerName: data.userName ?? 'Cliente',
+          branchName: data.branchName ?? 'Sucursal',
+          branchAddress: data.branchAddress ?? null,
+          coverUrl: data.branchImageUrl ?? null,
+
+          dateText: data.dateLabel ?? '',
+          timeText: data.timeLabel ?? '',
+
+          bookingRef: data.bookingId,
+
+          cancelledBy: data.cancelledBy ?? 'PUBLIC',
+          reason: data.cancelReason ?? null,
+
+          manageUrl,
+          rebookUrl,
+
+          establishmentUrl: data.establishmentUrl ?? undefined,
         }),
       );
 

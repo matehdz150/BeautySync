@@ -216,12 +216,21 @@ export async function managerChainBuild(
   });
 }
 
+export type ManagerBookingStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "CANCELLED"
+  | "NO_SHOW"
+  | "COMPLETED";
+
 export type ManagerBooking = {
   id: string;
   date: string;
 
   startsAtISO: string;
   endsAtISO: string;
+
+  status: ManagerBookingStatus;
 
   branch: {
     id: string;
@@ -271,4 +280,66 @@ export async function getManagerBookingById(bookingId: string) {
     ok: true;
     booking: ManagerBooking;
   }>(`/manager/booking/${bookingId}`);
+}
+
+export type AssignBookingClientResponse = {
+  ok: true;
+  bookingId: string;
+  clientId: string;
+  publicUserId: string | null;
+};
+
+export async function assignClientToBooking(params: {
+  bookingId: string;
+  clientId: string;
+}): Promise<AssignBookingClientResponse> {
+  const { bookingId, clientId } = params;
+
+  if (!bookingId) {
+    throw new Error("bookingId is required");
+  }
+
+  if (!clientId) {
+    throw new Error("clientId is required");
+  }
+
+  return api<AssignBookingClientResponse>(
+    `/manager/booking/${bookingId}/assign-client`,
+    {
+      method: "POST",
+      body: JSON.stringify({ clientId }),
+    }
+  );
+}
+
+export async function cancelPublicBooking(bookingId: string) {
+  if (!bookingId) {
+    throw new Error('bookingId is required');
+  }
+
+  return api<{
+    ok: true;
+    bookingId: string;
+  }>(`/public/booking/${bookingId}/cancel`, {
+    method: 'POST',
+  });
+}
+
+export async function cancelManagerBooking(params: {
+  bookingId: string;
+  reason?: string;
+}) {
+  const { bookingId, reason } = params;
+
+  if (!bookingId) {
+    throw new Error('bookingId is required');
+  }
+
+  return api<{
+    ok: true;
+    bookingId: string;
+  }>(`/manager/booking/${bookingId}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify(reason ? { reason } : {}),
+  });
 }
