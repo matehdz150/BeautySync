@@ -350,5 +350,5 @@ export async function rescheduleManagerBooking(params: {
       method: "POST",
       body: JSON.stringify({ newStartIso, reason, notes }),
     }
-  );
+  ); 
 }

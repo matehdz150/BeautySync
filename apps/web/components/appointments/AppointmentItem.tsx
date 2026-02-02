@@ -64,8 +64,8 @@ export function AppointmentItem({
             {" "}
             ·{" "}
             <span className="font-semibold">
-              {a.client && a.client.length > 14
-                ? `${a.client.slice(0, 14)}…`
+              {a.client && a.client.length > 12
+                ? `${a.client.slice(0, 12)}…`
                 : a.client}
             </span>
           </>

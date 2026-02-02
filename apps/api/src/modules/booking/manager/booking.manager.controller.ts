@@ -53,7 +53,6 @@ export class BookingsManagerController {
       notes?: string;
     },
   ) {
-    console.log('➡️ RESCHEDULE HIT', bookingId, body.newStartIso);
     return this.service.rescheduleBooking({
       bookingId,
       newStartIso: body.newStartIso,

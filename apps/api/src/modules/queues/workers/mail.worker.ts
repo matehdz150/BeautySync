@@ -28,6 +28,7 @@ function isBookingMail(name: string): name is BookingMailName {
     name === 'mail.booking.reminder2h' ||
     name === 'mail.booking.reminder30m' ||
     name === 'mail.booking.reminder30m' ||
+    name === 'mail.booking.rescheduled' ||
     name === 'mail.booking.cancelled'
   );
 }

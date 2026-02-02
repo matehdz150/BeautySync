@@ -14,7 +14,7 @@ import {
 
 import { rescheduleManagerBooking } from "@/lib/services/appointments";
 import { RescheduleDatePicker } from "./RescheduleDatePicker";
-import { useCalendar } from "@/context/CalendarContext";
+import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
 
 type Props = {
   booking: any;
@@ -41,7 +41,8 @@ function buildChainFromBooking(booking: any) {
 
 export function ReschedulePlanPicker({ booking, onClose }: Props) {
   const { branch } = useBranch();
-  const {reload} = useCalendar();
+  const { reload } = useCalendar();
+  const { closeAppointment } = useCalendarActions();
 
   const [date, setDate] = useState(todayISO());
   const [plans, setPlans] = useState<AvailabilityChainPlan[]>([]);
@@ -108,9 +109,9 @@ export function ReschedulePlanPicker({ booking, onClose }: Props) {
         reason: "ADMIN",
       });
 
-      reload()
+      reload();
 
-      onClose();
+      closeAppointment();
     } catch (e) {
       console.error("❌ frontend error", e);
     } finally {
@@ -126,7 +127,9 @@ export function ReschedulePlanPicker({ booking, onClose }: Props) {
       </div>
 
       {/* BODY (SCROLL REAL) */}
-      <div className="flex-1 min-h-0 overflow-y-auto pr-2 overscroll-contain">
+      {/* BODY (SCROLL REAL) */}
+      <div className="h-[18rem] overflow-y-auto pr-2"
+      onWheelCapture={(e) => e.stopPropagation()}>
         <div className="space-y-2 py-2">
           {loading &&
             Array.from({ length: 8 }).map((_, i) => (
@@ -151,18 +154,14 @@ export function ReschedulePlanPicker({ booking, onClose }: Props) {
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{p.startLocalLabel}</span>
-                    {isSelected && (
-                      <span className="text-xs text-indigo-600">
-                        Seleccionado
-                      </span>
-                    )}
                   </div>
 
-                  {/* si quieres la cadenita de servicios */}
                   {p.assignments?.length ? (
                     <div className="mt-1 text-xs text-muted-foreground">
                       {p.assignments
-                        .map((a) => serviceNameById.get(a.serviceId) ?? "Servicio")
+                        .map(
+                          (a) => serviceNameById.get(a.serviceId) ?? "Servicio"
+                        )
                         .join(" → ")}
                     </div>
                   ) : null}

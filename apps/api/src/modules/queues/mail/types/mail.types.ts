@@ -4,6 +4,7 @@ export type BookingMailName =
   | 'mail.booking.reminder2h'
   | 'mail.booking.reminder30m'
   | 'mail.booking.followup5m'
+  | 'mail.booking.rescheduled'
   | 'mail.booking.cancelled';
 
 export type BookingMailPayload = {
@@ -29,9 +30,14 @@ export type BookingMailPayload = {
   serviceLine?: string;
   staffLine?: string;
 
+  // 🔁 REAGENDACIÓN
+  rescheduledBy?: 'PUBLIC' | 'MANAGER' | 'SYSTEM';
+  previousDateLabel?: string | null;
+  previousTimeLabel?: string | null;
+
+  //cancelaciones
   cancelledBy?: 'PUBLIC' | 'MANAGER';
   cancelReason?: string | null;
 
-  // ✅ opcional si quieres deep link para rebook
   rebookUrl?: string | null;
 };

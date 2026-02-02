@@ -1537,8 +1537,25 @@ export class BookingsCoreService {
     // 4) SIDE EFFECTS (FUERA DE TX)
     // ============================
 
+    // 🛑 1) Cancelar jobs viejos
     await this.publicBookingJobsService.cancelScheduledJobs(bookingId);
 
+    // ✉️ 2) MAIL DE REAGENDACIÓN  ← AQUÍ VA
+    await this.publicBookingJobsService.scheduleRescheduleMail({
+      bookingId,
+      rescheduledBy,
+      reason,
+      before: {
+        startsAt: beforeSnapshot.booking.startsAt,
+        endsAt: beforeSnapshot.booking.endsAt,
+      },
+      after: {
+        startsAt: newStartsAt,
+        endsAt: newEndsAt,
+      },
+    });
+
+    // ⏰ 3) Reprogramar lifecycle nuevo
     await this.publicBookingJobsService.scheduleBookingLifecycle({
       bookingId,
       startsAtUtc: newStartsAt,
