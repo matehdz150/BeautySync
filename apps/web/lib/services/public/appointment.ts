@@ -1,3 +1,4 @@
+import { DateTime } from "luxon";
 import { publicFetch } from "./apiPublic";
 
 /* =====================
@@ -96,4 +97,35 @@ export async function getPublicBookingById(
   return publicFetch<GetPublicBookingResponse>(
     `/public/bookings/${bookingId}`
   );
+}
+
+export async function reschedulePublicBooking(params: {
+  bookingId: string;
+  date: string;      // YYYY-MM-DD (local)
+  time: string;      // HH:mm
+  notes?: string;
+}) {
+  const { bookingId, date, time, notes } = params;
+
+  if (!bookingId) {
+    throw new Error("bookingId is required");
+  }
+
+  const newStartIso = DateTime
+    .fromISO(`${date}T${time}`, { zone: "America/Mexico_City" })
+    .toUTC()
+    .toISO();
+
+  return publicFetch<{
+    ok: true;
+    bookingId: string;
+    startsAt: string;
+    endsAt: string;
+  }>(`/public/booking/${bookingId}/reschedule`, {
+    method: "POST",
+    body: JSON.stringify({
+      newStartIso,
+      notes,
+    }),
+  });
 }

@@ -49,6 +49,21 @@ export class BookingsPublicController {
   }
 
   @UseGuards(PublicAuthGuard)
+  @Post(':bookingId/reschedule')
+  async rescheduleBooking(
+    @Param('bookingId') bookingId: string,
+    @Body() body: { newStartIso: string; notes?: string },
+    @PublicUser() session: { publicUserId: string },
+  ) {
+    return this.publicService.rescheduleBooking({
+      bookingId,
+      newStartIso: body.newStartIso,
+      notes: body.notes,
+      publicUserId: session.publicUserId,
+    });
+  }
+
+  @UseGuards(PublicAuthGuard)
   @Get('bookings/:bookingId')
   getPublicBooking(
     @Param('bookingId') bookingId: string,

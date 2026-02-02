@@ -18,8 +18,10 @@ import { and, eq, inArray } from 'drizzle-orm';
 import * as client from 'src/modules/db/client';
 
 import {
+  BookingRescheduleReason,
   appointmentStatusHistory,
   appointments,
+  bookingReschedules,
   branchSettings,
   branches,
   clients,
@@ -1018,7 +1020,7 @@ export class BookingsCoreService {
       throw new BadRequestException('bookingId is required');
     }
 
-    // 1) Traer appointments del booking
+    // 1) Appointments del booking
     const rows = await this.db.query.appointments.findMany({
       where: eq(appointments.publicBookingId, bookingId),
     });
@@ -1027,7 +1029,7 @@ export class BookingsCoreService {
       throw new NotFoundException('Booking not found');
     }
 
-    // 🔑 1.5) Traer booking real (FUENTE DE VERDAD)
+    // 1.5) Booking (source of truth)
     const bookingRow = await this.db.query.publicBookings.findFirst({
       where: eq(publicBookings.id, bookingId),
     });
@@ -1036,10 +1038,9 @@ export class BookingsCoreService {
       throw new NotFoundException('Public booking not found');
     }
 
-    // 👉 branch desde el booking
+    // 2) Branch
     const branchId = rows[0].branchId;
 
-    // 2) Branch
     const branch = await this.db.query.branches.findFirst({
       where: eq(branches.id, branchId),
     });
@@ -1059,8 +1060,21 @@ export class BookingsCoreService {
     const clientRow = clientId
       ? await this.db.query.clients.findFirst({
           where: eq(clients.id, clientId),
+          with: {
+            publicUsers: {
+              with: {
+                publicUser: true,
+              },
+            },
+          },
         })
       : null;
+
+    // 🔑 resolver avatar del cliente
+    const publicUserAvatar =
+      clientRow?.publicUsers?.[0]?.publicUser?.avatarUrl ?? null;
+
+    const clientAvatar = clientRow?.avatarUrl ?? publicUserAvatar ?? null;
 
     // 5) Services & Staff
     const serviceIds = Array.from(new Set(rows.map((r) => r.serviceId)));
@@ -1132,12 +1146,12 @@ export class BookingsCoreService {
       .setZone(tz)
       .toISODate();
 
-    // ✅ RESPONSE FINAL (YA CON STATUS)
+    // ✅ RESPONSE FINAL
     return {
       ok: true,
       booking: {
         id: bookingId,
-        status: bookingRow.status, // 🔥 AQUÍ ESTÁ LO QUE FALTABA
+        status: bookingRow.status,
 
         date: bookingDate,
 
@@ -1159,6 +1173,7 @@ export class BookingsCoreService {
               name: clientRow.name,
               phone: clientRow.phone,
               email: clientRow.email,
+              avatarUrl: clientAvatar, // 🔥 AQUÍ
             }
           : null,
 
@@ -1320,5 +1335,221 @@ export class BookingsCoreService {
     });
 
     return { ok: true, ...result };
+  }
+
+  async rescheduleBookingCore(params: {
+    bookingId: string;
+    newStartIso: string;
+    rescheduledBy: 'PUBLIC' | 'MANAGER' | 'SYSTEM';
+    publicUserId?: string | null;
+    reason?: BookingRescheduleReason;
+    notes?: string;
+  }) {
+    const {
+      bookingId,
+      newStartIso,
+      rescheduledBy,
+      publicUserId,
+      reason,
+      notes,
+    } = params;
+
+    if (!bookingId) throw new BadRequestException('bookingId is required');
+    if (!newStartIso) throw new BadRequestException('newStartIso is required');
+
+    // ============================
+    // 0) READS + VALIDATIONS (FUERA DE TX)
+    // ============================
+
+    const booking = await this.db.query.publicBookings.findFirst({
+      where: eq(publicBookings.id, bookingId),
+    });
+
+    if (!booking) throw new NotFoundException('Booking not found');
+
+    if (booking.status === 'CANCELLED') {
+      throw new BadRequestException('Cancelled booking cannot be rescheduled');
+    }
+
+    if (booking.status === 'COMPLETED') {
+      throw new BadRequestException('Completed booking cannot be rescheduled');
+    }
+
+    // 🔐 Ownership check (solo PUBLIC)
+    if (rescheduledBy === 'PUBLIC') {
+      if (!publicUserId) throw new ForbiddenException('Not authenticated');
+      if (booking.publicUserId !== publicUserId) {
+        throw new ForbiddenException('Booking does not belong to this user');
+      }
+    }
+
+    const currentAppointments = await this.db.query.appointments.findMany({
+      where: eq(appointments.publicBookingId, bookingId),
+    });
+
+    if (!currentAppointments.length) {
+      throw new BadRequestException('Booking has no appointments');
+    }
+
+    // Snapshot BEFORE
+    const beforeSnapshot = {
+      booking: {
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+        totalCents: booking.totalCents,
+      },
+      appointments: currentAppointments.map((a) => ({
+        id: a.id,
+        serviceId: a.serviceId,
+        staffId: a.staffId,
+        start: a.start,
+        end: a.end,
+      })),
+    };
+
+    // Chain desde booking actual
+    const chain = [...currentAppointments]
+      .sort((a, b) => a.start.getTime() - b.start.getTime())
+      .map((a) => ({
+        serviceId: a.serviceId,
+        staffId: a.staffId,
+      }));
+
+    const date = DateTime.fromISO(newStartIso).toISODate()!;
+
+    // ============================
+    // 1) BUILD PLAN (FUERA DE TX)
+    // ============================
+
+    const plan = await this.managerChainBuild({
+      branchId: booking.branchId,
+      date,
+      pinnedStartIso: newStartIso,
+      chain,
+    });
+
+    // ============================
+    // 2) OVERLAP CHECK (FUERA DE TX)
+    // ============================
+
+    for (const a of plan.plan.assignments) {
+      const overlap = await this.hasOverlap({
+        branchId: booking.branchId,
+        staffId: a.staffId,
+        startUtc: DateTime.fromISO(a.startIso),
+        endUtc: DateTime.fromISO(a.endIso),
+      });
+
+      if (overlap) {
+        throw new BadRequestException('Timeslot already booked');
+      }
+    }
+
+    // Compute new starts/ends (FUERA DE TX)
+    const newStartsAt = DateTime.fromISO(plan.plan.assignments[0].startIso)
+      .toUTC()
+      .toJSDate();
+
+    const newEndsAt = DateTime.fromISO(
+      plan.plan.assignments[plan.plan.assignments.length - 1].endIso,
+    )
+      .toUTC()
+      .toJSDate();
+
+    // Snapshot AFTER
+    const afterSnapshot = {
+      booking: {
+        startsAt: newStartsAt,
+        endsAt: newEndsAt,
+        totalCents: booking.totalCents,
+      },
+      appointments: plan.plan.assignments,
+    };
+
+    // ============================
+    // 3) WRITES (DENTRO DE TX) — SOLO ESCRITURA
+    // ============================
+
+    const result = await this.db.transaction(async (tx) => {
+      // Re-check rápido (evita reagendar algo que cambió en medio)
+      const latest = await tx.query.publicBookings.findFirst({
+        where: eq(publicBookings.id, bookingId),
+      });
+
+      if (!latest) throw new NotFoundException('Booking not found');
+
+      if (latest.status === 'CANCELLED') {
+        throw new BadRequestException(
+          'Cancelled booking cannot be rescheduled',
+        );
+      }
+
+      if (latest.status === 'COMPLETED') {
+        throw new BadRequestException(
+          'Completed booking cannot be rescheduled',
+        );
+      }
+
+      // 7️⃣ Update booking
+      await tx
+        .update(publicBookings)
+        .set({
+          startsAt: newStartsAt,
+          endsAt: newEndsAt,
+          updatedAt: new Date(),
+        })
+        .where(eq(publicBookings.id, bookingId));
+
+      // 8️⃣ Update appointments (shift total)
+      // (assume mismo length y mismo orden)
+      for (let i = 0; i < currentAppointments.length; i++) {
+        const appt = currentAppointments[i];
+        const next = plan.plan.assignments[i];
+
+        if (!next) {
+          throw new BadRequestException('Plan mismatch with appointments');
+        }
+
+        await tx
+          .update(appointments)
+          .set({
+            start: DateTime.fromISO(next.startIso).toUTC().toJSDate(),
+            end: DateTime.fromISO(next.endIso).toUTC().toJSDate(),
+            updatedAt: new Date(),
+          })
+          .where(eq(appointments.id, appt.id));
+      }
+
+      // 🔟 Historial
+      await tx.insert(bookingReschedules).values({
+        bookingId,
+        rescheduledByPublicUserId: publicUserId ?? null,
+        reason: reason ?? 'SYSTEM',
+        notes: notes ?? null,
+        previousBookingSnapshot: beforeSnapshot,
+        newBookingSnapshot: afterSnapshot,
+      });
+
+      return { bookingId };
+    });
+
+    // ============================
+    // 4) SIDE EFFECTS (FUERA DE TX)
+    // ============================
+
+    await this.publicBookingJobsService.cancelScheduledJobs(bookingId);
+
+    await this.publicBookingJobsService.scheduleBookingLifecycle({
+      bookingId,
+      startsAtUtc: newStartsAt,
+      endsAtUtc: newEndsAt,
+    });
+
+    return {
+      ok: true,
+      bookingId: result.bookingId,
+      startsAt: newStartsAt,
+      endsAt: newEndsAt,
+    };
   }
 }

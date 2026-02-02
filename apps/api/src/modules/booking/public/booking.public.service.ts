@@ -43,4 +43,22 @@ export class BookingsPublicService {
       cancelledBy: 'PUBLIC',
     });
   }
+
+  async rescheduleBooking(params: {
+    bookingId: string;
+    newStartIso: string;
+    publicUserId: string;
+    notes?: string;
+  }) {
+    const { bookingId, newStartIso, publicUserId, notes } = params;
+
+    return this.core.rescheduleBookingCore({
+      bookingId,
+      newStartIso,
+      rescheduledBy: 'PUBLIC',
+      publicUserId,
+      reason: 'CLIENT_REQUEST',
+      notes,
+    });
+  }
 }

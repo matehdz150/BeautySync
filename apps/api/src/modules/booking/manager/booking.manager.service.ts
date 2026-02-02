@@ -6,6 +6,7 @@ import {
   ManagerChainNextServicesDto,
   ManagerChainNextStaffOptionsDto,
 } from '../dto/manager-chain.dto';
+import { BookingRescheduleReason } from 'src/modules/db/schema';
 
 @Injectable()
 export class BookingsManagerService {
@@ -42,6 +43,23 @@ export class BookingsManagerService {
       bookingId,
       cancelledBy: 'MANAGER',
       reason,
+    });
+  }
+
+  rescheduleBooking(params: {
+    bookingId: string;
+    newStartIso: string;
+    reason?: BookingRescheduleReason;
+    notes?: string;
+  }) {
+    const { bookingId, newStartIso, reason, notes } = params;
+
+    return this.core.rescheduleBookingCore({
+      bookingId,
+      newStartIso,
+      rescheduledBy: 'MANAGER',
+      reason: reason ?? 'ADMIN',
+      notes,
     });
   }
 }
