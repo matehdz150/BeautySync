@@ -15,23 +15,6 @@ export async function createAppointment(input: {
   });
 }
 
-export async function rescheduleAppointment(
-  id: string,
-  date: string,
-  time: string,
-  staffId?: string
-) {
-  const iso = DateTime
-    .fromISO(`${date}T${time}`, { zone: "America/Mexico_City" })
-    .toUTC()
-    .toISO();
-
-  return api(`/appointments/${id}/reschedule`, {
-    method: "PATCH",
-    body: JSON.stringify({ start: iso, staffId }),
-  });
-}
-
 export async function getAppointmentsByDay(params: {
   branchId: string;
   date: string; // YYYY-MM-DD LOCAL
@@ -342,4 +325,30 @@ export async function cancelManagerBooking(params: {
     method: 'POST',
     body: JSON.stringify(reason ? { reason } : {}),
   });
+}
+
+export type BookingRescheduleReason =
+  | "CLIENT_REQUEST"
+  | "STAFF_REQUEST"
+  | "SYSTEM"
+  | "ADMIN";
+
+export async function rescheduleManagerBooking(params: {
+  bookingId: string;
+  newStartIso: string; // ✅ ya viene UTC
+  reason?: BookingRescheduleReason;
+  notes?: string;
+}) {
+  const { bookingId, newStartIso, reason, notes } = params;
+
+  if (!bookingId) throw new Error("bookingId is required");
+  if (!newStartIso) throw new Error("newStartIso is required");
+
+  return api<{ ok: true; bookingId: string; startsAt: string; endsAt: string }>(
+    `/manager/booking/${bookingId}/reschedule`,
+    {
+      method: "POST",
+      body: JSON.stringify({ newStartIso, reason, notes }),
+    }
+  );
 }

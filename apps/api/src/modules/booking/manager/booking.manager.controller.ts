@@ -5,6 +5,7 @@ import { RolesGuard } from 'src/modules/auth/manager/guards/roles.guard';
 import { BookingsManagerService } from './booking.manager.service';
 import { CreateManagerBookingDto } from '../dto/create-booking-manager.dto';
 import * as managerChainDto from '../dto/manager-chain.dto';
+import { BookingRescheduleReason } from 'src/modules/db/schema/public/booking-reschedule';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('manager/booking')
@@ -38,6 +39,26 @@ export class BookingsManagerController {
     return this.service.cancelBooking({
       bookingId,
       reason: body?.reason,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post(':bookingId/reschedule')
+  async rescheduleBooking(
+    @Param('bookingId') bookingId: string,
+    @Body()
+    body: {
+      newStartIso: string;
+      reason?: BookingRescheduleReason;
+      notes?: string;
+    },
+  ) {
+    console.log('➡️ RESCHEDULE HIT', bookingId, body.newStartIso);
+    return this.service.rescheduleBooking({
+      bookingId,
+      newStartIso: body.newStartIso,
+      reason: body.reason,
+      notes: body.notes,
     });
   }
 

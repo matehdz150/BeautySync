@@ -4,3 +4,4 @@ export * from './public-sessions';
 export * from './public-user-clients.relations';
 export * from './public-users.relations';
 export * from './public-bookings';
+export * from './booking-reschedule';

@@ -12,6 +12,7 @@ import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
 import { DateTime } from "luxon";
 import { cn } from "@/lib/utils";
 import { RefreshCwOff, CalendarSync } from "lucide-react";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import {
   assignClientToBooking,
   getManagerBookingById,
@@ -22,6 +23,7 @@ import { buildBookingClientAssignedAlert } from "@/lib/ui/bookingAlerts";
 import { useUIAlerts } from "@/context/UIAlertsContext";
 import { getBookingStatusUI } from "@/lib/ui/bookingStatus";
 import { CancelBookingButton } from "./detailButtons/CancelBookingButton";
+import { RescheduleBookingButton } from "./detailButtons/RescheduleBookingButton/RescheduleBookingButton";
 
 export default function AppointmentDetailSheet() {
   const { state } = useCalendar();
@@ -39,7 +41,13 @@ export default function AppointmentDetailSheet() {
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
-  const open = !!appointment;
+  // ✅ OPEN LOCAL (NO directo del store)
+  const [open, setOpen] = useState(false);
+
+  // ✅ sincroniza apertura
+  useEffect(() => {
+    setOpen(!!appointment);
+  }, [appointment]);
 
   /* ============================
      Load booking
@@ -59,6 +67,7 @@ export default function AppointmentDetailSheet() {
 
       try {
         const res = await getManagerBookingById(bookingId);
+        console.log(res)
         if (!cancelled) setBooking(res.booking);
       } catch {
         if (!cancelled) {
@@ -76,41 +85,40 @@ export default function AppointmentDetailSheet() {
     };
   }, [bookingId]);
 
-  if (!booking) return null;
+  const statusUI = booking ? getBookingStatusUI(booking.status) : null;
+  const firstAppointment = booking?.appointments?.[0];
+  const clientName = booking?.client?.name ?? null;
 
-  const statusUI = getBookingStatusUI(booking.status);
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) {
+          // 🔥 primero cerrar visualmente
+          setOpen(false);
 
-  const firstAppointment = booking.appointments[0];
-  const clientName = booking.client?.name ?? null;
+          // ⏱️ luego limpiar estado global
+          setTimeout(() => {
+            closeAppointment();
+          }, 200); // duración del Sheet
+        }
+      }}
+    >
+      <SheetContent
+        side="right"
+        className="w-full !max-w-[30rem] flex flex-col bg-white"
+      >
+        <VisuallyHidden>
+          <SheetTitle>Detalle del booking</SheetTitle>
+        </VisuallyHidden>
 
-  /* ============================
-     Loading state
-  ============================ */
-  if (loading) {
-    return (
-      <Sheet open={open} onOpenChange={(o) => !o && closeAppointment()}>
-        <SheetContent side="right" className="w-full !max-w-[30rem]">
-          <SheetHeader>
-            <SheetTitle className="sr-only">Cargando booking</SheetTitle>
-          </SheetHeader>
-
+        {/* ⏳ LOADING */}
+        {loading && (
           <p className="text-sm text-muted-foreground p-6">Cargando booking…</p>
-        </SheetContent>
-      </Sheet>
-    );
-  }
+        )}
 
-  /* ============================
-     Not found
-  ============================ */
-  if (notFound) {
-    return (
-      <Sheet open={open} onOpenChange={(o) => !o && closeAppointment()}>
-        <SheetContent side="right" className="w-full !max-w-[30rem]">
-          <SheetHeader>
-            <SheetTitle className="sr-only">Booking no encontrado</SheetTitle>
-          </SheetHeader>
-
+        {/* ❌ NOT FOUND */}
+        {!loading && notFound && (
           <div className="p-6 space-y-2">
             <h3 className="font-semibold text-base">
               Esta cita no pertenece a un booking
@@ -119,122 +127,98 @@ export default function AppointmentDetailSheet() {
               Puede tratarse de una cita antigua o creada sin flujo de booking.
             </p>
 
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={closeAppointment}
-            >
+            <Button variant="outline" onClick={() => setOpen(false)}>
               Cerrar
             </Button>
           </div>
-        </SheetContent>
-      </Sheet>
-    );
-  }
+        )}
 
-  /* ============================
-     Booking UI
-  ============================ */
-  return (
-    <Sheet open={open} onOpenChange={(o) => !o && closeAppointment()}>
-      <SheetContent
-        side="right"
-        className="w-full !max-w-[30rem] flex flex-col bg-white"
-      >
-        <SheetHeader>
-          <SheetTitle className="sr-only">Detalle del booking</SheetTitle>
-        </SheetHeader>
+        {/* ✅ BOOKING */}
+        {!loading && booking && (
+          <>
+            <BookingHeader
+              booking={booking}
+              orgId={branch.organizationId}
+              onAssignClient={async (clientId) => {
+                await assignClientToBooking({
+                  bookingId: booking.id,
+                  clientId,
+                });
 
-        {/* HEADER */}
-        <BookingHeader
-          booking={booking}
-          orgId={branch.organizationId}
-          onAssignClient={async (clientId) => {
-            await assignClientToBooking({
-              bookingId: booking.id,
-              clientId,
-            });
+                const res = await getManagerBookingById(booking.id);
+                setBooking(res.booking);
+                showAlert(
+                  buildBookingClientAssignedAlert({
+                    clientName: res.booking.client?.name,
+                    startIso: res.booking.startsAtISO,
+                  })
+                );
+              }}
+            />
 
-            const res = await getManagerBookingById(booking.id);
-            setBooking(res.booking);
-            showAlert(
-              buildBookingClientAssignedAlert({
-                clientName: res.booking.client?.name,
-                startIso: res.booking.startsAtISO,
-              })
-            );
-          }}
-        />
+            <div className="flex flex-col gap-6 flex-1 overflow-y-auto px-5 py-4">
+              <div>
+                <span
+                  className={cn(
+                    "px-4 py-2 text-sm rounded-full",
+                    statusUI?.className
+                  )}
+                >
+                  {statusUI?.label}
+                </span>
+              </div>
 
-        {/* BODY */}
-        <div className="flex flex-col gap-6 flex-1 overflow-y-auto px-5 py-4">
-          <div>
-            <span
-              className={cn(
-                "px-4 py-2 text-sm rounded-full",
-                statusUI.className
-              )}
-            >
-              {statusUI.label}
-            </span>
-          </div>
+              <div className="space-y-4">
+                {booking.appointments.map((a: any, i: number) => {
+                  const s = DateTime.fromISO(a.startIso).toLocal();
 
-          <div className="space-y-4">
-            {booking.appointments.map((a: any, i: number) => {
-              const s = DateTime.fromISO(a.startIso).toLocal();
+                  return (
+                    <div key={a.id} className="border rounded-md p-4 space-y-1">
+                      <div className="font-medium">
+                        {i + 1}. {a.service.name}
+                      </div>
 
-              return (
-                <div key={a.id} className="border rounded-md p-4 space-y-1">
-                  <div className="font-medium">
-                    {i + 1}. {a.service.name}
-                  </div>
+                      <div className="text-sm text-muted-foreground">
+                        {s.toFormat("t")} • {a.durationMin} min • {a.staff.name}
+                      </div>
 
-                  <div className="text-sm text-muted-foreground">
-                    {s.toFormat("t")} • {a.durationMin} min • {a.staff.name}
-                  </div>
+                      <div className="text-sm font-medium">
+                        ${(a.priceCents / 100).toFixed(2)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
-                  <div className="text-sm font-medium">
-                    ${(a.priceCents / 100).toFixed(2)}
-                  </div>
+              <div className="flex-1" />
+
+              <div className="border-t pt-4 space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="font-semibold text-base">Total</span>
+                  <span className="font-semibold text-base">
+                    ${(booking.totalCents / 100).toFixed(2)}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
 
-          <div className="flex-1" />
+                <div className="flex gap-2">
+                  {booking.status === "CONFIRMED" && (
+                    <>
+                      <CancelBookingButton
+                        bookingId={booking.id}
+                        clientName={clientName}
+                        startIso={firstAppointment.startIso}
+                      />
 
-          {/* ACTIONS */}
-          <div className="border-t pt-4 space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="font-semibold text-base">Total</span>
-              <span className="font-semibold text-base">
-                ${(booking.totalCents / 100).toFixed(2)}
-              </span>
+                      <RescheduleBookingButton booking={booking} />
+                    </>
+                  )}
+
+                  <Button className="flex-1 py-6">Pagar</Button>
+                </div>
+              </div>
             </div>
-
-            <div className="flex gap-2">
-              {booking.status === "CONFIRMED" && (
-                <>
-                  <CancelBookingButton
-                    bookingId={booking.id}
-                    clientName={clientName}
-                    startIso={firstAppointment.startIso}
-                  />
-
-                  <Button
-                    variant="outline"
-                    className="h-12 w-12"
-                    tooltip="Reagendar"
-                  >
-                    <CalendarSync className="h-4 w-4" />
-                  </Button>
-                </>
-              )}
-
-              <Button className="flex-1 py-6">Pagar</Button>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
       </SheetContent>
     </Sheet>
   );
