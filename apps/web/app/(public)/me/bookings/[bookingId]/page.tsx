@@ -19,6 +19,7 @@ import {
   StickyNote,
   CircleCheck,
   CheckCheck,
+  CalendarSync,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -565,6 +566,22 @@ export default function BookingDetailPage() {
                   : "/explore"
               }
             />
+
+            {booking.status === "CONFIRMED" && (
+              <>
+                <div className="my-2 h-px bg-black/10" />
+
+                <ActionRow
+                  icon={<CalendarSync className="h-5 w-5" />}
+                  title="Reagendar cita"
+                  subtitle="Si tuviste algun problema reagenda tu cita"
+                  href={
+                    booking.bookingId+'/reschedule'
+                  }
+                  disabled={cancelling}
+                />
+              </>
+            )}
 
             {/* 🔴 Cancelar SOLO si está CONFIRMED */}
             {booking.status === "CONFIRMED" && (

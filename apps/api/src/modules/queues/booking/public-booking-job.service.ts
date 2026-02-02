@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 import { Inject, Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
+import { randomUUID } from 'crypto';
 import { DateTime } from 'luxon';
 
 @Injectable()
@@ -102,6 +103,44 @@ export class PublicBookingJobsService {
       {
         jobId: `booking:${bookingId}:cancelled`,
         delay: 0,
+      },
+    );
+  }
+
+  async scheduleRescheduleMail(params: {
+    bookingId: string;
+    rescheduledBy: 'PUBLIC' | 'MANAGER' | 'SYSTEM';
+    reason?: string;
+    before: {
+      startsAt: Date;
+      endsAt: Date;
+    };
+    after: {
+      startsAt: Date;
+      endsAt: Date;
+    };
+  }) {
+    const { bookingId, rescheduledBy, reason, before, after } = params;
+
+    await this.queue.add(
+      'booking.rescheduled',
+      {
+        bookingId,
+        rescheduledBy,
+        reason,
+        before: {
+          startsAt: before.startsAt.toISOString(),
+          endsAt: before.endsAt.toISOString(),
+        },
+        after: {
+          startsAt: after.startsAt.toISOString(),
+          endsAt: after.endsAt.toISOString(),
+        },
+      },
+      {
+        jobId: `booking-${bookingId}-rescheduled-${randomUUID()}`,
+        delay: 0,
+        removeOnComplete: true,
       },
     );
   }

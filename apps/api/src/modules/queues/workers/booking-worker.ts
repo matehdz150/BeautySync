@@ -20,6 +20,7 @@ import { services } from '../../db/schema';
 import { staff } from '../../db/schema/staff/staff';
 
 import type { BookingMailPayload } from '../mail/types/mail.types';
+import { randomUUID } from 'crypto';
 
 const mailQueue = new Queue('mail-queue', {
   connection: redis,
@@ -260,6 +261,59 @@ async function handler(name: string, data: any) {
       status,
       job: name,
     });
+    return;
+  }
+
+  // ==========================
+  // 🔁 RESCHEDULED
+  // ==========================
+  if (name === 'booking.rescheduled') {
+    const payload = await buildBookingMailPayload(bookingId);
+    if (!payload) {
+      console.log('⚠️ reschedule payload missing', { bookingId });
+      return;
+    }
+
+    const tz = 'America/Mexico_City';
+
+    const beforeStart = DateTime.fromISO(data.before?.startsAt, { zone: 'utc' })
+      .setZone(tz)
+      .setLocale('es');
+
+    const afterStart = DateTime.fromISO(data.after?.startsAt, { zone: 'utc' })
+      .setZone(tz)
+      .setLocale('es');
+
+    await mailQueue.add(
+      'mail.booking.rescheduled',
+      {
+        ...payload,
+
+        rescheduledBy: data.rescheduledBy,
+        cancelReason: data.reason ?? null,
+
+        previousDateLabel: beforeStart.toLocaleString({
+          weekday: 'long',
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        }),
+        previousTimeLabel: beforeStart.toLocaleString(DateTime.TIME_SIMPLE),
+
+        dateLabel: afterStart.toLocaleString({
+          weekday: 'long',
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        }),
+        timeLabel: afterStart.toLocaleString(DateTime.TIME_SIMPLE),
+      },
+      {
+        jobId: `mail:rescheduled:${bookingId}-${randomUUID()}`,
+      },
+    );
+
+    console.log('📧 reschedule mail queued', { bookingId });
     return;
   }
 

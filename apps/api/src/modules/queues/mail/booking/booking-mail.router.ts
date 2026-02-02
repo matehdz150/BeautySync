@@ -9,6 +9,7 @@ import { PublicBookingReminder2hEmail } from '../templates/PublicBookingReminder
 import { PublicBookingFollowup5mEmail } from '../templates/PublicBookingFollowup5mEmail';
 import { PublicBookingReminder30mEmail } from '../templates/PublicBookingReminder30mEmail';
 import { PublicBookingCancelledEmail } from '../templates/PublicBookingCancelledEmail';
+import { PublicBookingRescheduledEmail } from '../templates/PublicBookingRescheduledEmail';
 
 type MailBuildResult = {
   subject: string;
@@ -190,6 +191,44 @@ export async function buildBookingMail(
           manageUrl,
           rebookUrl,
 
+          establishmentUrl: data.establishmentUrl ?? undefined,
+        }),
+      );
+
+      return { subject, html };
+    }
+
+    case 'mail.booking.rescheduled': {
+      const subject = 'Tu cita fue reagendada 🔁';
+
+      const appUrl =
+        process.env.PUBLIC_APP_URL ?? process.env.PUBLIC_WEB_URL ?? '';
+
+      const manageUrl = data.manageUrl.startsWith('http')
+        ? data.manageUrl
+        : `${appUrl}${data.manageUrl}`;
+
+      const html = await renderEmail(
+        React.createElement(PublicBookingRescheduledEmail, {
+          customerName: data.userName ?? 'Cliente',
+
+          branchName: data.branchName ?? 'Sucursal',
+          branchAddress: data.branchAddress ?? null,
+          coverUrl: data.branchImageUrl ?? null,
+
+          // ⬅️ NUEVO
+          previousDateText: data.previousDateLabel ?? '',
+          previousTimeText: data.previousTimeLabel ?? '',
+
+          dateText: data.dateLabel ?? '',
+          timeText: data.timeLabel ?? '',
+
+          bookingRef: data.bookingId,
+
+          rescheduledBy: data.rescheduledBy ?? 'SYSTEM',
+          reason: data.cancelReason ?? null,
+
+          manageUrl,
           establishmentUrl: data.establishmentUrl ?? undefined,
         }),
       );
