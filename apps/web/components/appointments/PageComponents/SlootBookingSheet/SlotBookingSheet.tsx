@@ -63,10 +63,10 @@ function InnerSlotBookingSheet({
      Title
   ============================ */
   const title = useMemo(() => {
-    if (!pinnedStartIso) return "New booking";
+    if (!pinnedStartIso) return "Nueva cita";
 
-    const dt = DateTime.fromISO(pinnedStartIso);
-    return `New booking · ${dt.toFormat("ccc dd LLL")} · ${dt.toFormat(
+    const dt = DateTime.fromISO(pinnedStartIso).setLocale("es");
+    return `Nueva cita · ${dt.toFormat("ccc dd 'de' LLL")} · ${dt.toFormat(
       "HH:mm"
     )}`;
   }, [pinnedStartIso]);
@@ -108,12 +108,23 @@ function InnerSlotBookingSheet({
         "
       >
         {/* ================= HEADER ================= */}
-        <div className="border-b shrink-0">
-          <SheetHeader className="px-6 py-4 space-y-3">
-            <SheetTitle className="text-xl">{title}</SheetTitle>
+        <div className=" shrink-0 bg-white">
+          <SheetHeader className=" space-y-4">
+            {/* Title */}
+            <div className="space-y-1">
+              <SheetTitle className="text-xl font-semibold tracking-tight px-3">
+                {title}
+              </SheetTitle>
 
-            {/* 👇 HEADER DE CLIENTE */}
-            <SlotBookingClientHeader />
+              <p className="text-sm text-muted-foreground px-3">
+                Configura los detalles de la cita
+              </p>
+            </div>
+
+            {/* Client header */}
+            <div className="pt-2 ">
+              <SlotBookingClientHeader />
+            </div>
           </SheetHeader>
         </div>
 
@@ -149,7 +160,7 @@ function InnerSlotBookingSheet({
                 onOpenChange(false);
               }}
             >
-              Cancel
+              Cancelar
             </Button>
 
             {state.step < 3 && (
@@ -158,7 +169,7 @@ function InnerSlotBookingSheet({
                   onClick={() => actions.nextStep()}
                   disabled={hasUnassignedStaff || isFirstStepWithoutService}
                 >
-                  Continue
+                  Continuar
                 </Button>
 
                 {hasUnassignedStaff && (

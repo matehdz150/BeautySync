@@ -15,6 +15,8 @@ import {
 import { rescheduleManagerBooking } from "@/lib/services/appointments";
 import { RescheduleDatePicker } from "./RescheduleDatePicker";
 import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
+import { useUIAlerts } from "@/context/UIAlertsContext";
+import { buildBookingRescheduledAlert } from "@/lib/ui/bookingAlerts";
 
 type Props = {
   booking: any;
@@ -43,6 +45,7 @@ export function ReschedulePlanPicker({ booking, onClose }: Props) {
   const { branch } = useBranch();
   const { reload } = useCalendar();
   const { closeAppointment } = useCalendarActions();
+  const { showAlert } = useUIAlerts();
 
   const [date, setDate] = useState(todayISO());
   const [plans, setPlans] = useState<AvailabilityChainPlan[]>([]);
@@ -111,6 +114,12 @@ export function ReschedulePlanPicker({ booking, onClose }: Props) {
 
       reload();
 
+      showAlert(
+        buildBookingRescheduledAlert({
+          clientName: booking.client?.name,
+          newStartIso: selected.startIso,
+        })
+      );
       closeAppointment();
     } catch (e) {
       console.error("❌ frontend error", e);
@@ -128,8 +137,10 @@ export function ReschedulePlanPicker({ booking, onClose }: Props) {
 
       {/* BODY (SCROLL REAL) */}
       {/* BODY (SCROLL REAL) */}
-      <div className="h-[18rem] overflow-y-auto pr-2"
-      onWheelCapture={(e) => e.stopPropagation()}>
+      <div
+        className="h-[18rem] overflow-y-auto pr-2"
+        onWheelCapture={(e) => e.stopPropagation()}
+      >
         <div className="space-y-2 py-2">
           {loading &&
             Array.from({ length: 8 }).map((_, i) => (

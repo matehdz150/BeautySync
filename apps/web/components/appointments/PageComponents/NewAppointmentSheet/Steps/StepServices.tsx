@@ -14,6 +14,8 @@ import {
   DraftService,
   useBookingManagerDraft,
 } from "@/context/BookingManagerDraftContext";
+import { cn } from "@/lib/utils";
+import { CategoryIcon } from "@/components/shared/Icon";
 
 export function StepServices() {
   const { branch } = useBranch();
@@ -80,7 +82,7 @@ export function StepServices() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
-            placeholder="Search service name"
+            placeholder="Buscar servicios"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-10 py-6 shadow-none"
@@ -104,12 +106,12 @@ export function StepServices() {
               <div key={cat} className="space-y-3">
                 <div className="flex items-center gap-2 mt-2">
                   <p className="font-medium">{cat}</p>
-                  <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-white border px-2 py-0.5 rounded-full">
                     {services.length}
                   </span>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {services.map((s) => {
                     const isSelected = selectedIds.has(s.id);
 
@@ -117,45 +119,79 @@ export function StepServices() {
                       <button
                         key={s.id}
                         type="button"
-                        className={`w-full flex items-center justify-between gap-4 px-3 py-3 border rounded-md transition ${
-                          isSelected
-                            ? "bg-black text-white border-black"
-                            : "hover:bg-[#f3f3f3]"
-                        }`}
                         onClick={() => actions.toggleService(s)}
+                        className={cn(
+                          "group w-full relative overflow-hidden rounded-2xl border transition-all",
+                          "flex items-center justify-between gap-4 px-4 py-4",
+                          "active:scale-[0.99]",
+                          isSelected
+                            ? "bg-indigo-500 text-white border-indigo-500 ring-4 ring-indigo-500/20 shadow-lg"
+                            : "bg-white border-black/10 hover:bg-black/[0.02] hover:border-black/20"
+                        )}
                       >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-1.5 h-10 rounded-full"
-                            style={{
-                              backgroundColor: isSelected ? "#fff" : color,
-                              opacity: isSelected ? 0.9 : 1,
-                            }}
-                          />
+                        {/* Color bar */}
+                        <span
+                          className={cn(
+                            "absolute left-0 top-0 h-full w-2.5 transition-opacity",
+                            isSelected ? "bg-transparent" : ""
+                          )}
+                          style={{
+                            backgroundColor: isSelected ? undefined : color,
+                          }}
+                        />
 
-                          <div className="text-start">
-                            <p className="font-medium flex items-center gap-2">
+                        {/* Left content */}
+                        <div className="flex items-center gap-4 min-w-0">
+                          {/* Icon bubble */}
+                          <div
+                            className={cn(
+                              "flex h-10 w-10 items-center justify-center rounded-full border transition",
+                              isSelected
+                                ? "bg-white/15 border-white/30"
+                                : "bg-indigo-50 border-indigo-100 text-indigo-600"
+                            )}
+                          >
+                            {isSelected ? (
+                              <Check className="h-4 w-4 opacity-100" />
+                            ) : (
+                              <CategoryIcon
+                                name={s.category?.icon}
+                                className="h-4 w-4"
+                              />
+                            )}
+                          </div>
+
+                          {/* Text */}
+                          <div className="min-w-0 text-left">
+                            <p className="font-semibold tracking-tight truncate">
                               {s.name}
-                              {isSelected && (
-                                <Check className="h-4 w-4 opacity-90" />
-                              )}
                             </p>
 
                             <p
-                              className={`text-xs ${
+                              className={cn(
+                                "text-xs",
                                 isSelected
                                   ? "text-white/70"
                                   : "text-muted-foreground"
-                              }`}
+                              )}
                             >
                               {s.durationMin} min
                             </p>
                           </div>
                         </div>
 
-                        <p className="font-medium">
-                          ${(((s.priceCents ?? 0) as number) / 100).toFixed(2)}
-                        </p>
+                        {/* Price */}
+                        <div className="shrink-0 text-right">
+                          <p
+                            className={cn(
+                              "text-base font-semibold",
+                              isSelected ? "text-white" : "text-black"
+                            )}
+                          >
+                            $
+                            {(((s.priceCents ?? 0) as number) / 100).toFixed(2)}
+                          </p>
+                        </div>
                       </button>
                     );
                   })}

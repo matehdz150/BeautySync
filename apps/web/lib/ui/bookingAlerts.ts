@@ -59,3 +59,25 @@ export function buildBookingCancelledAlert({
     autoCloseMs: 3000,
   };
 }
+
+type BookingRescheduledAlertParams = {
+  clientName?: string | null;
+  previousStartIso?: string; // opcional, por si luego quieres mostrar "antes"
+  newStartIso: string;       // UTC ISO
+};
+
+export function buildBookingRescheduledAlert({
+  clientName,
+  newStartIso,
+}: BookingRescheduledAlertParams) {
+  const time = DateTime.fromISO(newStartIso)
+    .toLocal()
+    .toFormat("HH:mm");
+
+  return {
+    type: "success" as const,
+    title: "Cita reagendada",
+    description: `${clientName ?? "Cliente"} • Nuevo horario ${time}`,
+    autoCloseMs: 3000,
+  };
+}

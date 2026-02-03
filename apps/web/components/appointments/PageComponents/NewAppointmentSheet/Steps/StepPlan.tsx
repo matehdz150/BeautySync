@@ -14,9 +14,31 @@ import {
   type AvailabilityChainRequestBody,
 } from "@/lib/services/availability";
 
+import { HorizontalDatePicker } from "./TimeSide/HorizontalDatePicker";
+
+/* =====================
+   DATE HELPERS
+===================== */
+
 function todayISO() {
   return DateTime.now().setZone("America/Mexico_City").toISODate()!;
 }
+
+function isoToDate(iso: string) {
+  return DateTime.fromISO(iso, {
+    zone: "America/Mexico_City",
+  }).toJSDate();
+}
+
+function dateToISO(date: Date) {
+  return DateTime.fromJSDate(date)
+    .setZone("America/Mexico_City")
+    .toISODate()!;
+}
+
+/* =====================
+   COMPONENT
+===================== */
 
 export function StepPlan() {
   const { branch } = useBranch();
@@ -25,12 +47,12 @@ export function StepPlan() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // source of truth: draft.state.date
+  // source of truth
   const selectedDate = state.date ?? todayISO();
 
-  // ============================
-  // ✅ VALIDACIÓN REAL PARA PODER FETCH
-  // ============================
+  /* =====================
+     VALIDATIONS
+  ===================== */
 
   const staffReady = useMemo(() => {
     if (!state.services.length) return false;
@@ -41,7 +63,6 @@ export function StepPlan() {
       return !!state.singleStaffId;
     }
 
-    // PER_SERVICE: puede ser "ANY" o string staffId
     return state.services.every((s) => {
       const v = state.staffByService[s.id];
       return typeof v === "string" && v.length > 0;
@@ -60,9 +81,9 @@ export function StepPlan() {
     return staffReady;
   }, [branch?.id, state.services.length, staffReady, state.date]);
 
-  // ============================
-  // 🔥 REQUEST KEY (ANTI LOOP)
-  // ============================
+  /* =====================
+     REQUEST KEY (ANTI LOOP)
+  ===================== */
 
   const requestKey = useMemo(() => {
     const serviceIds = state.services.map((s) => s.id).join(",");
@@ -89,28 +110,26 @@ export function StepPlan() {
 
   const lastRequestKeyRef = useRef<string | null>(null);
 
-  // ============================
-  // HANDLERS
-  // ============================
+  /* =====================
+     HANDLERS
+  ===================== */
 
   const handleSelectDate = useCallback(
     (iso: string) => {
-      const next = iso.slice(0, 10);
-
-      actions.setDate(next);
+      actions.setDate(iso);
       actions.selectPlan(null);
       actions.setPlans([]);
       setError(null);
 
-      // 🔥 reset anti-loop key para permitir refetch con nueva fecha
+      // 🔥 permitir nuevo fetch
       lastRequestKeyRef.current = null;
     },
     [actions]
   );
 
-  // ============================
-  // FETCH PLANS (CHAIN)
-  // ============================
+  /* =====================
+     FETCH PLANS
+  ===================== */
 
   async function fetchPlans(date: string) {
     if (!branch?.id) return;
@@ -127,7 +146,7 @@ export function StepPlan() {
         date,
       };
 
-      // 🔥 orden estable: servicios más largos primero
+      // ordenar servicios por duración DESC
       const durationByService = new Map(
         state.services.map((s) => [s.id, s.durationMin])
       );
@@ -149,20 +168,19 @@ export function StepPlan() {
       console.error(e);
       actions.setPlans([]);
       actions.selectPlan(null);
-      setError("No availability for this date");
+      setError("No available times for this date");
     } finally {
       setLoading(false);
     }
   }
 
-  // ============================
-  // AUTO-FETCH CONTROLADO
-  // ============================
+  /* =====================
+     AUTO FETCH
+  ===================== */
 
   useEffect(() => {
     if (!branch?.id) return;
 
-    // si no hay date, setearlo 1 vez y salir
     if (!state.date) {
       actions.setDate(selectedDate);
       return;
@@ -170,7 +188,6 @@ export function StepPlan() {
 
     if (!canFetch) return;
 
-    // 🔥 evita loop: no repitas el mismo request
     if (lastRequestKeyRef.current === requestKey) return;
     lastRequestKeyRef.current = requestKey;
 
@@ -178,9 +195,9 @@ export function StepPlan() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branch?.id, canFetch, requestKey, state.date, selectedDate]);
 
-  // ============================
-  // DERIVADOS
-  // ============================
+  /* =====================
+     DERIVED
+  ===================== */
 
   const plans = state.plans as AvailabilityChainPlan[];
 
@@ -189,9 +206,9 @@ export function StepPlan() {
     return plans.find((p) => p.startIso === state.selectedPlanStartIso) ?? null;
   }, [plans, state.selectedPlanStartIso]);
 
-  // ============================
-  // UI STATES
-  // ============================
+  /* =====================
+     UI GUARDS
+  ===================== */
 
   if (!branch) {
     return <div className="py-8 text-sm text-muted-foreground">No branch</div>;
@@ -213,27 +230,24 @@ export function StepPlan() {
     );
   }
 
-  // ============================
-  // RENDER
-  // ============================
+  /* =====================
+     RENDER
+  ===================== */
 
   return (
     <div className="space-y-5">
       {/* DATE PICKER */}
       <div className="space-y-2">
-        <p className="text-sm font-medium">Date</p>
 
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => handleSelectDate(e.target.value)}
-          className="w-full rounded-md border px-3 py-2 text-sm"
+        <HorizontalDatePicker
+          value={isoToDate(selectedDate)}
+          onChange={(date) => handleSelectDate(dateToISO(date))}
         />
       </div>
 
       {/* TIMES */}
       <div className="space-y-2">
-        <p className="text-sm font-medium">Available times</p>
+        <p className="text-sm font-medium">Disponibilidad</p>
 
         {loading && (
           <div className="space-y-2">
@@ -262,16 +276,10 @@ export function StepPlan() {
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{p.startLocalLabel}</span>
-
-                    {isSelected && (
-                      <span className="text-xs font-medium text-indigo-600">
-                        Selected
-                      </span>
-                    )}
                   </div>
 
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {p.assignments.length} services •{" "}
+                    {p.assignments.length} servicios •{" "}
                     {p.assignments
                       .map((a) => {
                         const srv = state.services.find(
@@ -293,31 +301,6 @@ export function StepPlan() {
           </div>
         )}
       </div>
-
-      {/* DETAILS */}
-      {selectedPlan && (
-        <div className="rounded-md border p-3 bg-muted/30">
-          <p className="text-sm font-medium">Plan details</p>
-
-          <div className="mt-2 space-y-2">
-            {selectedPlan.assignments.map((a, idx) => {
-              const srv = state.services.find((s) => s.id === a.serviceId);
-              const start = DateTime.fromISO(a.startLocalIso).toFormat("HH:mm");
-              const end = DateTime.fromISO(a.endLocalIso).toFormat("HH:mm");
-
-              return (
-                <div key={`${a.serviceId}-${idx}`} className="text-xs">
-                  <span className="font-medium">{srv?.name ?? "Service"}</span>
-                  <span className="text-muted-foreground">
-                    {" "}
-                    • {start} - {end}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

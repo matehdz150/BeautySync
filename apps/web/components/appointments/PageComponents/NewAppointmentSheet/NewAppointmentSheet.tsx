@@ -280,9 +280,9 @@ function InnerSheet({
   // ============================
 
   const title = useMemo(() => {
-    if (step === 1) return "Select services";
-    if (step === 2) return "Select staff";
-    if (step === 3) return "Select date & time";
+    if (step === 1) return "Selecciona servicios";
+    if (step === 2) return "Selecciona staff";
+    if (step === 3) return "Selecciona fecha & hora";
     return "Confirm";
   }, [step]);
 
@@ -342,7 +342,7 @@ function InnerSheet({
                   canGoBack ? "text-black" : "text-gray-400"
                 }`}
               >
-                Back
+                Volver
               </button>
 
               <button
@@ -358,7 +358,7 @@ function InnerSheet({
                   }
                 `}
               >
-                Continue
+                Continuar
               </button>
             </div>
           )}

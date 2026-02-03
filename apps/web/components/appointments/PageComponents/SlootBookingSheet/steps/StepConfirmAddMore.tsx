@@ -2,14 +2,18 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { DateTime } from "luxon";
+import { Check, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { useSlotBooking } from "@/context/SlotBookingContext";
 import { api } from "@/lib/services/api";
+import { cn } from "@/lib/utils";
+import { StaffPicker } from "./Staffpicker/StaffPicker";
 
 /* =========================
    Types
@@ -85,9 +89,7 @@ export function StepConfirmAddMore() {
           }
         );
 
-        if (!cancelled) {
-          setAvailableServices(res.services ?? []);
-        }
+        if (!cancelled) setAvailableServices(res.services ?? []);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -127,12 +129,14 @@ export function StepConfirmAddMore() {
   ============================ */
 
   return (
-    <div className="space-y-6">
-      {/* ================= Current booking ================= */}
-      <div>
-        <h3 className="text-sm font-semibold">Current booking</h3>
+    <div className="space-y-8">
+      {/* ================= CURRENT BOOKING ================= */}
+      <div className="space-y-4">
+        <h3 className="text-base font-semibold tracking-tight">
+          Servicios seleccionados
+        </h3>
 
-        <div className="space-y-3 pt-3">
+        <div className="space-y-3">
           {services.map((s, i) => {
             const start = DateTime.fromISO(s.startIso).toLocal();
 
@@ -141,45 +145,55 @@ export function StepConfirmAddMore() {
               [];
 
             return (
-              <div key={i} className="rounded-md border p-3 space-y-2">
-                <div className="flex justify-between items-start">
+              <div
+                key={i}
+                className="rounded-2xl border bg-white px-4 py-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="font-medium">
+                    <p className="font-semibold">
                       {i + 1}. {s.serviceName}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
+                    </p>
+                    <p className="text-xs text-muted-foreground">
                       {start.toFormat("HH:mm")} · {s.durationMin} min
-                    </div>
+                    </p>
                   </div>
 
-                  <Badge variant="outline">
-                    {s.staffId === "ANY" ? "Staff not assigned" : s.staffName}
+                  <Badge variant="secondary">
+                    {s.staffId === "ANY" ? "Staff por asignar" : s.staffName}
                   </Badge>
                 </div>
 
-                {/* STAFF DROPDOWN */}
-                <select
-                  className="w-full border rounded-md px-2 py-1 text-sm"
-                  value={s.staffId}
-                  onChange={(e) => {
-                    const staffId = e.target.value as string | "ANY";
+                {/* STAFF SELECT */}
+                <div>
+                  <label className="block text-xs font-medium mb-1">
+                    Staff
+                  </label>
 
-                    const staff =
-                      staffId === "ANY"
-                        ? undefined
-                        : staffOptions.find((st) => st.id === staffId);
+                  {i === 0 ? (
+                    // 🔒 PRIMER SERVICIO → READ ONLY
+                    <div className="w-full rounded-xl border px-3 py-2 text-sm bg-muted/40 text-muted-foreground flex items-center justify-between">
+                      <span>
+                        {s.staffId === "ANY"
+                          ? "Staff asignado automáticamente"
+                          : s.staffName}
+                      </span>
 
-                    actions.setStaffForService(i, staffId, staff?.name);
-                  }}
-                >
-                  <option value="ANY">Any staff</option>
-
-                  {staffOptions.map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {st.name}
-                    </option>
-                  ))}
-                </select>
+                      <Badge variant="outline" className="text-[10px]">
+                        Fijado
+                      </Badge>
+                    </div>
+                  ) : (
+                    // ✏️ SERVICIOS ADICIONALES → EDITABLE
+                    <StaffPicker
+                      value={s.staffId}
+                      staffOptions={staffOptions}
+                      onChange={(staffId, staffName) => {
+                        actions.setStaffForService(i, staffId, staffName);
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             );
           })}
@@ -188,50 +202,67 @@ export function StepConfirmAddMore() {
 
       <Separator />
 
-      {/* ================= Add service ================= */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold">Add another service</h3>
-        <p className="text-xs text-muted-foreground">
-          Select a service to add it to the booking.
-        </p>
+      {/* ================= ADD MORE ================= */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-base font-semibold tracking-tight">
+            Agregar otro servicio
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Opcional · Se agregará después del último servicio
+          </p>
+        </div>
 
         <Input
-          placeholder="Search service…"
+          placeholder="Buscar servicio…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          className="py-6"
         />
       </div>
 
+      {/* ================= LIST ================= */}
       {loading && (
-        <div className="text-sm text-muted-foreground">Loading services…</div>
+        <div className="space-y-3">
+          <Skeleton className="h-16 w-full rounded-2xl" />
+          <Skeleton className="h-16 w-full rounded-2xl" />
+        </div>
       )}
 
       {!loading && filteredServices.length === 0 && (
-        <div className="text-sm text-muted-foreground">
-          No services match your search.
+        <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          No hay servicios disponibles.
         </div>
       )}
 
       <div className="space-y-3">
         {filteredServices.map((s) => (
-          <div
+          <button
             key={s.id}
-            className="rounded-lg border px-4 py-3 flex justify-between items-center"
+            onClick={() => addService(s)}
+            className={cn(
+              "group w-full rounded-2xl border px-4 py-4 transition",
+              "flex items-center justify-between gap-4",
+              "bg-white hover:bg-black/[0.02] hover:border-black/20",
+              "active:scale-[0.99]"
+            )}
           >
-            <div>
-              <div className="font-medium">{s.name}</div>
-              <div className="text-xs text-muted-foreground">
+            <div className="min-w-0 text-left">
+              <p className="font-semibold truncate">{s.name}</p>
+              <p className="text-xs text-muted-foreground">
                 {s.durationMin} min
                 {s.priceCents != null && (
                   <> · ${(s.priceCents / 100).toFixed(2)}</>
                 )}
-              </div>
+              </p>
             </div>
 
-            <Button size="sm" onClick={() => addService(s)}>
-              Add
-            </Button>
-          </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border bg-indigo-50 text-indigo-600">
+                <Plus className="h-4 w-4" />
+              </div>
+            </div>
+          </button>
         ))}
       </div>
     </div>

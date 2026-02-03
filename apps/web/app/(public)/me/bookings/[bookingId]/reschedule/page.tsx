@@ -16,6 +16,16 @@ import { AvailabilityChainPlan } from "@/lib/services/public/availability";
 import { RescheduleDatePicker } from "@/components/book/RescheduleDatePicker";
 
 /* =====================
+   CONSTS
+===================== */
+
+const NON_RESCHEDULABLE_STATUSES = [
+  "CANCELLED",
+  "COMPLETED",
+  "NO_SHOW",
+] as const;
+
+/* =====================
    PAGE
 ===================== */
 
@@ -50,6 +60,7 @@ export default function BookingReschedulePage() {
       try {
         const res = await getMyPublicBookingById(bookingId);
         if (!alive) return;
+
         setBooking(res.booking);
         setSelectedDate(res.booking.date);
       } catch (err: any) {
@@ -75,6 +86,14 @@ export default function BookingReschedulePage() {
     return booking.appointments.reduce((acc, a) => acc + a.durationMin, 0);
   }, [booking]);
 
+  const bookingStatus = booking?.appointments[0]?.status ?? "CONFIRMED";
+
+  const isReschedulable = useMemo(() => {
+    return !NON_RESCHEDULABLE_STATUSES.includes(
+      bookingStatus as (typeof NON_RESCHEDULABLE_STATUSES)[number]
+    );
+  }, [bookingStatus]);
+
   function handleClose() {
     router.push(`/me/bookings/${bookingId}`);
   }
@@ -82,7 +101,8 @@ export default function BookingReschedulePage() {
   async function handleConfirmReschedule() {
     if (!bookingId || !selectedDate || !selectedPlan) return;
 
-    const startLocalIso = selectedPlan.startLocalIso ?? selectedPlan.startIso;
+    const startLocalIso =
+      selectedPlan.startLocalIso ?? selectedPlan.startIso;
 
     const time = startLocalIso.slice(11, 16); // HH:mm
 
@@ -95,11 +115,10 @@ export default function BookingReschedulePage() {
 
       await reschedulePublicBooking({
         bookingId,
-        date: selectedDate, // YYYY-MM-DD
-        time, // HH:mm
+        date: selectedDate,
+        time,
       });
 
-      // ✅ éxito → volver al detalle
       router.push(`/me/bookings/${bookingId}`);
     } catch (err) {
       console.error(err);
@@ -140,62 +159,41 @@ export default function BookingReschedulePage() {
   }
 
   /* =====================
+     🚫 NOT RESCHEDULABLE
+  ===================== */
+
+  if (!isReschedulable) {
+    return (
+      <div className="w-full rounded-[28px] border border-black/5 bg-white p-6 sm:p-10">
+        <p className="text-base font-semibold">
+          Esta cita no se puede reagendar
+        </p>
+
+        <p className="mt-1 text-sm text-muted-foreground">
+          Las citas canceladas o ya pasadas no pueden modificarse.
+        </p>
+
+        <Button
+          className="mt-6 rounded-full"
+          onClick={handleClose}
+        >
+          Volver a mis citas
+        </Button>
+      </div>
+    );
+  }
+
+  /* =====================
      RENDER
   ===================== */
 
   return (
     <>
-      {/* Animaciones globales */}
-      <style jsx global>{`
-        @keyframes bsCoverIn {
-          from {
-            opacity: 0;
-            transform: translateY(-8px) scale(1.01);
-            filter: blur(2px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0px) scale(1);
-            filter: blur(0px);
-          }
-        }
-
-        @keyframes bsFadeUp {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0px);
-          }
-        }
-
-        @keyframes bsSoftPop {
-          from {
-            opacity: 0;
-            transform: translateY(8px) scale(0.98);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0px) scale(1);
-          }
-        }
-      `}</style>
-
       <div className="w-full">
-        {/* Body */}
-        <div
-          className="p-4 sm:p-6 lg:p-8"
-          style={{ animation: "bsFadeUp 280ms ease-out both" }}
-        >
+        <div className="p-4 sm:p-6 lg:p-8">
           {/* Cita actual */}
-          <div
-            className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6"
-            style={{ animation: "bsSoftPop 240ms ease-out both" }}
-          >
+          <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6">
             <div className="flex items-start gap-4">
-              {/* Icon */}
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600">
                 <CalendarSync className="h-5 w-5" />
               </div>
@@ -203,7 +201,6 @@ export default function BookingReschedulePage() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-muted-foreground">Cita actual</p>
 
-                {/* Fecha y hora */}
                 <p className="mt-0.5 text-base font-semibold tracking-tight">
                   {new Date(
                     booking.appointments[0].startIso
@@ -222,12 +219,10 @@ export default function BookingReschedulePage() {
                   })}
                 </p>
 
-                {/* Servicios */}
                 <p className="mt-1 text-sm text-black/60 truncate">
                   {booking.appointments.map((a) => a.service.name).join(" · ")}
                 </p>
 
-                {/* Staff + duración */}
                 <p className="mt-1 text-xs text-black/45">
                   {booking.appointments[0].staff?.name
                     ? `Con ${booking.appointments[0].staff.name}`
@@ -251,12 +246,12 @@ export default function BookingReschedulePage() {
               selectedDate={selectedDate ?? undefined}
               onSelect={(date) => {
                 setSelectedDate(date);
-                setSelectedPlan(null); // 🔑 importante
+                setSelectedPlan(null);
               }}
             />
           </div>
 
-          {/* TIME SLOTS PLACEHOLDER */}
+          {/* TIME SLOTS */}
           <div className="mt-6">
             <RescheduleTimeSlots
               booking={booking}
@@ -270,7 +265,12 @@ export default function BookingReschedulePage() {
           <div className="mt-6">
             <Button
               className="w-full rounded-full"
-              disabled={!selectedDate || !selectedPlan || rescheduling}
+              disabled={
+                !isReschedulable ||
+                !selectedDate ||
+                !selectedPlan ||
+                rescheduling
+              }
               onClick={handleConfirmReschedule}
             >
               {rescheduling ? (
@@ -283,8 +283,6 @@ export default function BookingReschedulePage() {
               )}
             </Button>
           </div>
-
-          <div className="h-6" />
         </div>
       </div>
     </>

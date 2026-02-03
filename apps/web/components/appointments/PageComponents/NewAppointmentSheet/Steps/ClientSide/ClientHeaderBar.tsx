@@ -35,9 +35,9 @@ export function ClientHeaderBar() {
             </div>
 
             <div className="text-left">
-              <h3 className="font-semibold">Add client</h3>
+              <h3 className="font-semibold">Agregar cliente</h3>
               <p className="text-xs text-muted-foreground">
-                Or leave empty for walk-ins
+                O deja vacio para clientes prescenciales
               </p>
             </div>
           </motion.button>
