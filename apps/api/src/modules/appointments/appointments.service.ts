@@ -167,9 +167,12 @@ export class AppointmentsService {
     const where = [eq(appointments.branchId, branchId)];
 
     if (staffId) where.push(eq(appointments.staffId, staffId));
-    if (status)
+    if (status) {
       where.push(eq(appointments.status, status as AppointmentStatus));
-
+    } else {
+      // 👇 default: excluir canceladas
+      where.push(ne(appointments.status, 'CANCELLED'));
+    }
     // timezone awareness
     const settings = await this.db.query.branchSettings.findFirst({
       where: eq(branchSettings.branchId, branchId),

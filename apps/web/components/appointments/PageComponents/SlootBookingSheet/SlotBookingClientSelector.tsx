@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, User, UserX } from "lucide-react";
+import { Search, User, UserX, Check } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,7 @@ export function SlotBookingClientSelector({
   const [loading, setLoading] = useState(false);
 
   /* ============================
-     Load clients (MISMO ORIGEN)
+     Load clients
   ============================ */
 
   useEffect(() => {
@@ -56,9 +56,7 @@ export function SlotBookingClientSelector({
       setLoading(true);
       try {
         const res = await getClients(orgId);
-        if (!cancelled) {
-          setClients(res ?? []);
-        }
+        if (!cancelled) setClients(res ?? []);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -71,7 +69,7 @@ export function SlotBookingClientSelector({
   }, [orgId]);
 
   /* ============================
-     Client-side search
+     Search
   ============================ */
 
   const filtered = useMemo(() => {
@@ -91,46 +89,56 @@ export function SlotBookingClientSelector({
   ============================ */
 
   return (
-    <div className="space-y-4 px-6 py-4">
-      {/* SEARCH */}
-      <div className="relative">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          autoFocus
-          placeholder="Buscar cliente por nombre, email o teléfono"
-          className="pl-9"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+    <div className="flex flex-col gap-4">
+      {/* ================= SEARCH ================= */}
+      <div className="sticky top-0 bg-white z-10 pt-1">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            autoFocus
+            placeholder="Buscar por nombre, email o teléfono"
+            className="pl-9 py-5"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
-      {/* WALK-IN */}
+      {/* ================= WALK-IN ================= */}
       <Button
         variant={!clientId ? "secondary" : "outline"}
-        className="w-full justify-start"
+        className="w-full justify-start gap-3 rounded-xl py-4"
         onClick={() => {
           onSelect(undefined);
           onClose();
         }}
       >
-        <UserX className="h-4 w-4 mr-2" />
-        Sin cliente (Walk-in)
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+          <UserX className="h-4 w-4" />
+        </div>
+
+        <div className="text-left">
+          <p className="font-semibold text-sm">Sin cliente</p>
+          <p className="text-xs text-muted-foreground">
+            Cita sin registro (Walk-in)
+          </p>
+        </div>
       </Button>
 
       <Separator />
 
-      {/* LIST */}
-      <div className="space-y-1 max-h-[50vh] overflow-y-auto pr-1">
+      {/* ================= LIST ================= */}
+      <div className="space-y-1 max-h-[52vh] overflow-y-auto pr-1">
         {loading && (
-          <p className="text-xs text-muted-foreground px-2">
+          <p className="text-xs text-muted-foreground px-2 py-2">
             Cargando clientes…
           </p>
         )}
 
         {!loading && filtered.length === 0 && (
-          <p className="text-xs text-muted-foreground px-2">
+          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             No se encontraron clientes
-          </p>
+          </div>
         )}
 
         {filtered.map((c) => {
@@ -144,24 +152,48 @@ export function SlotBookingClientSelector({
                 onClose();
               }}
               className={`
-                w-full flex items-center justify-between
-                rounded-md px-3 py-2 text-sm
-                hover:bg-muted transition
-                ${selected ? "bg-muted" : ""}
+                group w-full flex items-center justify-between gap-4
+                rounded-xl px-4 py-3 text-left transition
+                ${
+                  selected
+                    ? "bg-indigo-50 border border-indigo-200"
+                    : "hover:bg-muted"
+                }
               `}
             >
-              <div className="text-left">
-                <div className="font-medium">{c.name}</div>
-                {(c.phone || c.email) && (
-                  <div className="text-xs text-muted-foreground">
-                    {c.phone ?? c.email}
-                  </div>
-                )}
-              </div>
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className={`
+    flex h-9 w-9 items-center justify-center rounded-full border overflow-hidden
+    ${
+      selected
+        ? "bg-indigo-500 text-white border-indigo-500"
+        : "bg-muted text-muted-foreground"
+    }
+  `}
+                >
+                  {c.avatarUrl ? (
+                    <img
+                      src={c.avatarUrl}
+                      alt={c.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : selected ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <User className="h-4 w-4" />
+                  )}
+                </div>
 
-              {selected && (
-                <User className="h-4 w-4 text-muted-foreground" />
-              )}
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm truncate">{c.name}</p>
+                  {(c.phone || c.email) && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {c.phone ?? c.email}
+                    </p>
+                  )}
+                </div>
+              </div>
             </button>
           );
         })}

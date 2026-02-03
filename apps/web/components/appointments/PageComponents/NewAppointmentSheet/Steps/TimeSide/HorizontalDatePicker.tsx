@@ -8,28 +8,30 @@ import {
   isSameDay,
   addMonths,
 } from "date-fns";
-import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { es } from "date-fns/locale";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 
 type Props = {
   value: Date;
   onChange: (date: Date) => void;
 };
 
-// cuántos días avanzan las flechas
-const PAGE_SIZE = 6;
-// cuántos meses hacia adelante cargamos en la tira
+const PAGE_SIZE = 5;
 const MONTHS_AHEAD = 3;
 
 export function HorizontalDatePicker({ value, onChange }: Props) {
-  // anclamos el rango en el mes de la fecha actual
+  /* =====================
+     RANGE
+  ===================== */
+
   const rangeStart = useMemo(() => startOfMonth(value), [value]);
   const rangeEnd = useMemo(
     () => endOfMonth(addMonths(rangeStart, MONTHS_AHEAD - 1)),
     [rangeStart]
   );
 
-  // todos los días del rango (p.ej. enero-marzo)
   const days = useMemo(
     () =>
       eachDayOfInterval({
@@ -39,111 +41,98 @@ export function HorizontalDatePicker({ value, onChange }: Props) {
     [rangeStart, rangeEnd]
   );
 
-  // índice del primer día visible
+  /* =====================
+     PAGINATION
+  ===================== */
+
   const [startIndex, setStartIndex] = useState(0);
 
-  // cuando cambia de “mes base” (value), reseteamos al inicio del rango
   useEffect(() => {
     setStartIndex(0);
   }, [rangeStart.getTime()]);
 
   const maxStart = Math.max(days.length - PAGE_SIZE, 0);
-  const canGoPrev = startIndex > 0;
-  const canGoNext = startIndex < maxStart;
+  const canPrev = startIndex > 0;
+  const canNext = startIndex < maxStart;
 
   const visibleDays = days.slice(startIndex, startIndex + PAGE_SIZE);
 
-  // título usando el mes del primer día visible (se irá moviendo)
-  const headerLabel = format(visibleDays[0] ?? value, "MMMM yyyy");
+  const headerLabel = format(value, "MMMM", {
+    locale: es,
+  });
+
+  /* =====================
+     RENDER
+  ===================== */
 
   return (
-    <div className="inline-flex flex-col gap-4 p-2 rounded-xl bg-white max-w-120">
+    <div className="w-full">
       {/* HEADER */}
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="font-semibold text-sm leading-none truncate">
-          {headerLabel}
-        </h3>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold capitalize">{headerLabel}</h2>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-2">
           <button
-            type="button"
-            disabled={!canGoPrev}
+            disabled={!canPrev}
             onClick={() =>
-              setStartIndex((prev) => Math.max(prev - PAGE_SIZE, 0))
+              setStartIndex((i) => Math.max(i - PAGE_SIZE, 0))
             }
-            className="h-7 w-7 rounded-full flex items-center justify-center hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="h-8 w-8 rounded-full flex items-center justify-center
+              hover:bg-black/5 disabled:opacity-30"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-5 w-5" />
           </button>
 
           <button
-            type="button"
-            disabled={!canGoNext}
+            disabled={!canNext}
             onClick={() =>
-              setStartIndex((prev) =>
-                Math.min(prev + PAGE_SIZE, maxStart)
+              setStartIndex((i) =>
+                Math.min(i + PAGE_SIZE, maxStart)
               )
             }
-            className="h-7 w-7 rounded-full flex items-center justify-center hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="h-8 w-8 rounded-full flex items-center justify-center
+              hover:bg-black/5 disabled:opacity-30"
           >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-
-          <button
-            type="button"
-            className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-gray-100"
-            onClick={() => alert("TODO abrir calendario")}
-          >
-            <Calendar className="h-4 w-4" />
+            <ChevronRight className="h-5 w-5" />
           </button>
         </div>
       </div>
 
-      {/* DAYS ROW */}
-      <div className="relative w-full">
-        <div
-          className="
-            flex gap-6
-            w-full
-            overflow-x-auto
-            overflow-y-hidden
-            no-scrollbar
-            pb-2
-            snap-x snap-mandatory
-          "
-        >
-          {visibleDays.map((day) => {
-            const selected = isSameDay(day, value);
-            const weekend = [0, 6].includes(day.getDay());
+      {/* DAYS */}
+      <div className="flex gap-4">
+        {visibleDays.map((day) => {
+          const selected = isSameDay(day, value);
 
-            return (
-              <button
-                key={day.toISOString()}
-                type="button"
-                onClick={() => onChange(day)}
-                className="flex flex-col items-center gap-1 min-w-12.5 snap-start pl-6"
+          return (
+            <button
+              key={day.toISOString()}
+              onClick={() => onChange(day)}
+              className="flex flex-col items-center gap-2"
+            >
+              <div
+                className={cn(
+                  "h-20 w-20 rounded-full flex flex-col items-center justify-center transition p-12",
+                  selected
+                    ? "bg-indigo-400 text-white"
+                    : "border border-black/15 text-black"
+                )}
               >
-                <div
-                  className={`
-                    h-15 w-15 rounded-full flex items-center justify-center text-sm border
-                    ${
-                      selected
-                        ? "bg-indigo-400 text-white"
-                        : "bg-white text-gray-800"
-                    }
-                    ${weekend && !selected ? "opacity-50" : ""}
-                  `}
+                <span
+                  className={cn(
+                    "text-sm",
+                    selected ? "opacity-90" : "text-black/60"
+                  )}
                 >
-                  {format(day, "d")}
-                </div>
-
-                <span className="text-[10px] text-gray-500">
-                  {format(day, "EEE")}
+                  {format(day, "EEE", { locale: es })}
                 </span>
-              </button>
-            );
-          })}
-        </div>
+
+                <span className="text-3xl font-semibold">
+                  {format(day, "d")}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

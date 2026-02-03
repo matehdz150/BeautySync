@@ -13,7 +13,7 @@ export function StepConfirm({
   onBack: () => void;
   onConfirm: () => void;
 }) {
-  const { client } = useAppointmentBuilder(); // legacy (por ahora)
+  const { client } = useAppointmentBuilder();
   const { state: draft, actions: draftActions } = useBookingManagerDraft();
 
   const selectedPlan = draftActions.getSelectedPlan();
@@ -26,120 +26,121 @@ export function StepConfirm({
 
   if (!selectedPlan) {
     return (
-      <div className="space-y-6 pt-6">
-        <p className="text-sm text-muted-foreground">Review &gt; Confirm</p>
-
-        <h2 className="text-xl font-semibold">Confirm appointment</h2>
-
+      <div className="pt-8 text-center space-y-4">
         <p className="text-sm text-muted-foreground">
-          No plan selected yet. Go back and select a time.
+          Revisión → Confirmación
         </p>
 
-        <div className="border-t pt-4 flex justify-between">
-          <Button variant="outline" onClick={onBack}>
-            Back
-          </Button>
+        <h2 className="text-xl font-semibold">No hay horario seleccionado</h2>
 
-          <Button disabled onClick={onConfirm}>
-            Confirm &amp; Book
-          </Button>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Regresa y selecciona una fecha y hora para continuar.
+        </p>
+
+        <Button variant="outline" onClick={onBack}>
+          Volver
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 pt-6">
-      {/* BREADCRUMB */}
-      <p className="text-sm text-muted-foreground">Review &gt; Confirm</p>
+      {/* HEADER */}
+      <div className="space-y-1">
+        <p className="text-sm text-muted-foreground">
+          Revisión → Confirmación
+        </p>
 
-      <h2 className="text-xl font-semibold">Confirm appointment</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">
+          Confirmar cita
+        </h2>
+      </div>
 
-      {/* CLIENT INFO */}
+      {/* CLIENT CARD */}
       {client && (
-        <div className="border rounded-lg p-4 bg-muted/20 space-y-1">
+        <div className="rounded-2xl border border-black/10 bg-white p-4">
+          <p className="text-xs text-muted-foreground">Cliente</p>
           <p className="font-medium">{client.name}</p>
 
-          {client.email && (
-            <p className="text-sm text-muted-foreground">{client.email}</p>
-          )}
-
-          <p className="text-sm text-muted-foreground">
-            {client.phone ?? "No phone number"}
-          </p>
+          <div className="mt-1 text-sm text-muted-foreground">
+            {client.email && <p>{client.email}</p>}
+            <p>{client.phone ?? "Sin teléfono"}</p>
+          </div>
         </div>
       )}
 
-      {/* SERVICES (desde el plan seleccionado) */}
-      <div className="space-y-4">
-        {selectedPlan.assignments.map((a, idx) => {
-          const srv = draft.services.find((s) => s.id === a.serviceId);
+      {/* SERVICES TIMELINE */}
+      <div className="rounded-2xl border border-black/10 bg-white p-4 space-y-4">
+        <p className="text-sm font-semibold">Servicios y horario</p>
 
-          const startLabel = DateTime.fromISO(a.startLocalIso)
-            .setZone("America/Mexico_City")
-            .toFormat("EEE d MMM • h:mma");
+        <div className="space-y-3">
+          {selectedPlan.assignments.map((a, idx) => {
+            const srv = draft.services.find((s) => s.id === a.serviceId);
 
-          return (
-            <div
-              key={`${a.serviceId}-${idx}`}
-              className="border rounded-lg p-4 flex justify-between items-start"
-            >
-              <div className="space-y-1">
-                {/* SERVICE NAME + COLOR BAR */}
-                <div className="flex items-center gap-2">
+            const start = DateTime.fromISO(a.startLocalIso)
+              .setZone("America/Mexico_City")
+              .toFormat("HH:mm");
+
+            const end = DateTime.fromISO(a.endLocalIso)
+              .setZone("America/Mexico_City")
+              .toFormat("HH:mm");
+
+            return (
+              <div key={`${a.serviceId}-${idx}`} className="flex gap-3">
+                {/* Timeline dot */}
+                <div className="flex flex-col items-center">
                   <div
-                    className="w-1.5 h-6 rounded-full"
+                    className="h-2.5 w-2.5 rounded-full"
                     style={{
                       backgroundColor:
-                        srv?.category?.colorHex ?? "#e5e7eb",
+                        srv?.category?.colorHex ?? "#6366f1",
                     }}
                   />
-
-                  <p className="font-medium">{srv?.name ?? "Service"}</p>
+                  {idx !== selectedPlan.assignments.length - 1 && (
+                    <div className="mt-1 w-px flex-1 bg-black/10" />
+                  )}
                 </div>
 
-                <p className="text-sm text-muted-foreground">
-                  {a.durationMin} min
-                </p>
+                {/* Content */}
+                <div className="flex-1 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{srv?.name ?? "Servicio"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {start} – {end} · {a.durationMin} min
+                    </p>
+                  </div>
 
-                {/* Staff */}
-                <p className="text-sm">
-                  <span className="text-muted-foreground">Staff:&nbsp;</span>
-                  {a.staffId}
-                </p>
-
-                {/* DATE / TIME */}
-                <p className="text-sm">
-                  <span className="text-muted-foreground">When:&nbsp;</span>
-                  {startLabel}
-                </p>
+                  <p className="text-sm font-medium">
+                    ${(((srv?.priceCents ?? 0) / 100) as number).toFixed(2)}
+                  </p>
+                </div>
               </div>
-
-              {/* PRICE */}
-              <p className="font-medium">
-                ${(((srv?.priceCents ?? 0) / 100) as number).toFixed(2)}
-              </p>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {/* TOTAL */}
-      <div className="border rounded-lg p-4 flex items-center justify-between">
+      <div className="rounded-2xl border border-black/10 bg-white p-4 flex items-center justify-between">
         <p className="text-sm text-muted-foreground">Total</p>
-
-        <p className="text-lg font-semibold">
+        <p className="text-xl font-semibold">
           ${(totalCents / 100).toFixed(2)}
         </p>
       </div>
 
-      {/* FOOTER */}
-      <div className="border-t pt-4 flex justify-between">
+      {/* ACTIONS */}
+      <div className="pt-4 flex items-center justify-between">
         <Button variant="outline" onClick={onBack}>
-          Back
+          Volver
         </Button>
 
-        <Button onClick={onConfirm}>Confirm &amp; Book</Button>
+        <Button
+          className="rounded-full px-6"
+          onClick={onConfirm}
+        >
+          Confirmar cita
+        </Button>
       </div>
     </div>
   );

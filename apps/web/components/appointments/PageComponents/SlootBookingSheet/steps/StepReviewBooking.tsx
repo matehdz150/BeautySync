@@ -13,6 +13,7 @@ import { createManagerBooking } from "@/lib/services/appointments";
 import { useCalendarActions } from "@/context/CalendarContext";
 import { buildBookingSuccessAlert } from "@/lib/ui/bookingAlerts";
 import { useUIAlerts } from "@/context/UIAlertsContext";
+import { cn } from "@/lib/utils";
 
 export function StepReviewBooking() {
   const { state, actions } = useSlotBooking();
@@ -120,104 +121,126 @@ export function StepReviewBooking() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* HEADER */}
-      <div>
-        <h3 className="text-sm font-semibold">Review booking</h3>
-        <p className="text-xs text-muted-foreground">
-          Review your services before confirming.
+    <div className="space-y-8">
+      {/* ================= HEADER ================= */}
+      <div className="space-y-1">
+        <h2 className="text-lg font-semibold tracking-tight">
+          Revisar y confirmar cita
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Verifica los servicios y el staff antes de crear la cita.
         </p>
       </div>
 
-      <Separator />
-
-      {/* SERVICES */}
+      {/* ================= TIMELINE ================= */}
       <div className="space-y-4">
         {services.map((s, index) => {
           const start = DateTime.fromISO(s.startIso).toLocal();
           const isFirst = index === 0;
 
           return (
-            <div key={index} className="rounded-lg border p-4 space-y-3">
-              {/* HEADER */}
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 font-medium">
-                    <Briefcase className="h-4 w-4 text-muted-foreground" />
-                    {s.serviceName}
-                  </div>
+            <div
+              key={index}
+              className={cn(
+                "relative rounded-2xl border p-4 bg-white",
+                isFirst && "border-indigo-500/40 bg-indigo-50/40"
+              )}
+            >
+              {/* LEFT LINE */}
+              {index !== services.length - 1 && (
+                <span className="absolute left-5 top-14 bottom-0 w-px bg-black/10" />
+              )}
 
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    {start.toFormat("HH:mm")} · {s.durationMin} min
-                  </div>
-                </div>
-
-                <Badge variant={isFirst ? "secondary" : "outline"}>
-                  {isFirst ? (
-                    <>
-                      <Lock className="h-3 w-3 mr-1" />
-                      Fixed
-                    </>
-                  ) : (
-                    s.staffName
+              <div className="flex gap-4">
+                {/* DOT */}
+                <div
+                  className={cn(
+                    "mt-1 h-3 w-3 rounded-full",
+                    isFirst ? "bg-indigo-500" : "bg-black/30"
                   )}
-                </Badge>
-              </div>
+                />
 
-              {/* STAFF INFO */}
-              {!isFirst && (
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    {s.staffName}
+                {/* CONTENT */}
+                <div className="flex-1 space-y-3">
+                  {/* TITLE */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-semibold">{s.serviceName}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {start.toFormat("HH:mm")} · {s.durationMin} min
+                      </p>
+                    </div>
+
+                    {/* BADGE */}
+                    {isFirst ? (
+                      <Badge className="gap-1">
+                        <Lock className="h-3 w-3" />
+                        Fijo
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">{s.staffName}</Badge>
+                    )}
                   </div>
 
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => actions.setStep(2)}
-                  >
-                    <Pencil className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
-                </div>
-              )}
+                  {/* STAFF */}
+                  {!isFirst ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        {s.staffName}
+                      </div>
 
-              {/* FIRST SERVICE INFO */}
-              {isFirst && (
-                <div className="text-xs text-muted-foreground flex items-center gap-2">
-                  <Lock className="h-3 w-3" />
-                  Staff for the first service is fixed.
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => actions.setStep(2)}
+                        className="h-8 px-2"
+                      >
+                        <Pencil className="h-3.5 w-3.5 mr-1" />
+                        Cambiar
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Lock className="h-3 w-3" />
+                      El staff del primer servicio no se puede modificar
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      <Separator />
+      {/* ================= WARNINGS ================= */}
+      {hasUnassignedStaff && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          Asigna un miembro del staff a todos los servicios antes de confirmar.
+        </div>
+      )}
 
-      {/* ACTIONS */}
-      <div className="flex justify-between items-center">
-        <Button variant="ghost" onClick={() => actions.setStep(2)}>
-          <Plus className="h-4 w-4 mr-1" />
-          Add another service
+      {/* ================= ACTIONS ================= */}
+      <div className="flex items-center justify-between pt-4 border-t">
+        <Button
+          variant="ghost"
+          onClick={() => actions.setStep(2)}
+          className="gap-1"
+        >
+          <Plus className="h-4 w-4" />
+          Agregar servicio
         </Button>
 
         <Button
+          size="lg"
           onClick={confirmBooking}
           disabled={submitting || hasUnassignedStaff}
+          className="px-8"
         >
-          {submitting ? "Confirming…" : "Confirm booking"}
+          {submitting ? "Confirmando…" : "Confirmar cita"}
         </Button>
       </div>
-
-      {hasUnassignedStaff && (
-        <p className="text-xs text-destructive">
-          Please assign a staff member to all services before confirming.
-        </p>
-      )}
     </div>
   );
 }
