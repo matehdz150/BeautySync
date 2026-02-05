@@ -24,6 +24,7 @@ import { IaModule } from './modules/ia/ia.module';
 import { RedisModule } from './modules/queues/redis/redis.module';
 import { QueuesModule } from './modules/queues/queues.module';
 import { BookingModule } from './modules/booking/booking.module';
+import { RankingsModule } from './modules/rankings/rankings.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { BookingModule } from './modules/booking/booking.module';
     RedisModule,
     QueuesModule,
     BookingModule,
+    RankingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

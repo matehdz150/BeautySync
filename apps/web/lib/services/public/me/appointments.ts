@@ -11,6 +11,16 @@ export type PublicAppointmentStatus =
   | "NO_SHOW"
   | "COMPLETED";
 
+/* =====================
+   TYPES (RATING)
+===================== */
+
+export type PublicBookingRating = {
+  value: number;
+  comment: string | null;
+  createdAt: string | null; // ISO
+};
+
 export type PublicAppointmentListItem = {
   id: string;
   status: PublicAppointmentStatus;
@@ -23,7 +33,7 @@ export type PublicAppointmentListItem = {
   priceCents: number | null;
 
   itemsCount: number; // en tu caso puede ser 1, o puedes agrupar por booking
-  coverUrl: string | null;
+  imageUrl: string | null;
 
   publicBookingId: string | null;
 };
@@ -73,6 +83,8 @@ export type PublicBookingDetailResponse = {
   booking: {
     id: string;
 
+    rating: PublicBookingRating | null;
+
     branch: {
       slug: string;
       name: string;
@@ -80,7 +92,7 @@ export type PublicBookingDetailResponse = {
       imageUrl: string | null;
     };
 
-    date: string; // YYYY-MM-DD
+    date: string;
     paymentMethod: PublicBookingPaymentMethod;
     notes: string | null;
 
@@ -117,7 +129,7 @@ export async function getMyPublicBookingById(
   if (!bookingId) throw new Error("bookingId is required");
 
   return publicFetch<PublicBookingDetailResponse>(
-    `/public/appointments/bookings/${bookingId}`,
+    `/public/booking/bookings/${bookingId}`,
     { method: "GET" }
   );
 }

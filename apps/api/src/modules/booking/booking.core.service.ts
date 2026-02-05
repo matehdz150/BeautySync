@@ -442,7 +442,15 @@ export class BookingsCoreService {
         endsAtISO: DateTime.fromJSDate(booking.endsAt, {
           zone: 'utc',
         }).toISO()!,
-        hasRating: !!rating,
+        rating: rating
+          ? {
+              value: rating.rating,
+              comment: rating.comment ?? null,
+              createdAt: rating.createdAt
+                ? rating.createdAt.toISOString()
+                : null,
+            }
+          : null,
 
         branch: {
           id: branch.id,

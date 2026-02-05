@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function BookingHeader({
-  coverUrl,
+  imageUrl,
   title,
   onClose,
 }: {
-  coverUrl: string | null;
+  imageUrl: string | null;
   title: string;
   onClose: () => void;
 }) {
@@ -21,9 +21,9 @@ export function BookingHeader({
         "h-[170px] sm:h-[240px] lg:h-[280px]"
       )}
     >
-      {coverUrl ? (
+      {imageUrl ? (
         <>
-          <Image src={coverUrl} alt={title} fill className="object-cover" />
+          <Image src={imageUrl} alt={title} fill className="object-cover" unoptimized/>
           <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
         </>
       ) : (

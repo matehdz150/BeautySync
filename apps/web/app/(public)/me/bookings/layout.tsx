@@ -19,6 +19,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 import { getMyPublicAppointments } from "@/lib/services/public/me/appointments";
 import { motion } from "framer-motion";
+import BookingDetailPage from "./[bookingId]/page";
+import { RatingPanel } from "@/components/public/me/booking/rating/RatingPanel";
+import { BookingDesktopLayout } from "@/components/public/me/booking/BookingDesktopLayout";
+import BookingReschedulePage from "./[bookingId]/reschedule/page";
+import BookingRatePage from "./[bookingId]/rate/page";
 
 type BookingStatus =
   | "CONFIRMED"
@@ -90,8 +95,10 @@ function mapApiItemToBooking(x: any): Booking {
 
 export default function BookingsLayout({
   children,
+  rate,
 }: {
   children: React.ReactNode;
+  rate: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -114,6 +121,8 @@ export default function BookingsLayout({
   const [upcomingCount, setUpcomingCount] = useState(0);
   const [pastCount, setPastCount] = useState(0);
 
+  const isRateRoute = /\/me\/bookings\/[^/]+\/rate$/.test(pathname);
+  const isReschedule = /\/reschedule$/.test(pathname);
   useEffect(() => {
     let alive = true;
 
@@ -127,9 +136,7 @@ export default function BookingsLayout({
         if (!alive) return;
 
         setItems(
-          res.items
-            .map(mapApiItemToBooking)
-            .filter((x) => Boolean(x.id))
+          res.items.map(mapApiItemToBooking).filter((x) => Boolean(x.id))
         );
 
         // counts rápidos
@@ -260,126 +267,78 @@ export default function BookingsLayout({
     );
   }
 
-  /**
-   * ✅ DESKTOP LAYOUT (tu split panel)
-   */
   return (
-    <>
-      <style jsx global>{`
-        @keyframes bsPanelIn {
-          from {
-            opacity: 0;
-            transform: translateX(14px);
-            filter: blur(2px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0px);
-            filter: blur(0px);
-          }
-        }
+    <BookingDesktopLayout
+      list={
+        <div className="min-w-0 rounded-[28px] border border-black/5 bg-white p-4">
+          <div className="px-2 pb-3">
+            <p className="text-lg font-semibold tracking-tight">Citas</p>
+            <p className="text-sm text-muted-foreground">
+              Administra tus reservaciones
+            </p>
+          </div>
 
-        .bs-bookings-grid {
-          display: grid;
-          grid-template-columns: 100% 0fr;
-          gap: 24px;
-          transition: grid-template-columns 500ms cubic-bezier(0.22, 1, 0.36, 1);
-          will-change: grid-template-columns;
-        }
+          <div className="px-2 pb-4">
+            <SegmentedToggle
+              value={tab}
+              onChange={setTab}
+              upcomingCount={upcomingCount}
+              pastCount={pastCount}
+            />
+          </div>
 
-        .bs-bookings-grid[data-detail="true"] {
-          grid-template-columns: 520px 1fr;
-        }
-      `}</style>
-
-      <div className="w-full">
-        <div
-          className="bs-bookings-grid"
-          data-detail={isDetailRoute ? "true" : "false"}
-        >
-          {/* LEFT */}
-          <aside className="min-w-0">
-            <div className="rounded-[28px] border border-black/5 bg-white p-4">
-              <div className="px-2 pb-3">
-                <p className="text-lg font-semibold tracking-tight">Citas</p>
-                <p className="text-sm text-muted-foreground">
-                  Administra tus reservaciones
-                </p>
+          <div className="space-y-2">
+            {loading ? (
+              <div className="rounded-[26px] border border-black/5 bg-white p-6 shadow-sm">
+                <div className="flex items-center gap-3 text-sm text-black/60">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Cargando citas…
+                </div>
               </div>
-
-              <div className="px-2 pb-4">
-                <SegmentedToggle
-                  value={tab}
-                  onChange={setTab}
-                  upcomingCount={upcomingCount}
-                  pastCount={pastCount}
+            ) : errorMsg ? (
+              <div className="rounded-[26px] border border-black/5 bg-white p-6 shadow-sm">
+                <p className="text-sm font-semibold">Error</p>
+                <p className="mt-1 text-sm text-muted-foreground">{errorMsg}</p>
+              </div>
+            ) : items.length === 0 ? (
+              tab === "UPCOMING" ? (
+                <EmptyState
+                  title="No hay próximas citas"
+                  description="Tus próximas citas aparecerán aquí cuando reserves."
+                  ctaLabel="Buscar salones"
+                  ctaHref="/explore"
                 />
-              </div>
-
-              <div className="space-y-2">
-                {loading ? (
-                  <div className="rounded-[26px] border border-black/5 bg-white p-6 shadow-sm">
-                    <div className="flex items-center gap-3 text-sm text-black/60">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Cargando citas…
-                    </div>
-                  </div>
-                ) : errorMsg ? (
-                  <div className="rounded-[26px] border border-black/5 bg-white p-6 shadow-sm">
-                    <p className="text-sm font-semibold">Error</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {errorMsg}
-                    </p>
-                  </div>
-                ) : items.length === 0 ? (
-                  tab === "UPCOMING" ? (
-                    <EmptyState
-                      title="No hay próximas citas"
-                      description="Tus próximas citas aparecerán aquí cuando reserves."
-                      ctaLabel="Buscar salones"
-                      ctaHref="/explore"
-                    />
-                  ) : (
-                    <div className="rounded-[26px] border border-black/5 bg-white p-6 shadow-sm">
-                      <p className="text-sm font-semibold">
-                        Aún no tienes historial
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Cuando completes tus primeras citas, aparecerán aquí.
-                      </p>
-                    </div>
-                  )
-                ) : (
-                  items.map((b) => (
-                    <BookingRowDesktop
-                      key={b.key}
-                      booking={b}
-                      active={b.id === activeId}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </aside>
-
-          {/* RIGHT */}
-          <main
-            className={cn(
-              "min-w-0 overflow-hidden",
-              !isDetailRoute && "pointer-events-none opacity-0"
+              ) : (
+                <div className="rounded-[26px] border border-black/5 bg-white p-6 shadow-sm">
+                  <p className="text-sm font-semibold">
+                    Aún no tienes historial
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Cuando completes tus primeras citas, aparecerán aquí.
+                  </p>
+                </div>
+              )
+            ) : (
+              items.map((b) => (
+                <BookingRowDesktop
+                  key={b.key}
+                  booking={b}
+                  active={b.id === activeId}
+                />
+              ))
             )}
-            style={{
-              animation: isDetailRoute ? "bsPanelIn 260ms ease-out both" : "none",
-            }}
-            key={activeId ?? "empty"}
-          >
-            <div className="overflow-hidden rounded-[28px] border border-black/5 bg-white">
-              {children}
-            </div>
-          </main>
+          </div>
         </div>
-      </div>
-    </>
+      }
+      detail={<BookingDetailPage/>}
+      side={
+    isRateRoute ? (
+      <BookingRatePage />
+    ) : isReschedule ? (
+      <BookingReschedulePage />
+    ) : null
+  }
+    />
   );
 }
 
@@ -395,7 +354,7 @@ function EmptyState({
   ctaHref: string;
 }) {
   return (
-    <div className="rounded-[26px] border border-black/5 bg-white p-6 shadow-sm">
+    <div className="rounded-[26px] border border-black/5 bg-white p-6 shadow-sm ">
       <div className="flex flex-col items-center text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-indigo-100 bg-indigo-50">
           <CalendarDays className="h-6 w-6 text-indigo-600" />
@@ -488,9 +447,14 @@ function BookingRowDesktop({
   booking: Booking;
   active: boolean;
 }) {
+  const href =
+  booking.status === "COMPLETED"
+    ? `/me/bookings/${booking.id}/rate`
+    : `/me/bookings/${booking.id}`;
+
   return (
     <Link
-      href={`/me/bookings/${booking.id}`}
+      href={href}
       className={cn(
         "group block rounded-sm border bg-white transition",
         "duration-200 ease-out",
@@ -499,6 +463,7 @@ function BookingRowDesktop({
           : "border-black/5 hover:border-black/10 hover:bg-black/[0.01]"
       )}
     >
+      
       <div className="flex gap-3">
         <div className="relative h-[86px] w-[108px] shrink-0 overflow-hidden rounded-l-sm border-r border-black/5 bg-black/[0.02]">
           {booking.coverUrl ? (
@@ -612,9 +577,7 @@ function SegmentedToggle({
           onClick={() => onChange("PAST")}
           className={cn(
             "relative h-9 rounded-full px-2 text-sm font-medium transition",
-            value === "PAST"
-              ? "text-white"
-              : "text-black/60 hover:text-black"
+            value === "PAST" ? "text-white" : "text-black/60 hover:text-black"
           )}
         >
           {/* PILL ANIMADO */}
