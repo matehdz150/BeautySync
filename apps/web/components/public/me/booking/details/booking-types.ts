@@ -43,10 +43,10 @@ export type BookingDetailVM = {
   notes: string | null;
 
   branch: {
+    imageUrl?: string | null;
     id: string;
     name: string;
     slug: string;
-    coverUrl: string | null;
     address?: string;
   };
 

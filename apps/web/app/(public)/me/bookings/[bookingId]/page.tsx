@@ -29,19 +29,12 @@ export default function BookingDetailPage() {
   useEffect(() => {
     async function load() {
       const res = await getMyPublicBookingById(bookingId);
+      console.log(res);
       setBooking(mapApiToVM(res as any));
       setLoading(false);
     }
     load();
   }, [bookingId]);
-
-  useEffect(() => {
-    if (!booking) return;
-
-    if (booking.status === "COMPLETED" && !booking.hasRating) {
-      setShowRatingModal(true);
-    }
-  }, [booking]);
 
   async function handleCancel() {
     if (!booking) return;
@@ -104,7 +97,9 @@ export default function BookingDetailPage() {
   return (
     <div className="w-full">
       <BookingHeader
-        coverUrl={booking.branch.coverUrl}
+        imageUrl={
+          booking.branch.imageUrl
+        }
         title={booking.branch.name}
         onClose={() => router.push("/me/bookings")}
       />
@@ -130,26 +125,24 @@ export default function BookingDetailPage() {
         <BookingDetails booking={booking} />
       </div>
       <RatingModal
-  open={showRatingModal}
-  onClose={() => setShowRatingModal(false)}
-  branchName={booking.branch.name}
-  bookingDate={new Date(booking.startsAtISO).toLocaleDateString("es-MX", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "numeric",
-    minute: "2-digit",
-  })}
-  servicesSummary={booking.appointments
-    .map(a => a.serviceName)
-    .join(", ")}
-  staffSummary={booking.appointments
-    .map(a => a.staffName)
-    .join(", ")}
-  onSubmit={(rating, comment) => {
-    // POST rating
-  }}
-/>
+        open={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        branchName={booking.branch.name}
+        bookingDate={new Date(booking.startsAtISO).toLocaleDateString("es-MX", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          hour: "numeric",
+          minute: "2-digit",
+        })}
+        servicesSummary={booking.appointments
+          .map((a) => a.serviceName)
+          .join(", ")}
+        staffSummary={booking.appointments.map((a) => a.staffName).join(", ")}
+        onSubmit={(rating, comment) => {
+          // POST rating
+        }}
+      />
     </div>
   );
 }

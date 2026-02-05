@@ -101,6 +101,7 @@ export default function PublicBusinessMobilePage() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const DEMO_IMAGES: Image[] = [
     {
       id: "demo-1",
@@ -140,8 +141,8 @@ export default function PublicBusinessMobilePage() {
   const cover = resolvedImages[0];
   const services = (branch?.services ?? []) as Service[];
 
-  const ratingValue = 4.9;
-  const ratingCount = 151;
+  const ratingValue = branch?.rating?.average;
+  const ratingCount = branch?.rating?.count;
 
   const openLabel = "Abierto";
   const closeLabel = "hasta las 19:00";

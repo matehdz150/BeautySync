@@ -9,6 +9,19 @@ import { createContext, useContext, useReducer, ReactNode } from "react";
 
 type AssignmentMode = "ANY" | "BY_SERVICE";
 
+export type BranchRatingReview = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string | null; // ISO
+};
+
+export type BranchRating = {
+  average: number | null;
+  count: number;
+  reviews: BranchRatingReview[];
+};
+
 export type Branch = {
   id: string;
   name: string;
@@ -19,6 +32,7 @@ export type Branch = {
   lat?: string;
   lng?: string;
   description? :string;
+  rating?: BranchRating;
 };
 
 export type PublicService = {

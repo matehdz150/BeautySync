@@ -14,7 +14,7 @@ type BookingDetailApiResponse = {
       id: string;
       name: string;
       slug: string;
-      coverUrl: string | null;
+      imageUrl: string | null;
       address?: string;
     };
 
@@ -108,7 +108,7 @@ export function mapApiToVM(
       id: b.branch.id,
       name: b.branch.name,
       slug: b.branch.slug,
-      coverUrl: b.branch.coverUrl,
+      imageUrl: b.branch.imageUrl,
       address: b.branch.address,
     },
 

@@ -113,8 +113,8 @@ export default function PublicBusinessPage() {
   const cover = resolvedImages[0];
   const services = (branch?.services ?? []) as Service[];
 
-  const ratingValue = 5.0;
-  const ratingCount = 17;
+  const ratingValue = branch?.rating?.average;
+  const ratingCount = branch?.rating?.count;
 
   const openLabel = "Abierto hasta 20:00";
   const nextOpenLabel = "— abre el miércoles a las 10:00";
