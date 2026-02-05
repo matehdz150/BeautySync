@@ -9,3 +9,4 @@ export * from './services';
 export * from './staff';
 export * from './users';
 export * from './public';
+export *from './rankings'

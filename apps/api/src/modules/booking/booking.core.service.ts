@@ -36,6 +36,7 @@ import { CreatePublicBookingDto } from './dto/create-booking-public.dto';
 import { PublicBookingJobsService } from '../queues/booking/public-booking-job.service';
 
 import { buildAppointmentOverlapWhere } from '../lib/booking/booking.overlap';
+import { publicBookingRatings } from '../db/schema/rankings/public_booking_ratings';
 
 @Injectable()
 export class BookingsCoreService {
@@ -366,6 +367,10 @@ export class BookingsCoreService {
       where: inArray(staff.id, staffIds),
     });
 
+    const rating = await this.db.query.publicBookingRatings.findFirst({
+      where: eq(publicBookingRatings.bookingId, bookingId),
+    });
+
     const servicesMap = new Map(servicesRows.map((s) => [s.id, s]));
     const staffMap = new Map(staffRows.map((s) => [s.id, s]));
 
@@ -437,6 +442,7 @@ export class BookingsCoreService {
         endsAtISO: DateTime.fromJSDate(booking.endsAt, {
           zone: 'utc',
         }).toISO()!,
+        hasRating: !!rating,
 
         branch: {
           id: branch.id,
