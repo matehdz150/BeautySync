@@ -7,6 +7,7 @@ import { PublicAuthModule } from '../auth/public/public-auth.module';
 import { DbModule } from '../db/db.module';
 import { BookingsManagerController } from './manager/booking.manager.controller';
 import { BookingsManagerService } from './manager/booking.manager.service';
+import { NotificationsJobsService } from '../queues/notifications/notifications-job.service';
 
 @Module({
   imports: [PublicAuthModule, DbModule],
@@ -16,6 +17,7 @@ import { BookingsManagerService } from './manager/booking.manager.service';
     BookingsCoreService,
     PublicBookingJobsService,
     BookingsManagerService,
+    NotificationsJobsService,
   ],
   exports: [BookingsCoreService],
 })

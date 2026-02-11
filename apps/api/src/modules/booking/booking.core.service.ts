@@ -30,6 +30,7 @@ import {
   publicUsers,
   services,
   staff,
+  users,
 } from 'src/modules/db/schema';
 
 import { CreatePublicBookingDto } from './dto/create-booking-public.dto';
@@ -37,11 +38,13 @@ import { PublicBookingJobsService } from '../queues/booking/public-booking-job.s
 
 import { buildAppointmentOverlapWhere } from '../lib/booking/booking.overlap';
 import { publicBookingRatings } from '../db/schema/rankings/public_booking_ratings';
+import { NotificationsJobsService } from '../queues/notifications/notifications-job.service';
 
 @Injectable()
 export class BookingsCoreService {
   constructor(
     private readonly publicBookingJobsService: PublicBookingJobsService,
+    private readonly notificationsJobService: NotificationsJobsService,
     @Inject('DB') private readonly db: client.DB,
   ) {}
 
@@ -296,6 +299,77 @@ export class BookingsCoreService {
       bookingId,
       startsAtUtc: bookingStartsAtUtc,
       endsAtUtc: bookingEndsAtUtc,
+    });
+
+    // =========================
+    // 🔔 BUILD NOTIFICATION DATA (READ ONLY)
+    // =========================
+
+    // 1️⃣ Servicios usados
+    const serviceIds = [
+      ...new Set(result.appointments.map((a) => a.serviceId)),
+    ];
+
+    const servicesUsed = await this.db
+      .select({
+        id: services.id,
+        name: services.name,
+        durationMin: services.durationMin,
+        priceCents: services.priceCents,
+      })
+      .from(services)
+      .where(inArray(services.id, serviceIds));
+
+    // 2️⃣ Staff asignado
+    const staffIds = [...new Set(result.appointments.map((a) => a.staffId))];
+
+    const staffMembers = await this.db
+      .select({
+        id: users.id,
+        name: users.name,
+        avatarUrl: users.avatarUrl,
+      })
+      .from(users)
+      .where(inArray(users.id, staffIds));
+
+    // 3️⃣ Cliente
+    const client = result.clientId
+      ? await this.db.query.clients.findFirst({
+          where: eq(clients.id, result.clientId),
+        })
+      : null;
+
+    await this.notificationsJobService.bookingCreated({
+      bookingId,
+      branchId: branch.id,
+
+      schedule: {
+        startsAt: bookingStartsAtUtc,
+        endsAt: bookingEndsAtUtc,
+      },
+
+      services: servicesUsed.map((s) => ({
+        id: s.id,
+        name: s.name,
+        durationMin: s.durationMin,
+        priceCents: s.priceCents ?? 0,
+      })),
+
+      client: client
+        ? {
+            id: client.id,
+            name: client.name,
+            avatarUrl: client.avatarUrl,
+          }
+        : undefined,
+
+      staff: staffMembers.map((s) => ({
+        id: s.id,
+        name: s.name,
+        avatarUrl: s.avatarUrl,
+      })),
+
+      totalCents: bookingTotalCents,
     });
 
     return result;
