@@ -26,7 +26,7 @@ export default function StaffLayout({
   const nav = [
     { label: "Catálogo de clientes", href: `${BASE}` },
     { label: "Beneficios", href: `${BASE}/products` },
-    { label: "Mensajes", href: `${BASE}/gift-cards` },
+    { label: "Mensajes", href: `${BASE}/messages` },
     { label: "Reseñas", href: `${BASE}/discounts` },
   ];
 

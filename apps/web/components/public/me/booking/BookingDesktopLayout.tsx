@@ -107,7 +107,7 @@ export function BookingDesktopLayout({ list, detail, side }: Props) {
 
           {/* DETAIL */}
           {(mode === "detail" || mode === "side") && (
-            <main className="min-w-0 overflow-hidden">
+            <main className="min-w-0 overflow-hidden rounded-2xl">
               <div className="panel panel-detail">
                 {detail}
               </div>

@@ -32,6 +32,7 @@ import {
   Puzzle,
   Store,
   Trophy,
+  Inbox,
 } from "lucide-react";
 
 import { useAuth, type Role } from "@/context/AuthContext";
@@ -51,6 +52,12 @@ type NavItem = {
 // ====== MENÚ DEFINIDO POR ROL ======
 
 const items: NavItem[] = [
+  {
+    label: "Inbox",
+    icon: Inbox,
+    href: "/dashboard/inbox",
+    allow: ["owner", "manager"],
+  },
   {
     label: "Dashboard",
     icon: LayoutDashboard,
