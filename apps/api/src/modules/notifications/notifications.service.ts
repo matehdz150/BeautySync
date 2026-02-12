@@ -10,8 +10,16 @@ import { notifications } from '../db/schema/notifications/notifications';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { and, eq, isNull, lt, desc, inArray } from 'drizzle-orm';
 import { users } from '../db/schema/users';
-import { branches } from '../db/schema/branches';
-import { notificationKindEnum } from '../db/schema';
+import { branches, branchImages } from '../db/schema/branches';
+import {
+  appointments,
+  clients,
+  notificationKindEnum,
+  publicBookings,
+  serviceCategories,
+  services,
+  staff,
+} from '../db/schema';
 
 @Injectable()
 export class NotificationsService {
@@ -200,6 +208,147 @@ export class NotificationsService {
       nextCursor: hasNextPage
         ? items[items.length - 1].createdAt.toISOString()
         : null,
+    };
+  }
+
+  async getNotificationDetail(notificationId: string, userId: string) {
+    // ============================
+    // 1️⃣ Notification
+    // ============================
+
+    const [notification] = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, notificationId))
+      .limit(1);
+
+    if (!notification) {
+      throw new NotFoundException('Notificación no encontrada');
+    }
+
+    // ============================
+    // 2️⃣ Validar acceso manager
+    // ============================
+
+    const [userRow] = await db
+      .select({ organizationId: users.organizationId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!userRow?.organizationId) {
+      throw new NotFoundException('Acceso inválido');
+    }
+
+    const [branch] = await db
+      .select()
+      .from(branches)
+      .where(
+        and(
+          eq(branches.id, notification.branchId),
+          eq(branches.organizationId, userRow.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!branch) {
+      throw new NotFoundException('No autorizado');
+    }
+
+    if (!notification.bookingId) {
+      return { notification, branch };
+    }
+
+    // ============================
+    // 3️⃣ Booking
+    // ============================
+
+    const [booking] = await db
+      .select()
+      .from(publicBookings)
+      .where(eq(publicBookings.id, notification.bookingId))
+      .limit(1);
+
+    if (!booking) {
+      return { notification, branch };
+    }
+
+    // ============================
+    // 4️⃣ Appointments + Services + Staff
+    // ============================
+
+    const appointmentRows = await db
+      .select({
+        appointmentId: appointments.id,
+        start: appointments.start,
+        end: appointments.end,
+        status: appointments.status,
+        paymentStatus: appointments.paymentStatus,
+        priceCents: appointments.priceCents,
+
+        service: {
+          id: services.id,
+          name: services.name,
+          durationMin: services.durationMin,
+          priceCents: services.priceCents,
+        },
+
+        category: {
+          id: serviceCategories.id,
+          name: serviceCategories.name,
+          icon: serviceCategories.icon,
+          colorHex: serviceCategories.colorHex,
+        },
+
+        staff: {
+          id: staff.id,
+          name: staff.name,
+          avatarUrl: staff.avatarUrl,
+          jobRole: staff.jobRole,
+        },
+
+        client: {
+          id: clients.id,
+          name: clients.name,
+          avatarUrl: clients.avatarUrl,
+          email: clients.email,
+          phone: clients.phone,
+        },
+      })
+      .from(appointments)
+      .leftJoin(services, eq(appointments.serviceId, services.id))
+      .leftJoin(
+        serviceCategories,
+        eq(services.categoryId, serviceCategories.id),
+      )
+      .leftJoin(staff, eq(appointments.staffId, staff.id))
+      .leftJoin(clients, eq(appointments.clientId, clients.id))
+      .where(eq(appointments.publicBookingId, booking.id));
+
+    // ============================
+    // 5️⃣ Branch Images
+    // ============================
+
+    const branchImgs = await db
+      .select()
+      .from(branchImages)
+      .where(eq(branchImages.branchId, branch.id))
+      .orderBy(branchImages.position);
+
+    // ============================
+    // 6️⃣ Response estructurada
+    // ============================
+
+    return {
+      notification,
+      booking: {
+        ...booking,
+        appointments: appointmentRows,
+      },
+      branch: {
+        ...branch,
+        images: branchImgs,
+      },
     };
   }
 }

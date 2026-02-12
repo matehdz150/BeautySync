@@ -50,6 +50,14 @@ export class NotificationsController {
     });
   }
 
+  @Get(':id')
+  getDetail(
+    @Param('id') notificationId: string,
+    @Req() req: { user: { id: string } },
+  ) {
+    return this.service.getNotificationDetail(notificationId, req.user.id);
+  }
+
   /**
    * ✅ Marcar UNA como leída
    */

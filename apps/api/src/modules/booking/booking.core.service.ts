@@ -1376,6 +1376,7 @@ export class BookingsCoreService {
       const startsAtUtc = DateTime.fromJSDate(booking.startsAt, {
         zone: 'utc',
       });
+
       if (startsAtUtc <= nowUtc) {
         throw new BadRequestException(
           'Booking already started and cannot be cancelled',
@@ -1391,7 +1392,13 @@ export class BookingsCoreService {
         .update(appointments)
         .set({ status: 'CANCELLED', updatedAt: new Date() })
         .where(eq(appointments.publicBookingId, bookingId))
-        .returning({ id: appointments.id });
+        .returning({
+          id: appointments.id,
+          serviceId: appointments.serviceId,
+          staffId: appointments.staffId,
+          clientId: appointments.clientId,
+          priceCents: appointments.priceCents,
+        });
 
       for (const a of affectedAppointments) {
         await tx.insert(appointmentStatusHistory).values({
@@ -1406,15 +1413,15 @@ export class BookingsCoreService {
       }
 
       return {
-        bookingId,
-        cancelledBy,
-        cancelledAppointments: affectedAppointments.length,
+        booking,
+        affectedAppointments,
       };
     });
 
     // =========================
-    // ✅ SIDE EFFECTS (OUTSIDE)
+    // ✅ SIDE EFFECTS (OUTSIDE TX)
     // =========================
+
     await this.publicBookingJobsService.cancelScheduledJobs(bookingId);
 
     await this.publicBookingJobsService.scheduleCancellationMail({
@@ -1422,9 +1429,99 @@ export class BookingsCoreService {
       cancelledBy,
     });
 
-    return { ok: true, ...result };
-  }
+    // =========================
+    // 🔔 BUILD NOTIFICATION DATA
+    // =========================
 
+    const { booking, affectedAppointments } = result;
+
+    // 1️⃣ Servicios usados
+    const serviceIds = [
+      ...new Set(affectedAppointments.map((a) => a.serviceId)),
+    ];
+
+    const servicesUsed = await this.db
+      .select({
+        id: services.id,
+        name: services.name,
+        durationMin: services.durationMin,
+        priceCents: services.priceCents,
+      })
+      .from(services)
+      .where(inArray(services.id, serviceIds));
+
+    // 2️⃣ Staff
+    const staffIds = [...new Set(affectedAppointments.map((a) => a.staffId))];
+
+    const staffMembers = await this.db
+      .select({
+        id: users.id,
+        name: users.name,
+        avatarUrl: users.avatarUrl,
+      })
+      .from(users)
+      .where(inArray(users.id, staffIds));
+
+    // 3️⃣ Cliente (desde appointment, NO desde booking)
+    const firstClientId = affectedAppointments[0]?.clientId;
+
+    const client = firstClientId
+      ? await this.db.query.clients.findFirst({
+          where: eq(clients.id, firstClientId),
+        })
+      : null;
+
+    // 4️⃣ Total
+    const totalCents = affectedAppointments.reduce(
+      (acc, a) => acc + (a.priceCents ?? 0),
+      0,
+    );
+
+    // =========================
+    // 🔔 CREATE NOTIFICATION
+    // =========================
+
+    await this.notificationsJobService.bookingCancelled({
+      bookingId,
+      branchId: booking.branchId,
+
+      schedule: {
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+      },
+
+      services: servicesUsed.map((s) => ({
+        id: s.id,
+        name: s.name,
+        durationMin: s.durationMin,
+        priceCents: s.priceCents ?? 0,
+      })),
+
+      client: client
+        ? {
+            id: client.id,
+            name: client.name,
+            avatarUrl: client.avatarUrl,
+          }
+        : undefined,
+
+      staff: staffMembers.map((s) => ({
+        id: s.id,
+        name: s.name,
+        avatarUrl: s.avatarUrl,
+      })),
+
+      totalCents,
+      cancelledBy,
+    });
+
+    return {
+      ok: true,
+      bookingId,
+      cancelledBy,
+      cancelledAppointments: affectedAppointments.length,
+    };
+  }
   async rescheduleBookingCore(params: {
     bookingId: string;
     newStartIso: string;
@@ -1650,6 +1747,98 @@ export class BookingsCoreService {
       endsAtUtc: newEndsAt,
     });
 
+    // =========================
+    // 🔔 NOTIFICATION JOB
+    // =========================
+
+    // 1️⃣ Servicios usados
+    const serviceIds = [
+      ...new Set(currentAppointments.map((a) => a.serviceId)),
+    ];
+
+    const servicesUsed = await this.db
+      .select({
+        id: services.id,
+        name: services.name,
+        durationMin: services.durationMin,
+        priceCents: services.priceCents,
+      })
+      .from(services)
+      .where(inArray(services.id, serviceIds));
+
+    // 2️⃣ Staff asignado
+    const staffIds = [...new Set(currentAppointments.map((a) => a.staffId))];
+
+    const staffMembers = await this.db
+      .select({
+        id: users.id,
+        name: users.name,
+        avatarUrl: users.avatarUrl,
+      })
+      .from(users)
+      .where(inArray(users.id, staffIds));
+
+    // 3️⃣ Cliente
+
+    let client: typeof clients.$inferSelect | null = null;
+
+    const clientId = currentAppointments[0]?.clientId;
+
+    if (clientId) {
+      client =
+        (await this.db.query.clients.findFirst({
+          where: eq(clients.id, clientId),
+        })) ?? null;
+    }
+
+    // 4️⃣ Call notification job
+    await this.notificationsJobService.bookingRescheduled({
+      bookingId,
+      branchId: booking.branchId,
+
+      schedule: {
+        startsAt: newStartsAt,
+        endsAt: newEndsAt,
+      },
+
+      services: servicesUsed.map((s) => ({
+        id: s.id,
+        name: s.name,
+        durationMin: s.durationMin,
+        priceCents: s.priceCents ?? 0,
+      })),
+
+      client: client
+        ? {
+            id: client.id,
+            name: client.name,
+            avatarUrl: client.avatarUrl,
+          }
+        : null,
+
+      staff: staffMembers.map((s) => ({
+        id: s.id,
+        name: s.name,
+        avatarUrl: s.avatarUrl,
+      })),
+
+      totalCents: booking.totalCents,
+
+      meta: {
+        rescheduledBy,
+        reason: reason ?? undefined,
+
+        before: {
+          startsAt: beforeSnapshot.booking.startsAt,
+          endsAt: beforeSnapshot.booking.endsAt,
+        },
+
+        after: {
+          startsAt: newStartsAt,
+          endsAt: newEndsAt,
+        },
+      },
+    });
     return {
       ok: true,
       bookingId: result.bookingId,

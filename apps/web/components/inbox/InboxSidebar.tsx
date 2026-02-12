@@ -70,12 +70,9 @@ export default function InboxSidebar({ collapsed }: Props) {
   const router = useRouter();
 
   function isActive(href: string) {
-    if (href === "/dashboard/inbox/main") {
-      return pathname === href;
-    }
+    if (!pathname) return false;
 
-    // Los demás permiten nested routes
-    return pathname.startsWith(href);
+    return pathname === href || pathname.startsWith(href + "/");
   }
 
   function renderItem(item: Item) {
