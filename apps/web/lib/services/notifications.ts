@@ -216,3 +216,15 @@ export async function getNotificationItem(
 ): Promise<Notification> {
   return api<Notification>(`/notifications/item/${notificationId}`);
 }
+
+/**
+ * Marcar una notificación como leída
+ * PATCH /notifications/:id/read
+ */
+export async function markNotificationAsRead(
+  notificationId: string,
+): Promise<{ success: true }> {
+  return api<{ success: true }>(`/notifications/${notificationId}/read`, {
+    method: "PATCH",
+  });
+}

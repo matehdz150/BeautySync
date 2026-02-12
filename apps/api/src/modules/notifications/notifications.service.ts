@@ -23,6 +23,7 @@ import {
 } from '../db/schema';
 import { NotificationsSseService } from './notifications-sse.service';
 import * as client from 'src/modules/db/client';
+import { redis } from '../queues/redis/redis.provider';
 
 @Injectable()
 export class NotificationsService {
@@ -73,7 +74,7 @@ export class NotificationsService {
   }
 
   async markAsRead(notificationId: string, userId: string) {
-    const updated = await db
+    const [updated] = await db
       .update(notifications)
       .set({ readAt: new Date() })
       .where(
@@ -85,9 +86,20 @@ export class NotificationsService {
       )
       .returning();
 
-    if (!updated.length) {
+    if (!updated) {
       throw new NotFoundException('Notificación no encontrada');
     }
+
+    // 🔥 emitir evento realtime
+    await redis.publish(
+      'realtime.notifications',
+      JSON.stringify({
+        scope: 'branch',
+        branchId: updated.branchId,
+        event: 'notification.read',
+        data: { id: updated.id },
+      }),
+    );
 
     return { success: true };
   }
