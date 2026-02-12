@@ -126,3 +126,81 @@ export async function getMyNotifications(
 
   return api<NotificationsResponse>(path);
 }
+
+// ============================
+// ✅ DETAIL RESPONSE
+// ============================
+
+export interface NotificationDetailResponse {
+  notification: Notification;
+
+  booking?: {
+    id: string;
+    branchId: string;
+    startsAt: string;
+    endsAt: string;
+    status: string;
+    paymentMethod: string;
+    totalCents: number;
+    notes: string | null;
+    createdAt: string;
+    updatedAt: string;
+
+    appointments: Array<{
+      id: string;
+      start: string;
+      end: string;
+      status: string;
+      paymentStatus: string;
+      priceCents: number | null;
+      notes: string | null;
+
+      service: {
+        id: string;
+        name: string;
+        durationMin: number;
+        priceCents: number | null;
+      };
+
+      staff: {
+        id: string;
+        name: string | null;
+        avatarUrl: string | null;
+      } | null;
+
+      client: {
+        id: string;
+        name: string | null;
+        avatarUrl: string | null;
+      } | null;
+    }>;
+  };
+
+  branch?: {
+    id: string;
+    name: string;
+    address: string | null;
+    description: string | null;
+    lat: string | null;
+    lng: string | null;
+
+    images: Array<{
+      id: string;
+      url: string;
+      isCover: boolean;
+      position: number;
+    }>;
+  };
+}
+
+/**
+ * 🔎 Obtener detalle completo de una notificación
+ * GET /notifications/:id
+ */
+export async function getNotificationDetail(
+  notificationId: string,
+): Promise<NotificationDetailResponse> {
+  return api<NotificationDetailResponse>(
+    `/notifications/${notificationId}`,
+  );
+}

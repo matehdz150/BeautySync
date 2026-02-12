@@ -113,36 +113,76 @@ async function handleBookingCreated(data: BookingCreatedJobData) {
 /* ============================
    ❌ BOOKING CANCELLED
 ============================ */
-async function handleBookingCancelled(data: any) {
-  const { bookingId, branchId, cancelledBy, clientId, reason } = data;
+
+type BookingCancelledJob = {
+  bookingId: string;
+  branchId: string;
+
+  payload: {
+    bookingId: string;
+
+    schedule: {
+      startsAt: string;
+      endsAt: string;
+    };
+
+    services: {
+      id: string;
+      name: string;
+      durationMin: number;
+      priceCents: number;
+    }[];
+
+    client: {
+      id: string;
+      name: string | null;
+      avatarUrl: string | null;
+    } | null;
+
+    staff: {
+      id: string;
+      name: string | null;
+      avatarUrl: string | null;
+    }[];
+
+    meta: {
+      totalCents: number;
+      cancelledBy: 'PUBLIC' | 'MANAGER' | 'SYSTEM';
+      managerUserId?: string;
+      reason?: string;
+    };
+  };
+};
+
+async function handleBookingCancelled(data: BookingCancelledJob) {
+  const { bookingId, branchId, payload } = data;
+
   if (!bookingId || !branchId) return;
 
-  // 🏢 MANAGER (branch-level)
+  const { client } = payload;
+
+  // =========================
+  // 🏢 MANAGER
+  // =========================
   await db.insert(notifications).values({
     target: 'MANAGER',
     kind: 'BOOKING_CANCELLED',
     bookingId,
     branchId,
-    payload: {
-      bookingId,
-      cancelledBy,
-      reason,
-    },
+    payload, // 🔥 usar el payload completo
   });
 
+  // =========================
   // 👤 CLIENT
-  if (clientId) {
+  // =========================
+  if (client?.id) {
     await db.insert(notifications).values({
       target: 'CLIENT',
       kind: 'BOOKING_CANCELLED',
       bookingId,
       branchId,
-      recipientClientId: clientId,
-      payload: {
-        bookingId,
-        cancelledBy,
-        reason,
-      },
+      recipientClientId: client.id,
+      payload, // 🔥 mismo payload
     });
   }
 
@@ -155,49 +195,83 @@ async function handleBookingCancelled(data: any) {
 /* ============================
    🔁 BOOKING RESCHEDULED
 ============================ */
-async function handleBookingRescheduled(data: any) {
-  const {
-    bookingId,
-    branchId,
-    rescheduledBy,
-    before,
-    after,
-    clientId,
-    reason,
-  } = data;
+/* ============================
+   🔁 BOOKING RESCHEDULED
+============================ */
 
-  if (!bookingId || !branchId) return;
+type BookingRescheduledJob = {
+  bookingId: string;
+  branchId: string;
 
-  // 🏢 MANAGER (branch-level)
+  payload: {
+    bookingId: string;
+
+    schedule: {
+      startsAt: string;
+      endsAt: string;
+    };
+
+    previousSchedule: {
+      startsAt: string;
+      endsAt: string;
+    };
+
+    services: {
+      id: string;
+      name: string;
+      durationMin: number;
+      priceCents: number;
+    }[];
+
+    client: {
+      id: string;
+      name: string | null;
+      avatarUrl: string | null;
+    } | null;
+
+    staff: {
+      id: string;
+      name: string | null;
+      avatarUrl: string | null;
+    }[];
+
+    meta: {
+      totalCents: number;
+      rescheduledBy: 'PUBLIC' | 'MANAGER' | 'SYSTEM';
+      managerUserId?: string;
+      reason?: string;
+    };
+  };
+};
+async function handleBookingRescheduled(data: BookingRescheduledJob) {
+  const { bookingId, branchId, payload } = data;
+
+  if (!bookingId || !branchId || !payload) return;
+
+  const { client } = payload;
+
+  // =========================
+  // 🏢 MANAGER
+  // =========================
   await db.insert(notifications).values({
     target: 'MANAGER',
     kind: 'BOOKING_RESCHEDULED',
     bookingId,
     branchId,
-    payload: {
-      bookingId,
-      rescheduledBy,
-      before,
-      after,
-      reason,
-    },
+    payload, // 🔥 mismo patrón que created/cancelled
   });
 
+  // =========================
   // 👤 CLIENT
-  if (clientId) {
+  // =========================
+  if (client?.id) {
     await db.insert(notifications).values({
       target: 'CLIENT',
       kind: 'BOOKING_RESCHEDULED',
       bookingId,
       branchId,
-      recipientClientId: clientId,
-      payload: {
-        bookingId,
-        rescheduledBy,
-        before,
-        after,
-        reason,
-      },
+      recipientClientId: client.id,
+      payload,
     });
   }
 

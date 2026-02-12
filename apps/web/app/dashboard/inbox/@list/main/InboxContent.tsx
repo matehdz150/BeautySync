@@ -1,181 +1,113 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  getMyNotifications,
-  Notification,
-  BookingNotificationPayload,
-} from "@/lib/services/notifications";
-
-/* ============================
-   🔒 TYPE GUARD
-============================ */
-
-function isBookingCreatedNotification(
-  notification: Notification,
-): notification is Notification & {
-  kind: "BOOKING_CREATED";
-  payload: BookingNotificationPayload;
-} {
-  const p = notification.payload as Partial<BookingNotificationPayload>;
-
-  return (
-    notification.kind === "BOOKING_CREATED" &&
-    typeof p === "object" &&
-    p !== null &&
-    typeof p.bookingId === "string" &&
-    !!p.schedule &&
-    typeof p.schedule.startsAt === "string" &&
-    typeof p.schedule.endsAt === "string" &&
-    Array.isArray(p.services) &&
-    Array.isArray(p.staff)
-  );
-}
-
-/* ============================
-   📥 INBOX CONTENT
-============================ */
+import { useEffect, useMemo, useState } from "react";
+import { getMyNotifications, Notification } from "@/lib/services/notifications";
+import { NotificationCard } from "@/components/notifications/NotificationCard";
+import { Search } from "lucide-react";
+import { SegmentedControl } from "@/components/notifications/SegmentedControl";
 
 export default function InboxContent() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"ALL" | "UNREAD">("ALL");
 
   useEffect(() => {
-    let cancelled = false;
-
     getMyNotifications({ kind: "ALL", limit: 50 })
-      .then((res) => {
-        if (!cancelled) {
-          setNotifications(res.items);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err?.message ?? "Error cargando notificaciones");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      .then((res) => setNotifications(res.items))
+      .catch(() => {});
   }, []);
 
-  if (error) {
-    return <div className="p-6 text-destructive">{error}</div>;
-  }
+  const filteredNotifications = useMemo(() => {
+    let list = notifications;
 
-  if (!notifications.length) {
-    return (
-      <div className="p-6 text-muted-foreground">
-        No tienes notificaciones
-      </div>
-    );
-  }
+    if (filter === "UNREAD") {
+      list = list.filter((n) => !n.readAt);
+    }
+
+    if (query.trim()) {
+      const lower = query.toLowerCase();
+
+      list = list.filter((n) => {
+        const text =
+          JSON.stringify(n.payload).toLowerCase() +
+          n.kind.toLowerCase();
+        return text.includes(lower);
+      });
+    }
+
+    return list;
+  }, [notifications, query, filter]);
 
   return (
-    <div className="p-6 space-y-3">
-      {notifications.map((n) => (
-        <NotificationCard key={n.id} notification={n} />
-      ))}
+    <div className="h-full flex flex-col bg-background">
+      {/* 🔝 Header (NO scroll) */}
+      <div className="shrink-0">
+        <InboxHeader filter={filter} setFilter={setFilter} />
+        <SearchBar query={query} setQuery={setQuery} />
+      </div>
+
+      {/* 📜 Scrollable Notifications */}
+      <div className="flex-1 overflow-y-auto pb-6">
+        {!filteredNotifications.length ? (
+          <div className="p-10 text-center text-muted-foreground">
+            No hay resultados
+          </div>
+        ) : (
+          filteredNotifications.map((n) => (
+            <NotificationCard key={n.id} notification={n} />
+          ))
+        )}
+      </div>
     </div>
   );
 }
 
-function NotificationCard({
-  notification,
+function InboxHeader({
+  filter,
+  setFilter,
 }: {
-  notification: Notification;
+  filter: "ALL" | "UNREAD";
+  setFilter: (v: "ALL" | "UNREAD") => void;
 }) {
-  if (isBookingCreatedNotification(notification)) {
-    return (
-      <BookingCreatedCard
-        notification={notification}
-        payload={notification.payload}
-      />
-    );
-  }
-
   return (
-    <div className="rounded-md border p-4">
-      <div className="text-sm font-medium">🔔 Notificación</div>
-      <div className="text-xs text-muted-foreground">
-        {new Date(notification.createdAt).toLocaleString()}
-      </div>
+    <div className="px-4 mb-6 mt-4 flex items-center justify-between">
+      {/* Title */}
+      <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
+
+      {/* Segmented Control */}
+      <SegmentedControl value={filter} onChange={setFilter} />
     </div>
   );
 }
 
-export function BookingCreatedCard({
-  notification,
-  payload,
+function SearchBar({
+  query,
+  setQuery,
 }: {
-  notification: Notification;
-  payload: BookingNotificationPayload;
+  query: string;
+  setQuery: (v: string) => void;
 }) {
-  const starts = payload.schedule?.startsAt
-    ? new Date(payload.schedule.startsAt)
-    : null;
-
-  const ends = payload.schedule?.endsAt
-    ? new Date(payload.schedule.endsAt)
-    : null;
-
   return (
-    <div className="rounded-md border p-4 space-y-2">
-      <div className="text-sm font-semibold">
-        📅 Nueva cita creada
-      </div>
-
-      {/* Cliente */}
-      {payload.client && (
-        <div className="flex items-center gap-2">
-          {payload.client.avatarUrl && (
-            <img
-              src={payload.client.avatarUrl}
-              alt={payload.client.name ?? "Cliente"}
-              className="h-6 w-6 rounded-full"
-            />
-          )}
-          <span className="text-sm">
-            {payload.client.name ?? "Cliente"}
-          </span>
-        </div>
-      )}
-
-      {/* Horario */}
-      {starts && ends && (
-        <div className="text-xs text-muted-foreground">
-          {starts.toLocaleDateString()} ·{" "}
-          {starts.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}{" "}
-          –{" "}
-          {ends.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </div>
-      )}
-
-      {/* Servicios */}
-      <ul className="text-xs">
-        {payload.services.map((s) => (
-          <li key={s.id}>
-            • {s.name} ({s.durationMin} min)
-          </li>
-        ))}
-      </ul>
-
-      {/* Staff */}
-      {payload.staff.length > 0 && (
-        <div className="text-xs text-muted-foreground">
-          Staff: {payload.staff.map((s) => s.name).join(", ")}
-        </div>
-      )}
-
-      <div className="text-[11px] text-muted-foreground">
-        {new Date(notification.createdAt).toLocaleString()}
+    <div className="px-4 mb-4">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar"
+          className="
+            w-full
+            h-13
+            rounded-2xl
+            border
+            pl-9 pr-4
+            text-sm
+            outline-none
+            transition-all
+            focus:ring-2
+            focus:ring-blue-500/30
+          "
+        />
       </div>
     </div>
   );
