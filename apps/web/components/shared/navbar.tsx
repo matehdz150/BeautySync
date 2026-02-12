@@ -5,6 +5,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { LocationSelector } from "@/components/LocationSelector";
 import { Searchbar } from "@/components/Searchbar";
 import { UserMenu } from "@/components/UserMenu";
+import { BellButton } from "./BellButton";
 
 export function Navbar() {
   const { state, toggleSidebar } = useSidebar();
@@ -35,7 +36,7 @@ export function Navbar() {
 
       {/* RIGHT GROUP */}
       <div className="flex items-center gap-4">
-        <Bell size={16} />
+       <BellButton />
         <UserMenu />
       </div>
 

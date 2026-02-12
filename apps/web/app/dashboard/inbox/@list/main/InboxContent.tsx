@@ -1,21 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { getMyNotifications, Notification } from "@/lib/services/notifications";
+import { useMemo, useState } from "react";
+import { useNotifications } from "@/context/NotificationsContext";
 import { NotificationCard } from "@/components/notifications/NotificationCard";
 import { Search } from "lucide-react";
 import { SegmentedControl } from "@/components/notifications/SegmentedControl";
 
 export default function InboxContent() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  // 🧠 SINGLE SOURCE OF TRUTH
+  const { notifications } = useNotifications();
+
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"ALL" | "UNREAD">("ALL");
-
-  useEffect(() => {
-    getMyNotifications({ kind: "ALL", limit: 50 })
-      .then((res) => setNotifications(res.items))
-      .catch(() => {});
-  }, []);
 
   const filteredNotifications = useMemo(() => {
     let list = notifications;
@@ -40,13 +36,11 @@ export default function InboxContent() {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      {/* 🔝 Header (NO scroll) */}
       <div className="shrink-0">
         <InboxHeader filter={filter} setFilter={setFilter} />
         <SearchBar query={query} setQuery={setQuery} />
       </div>
 
-      {/* 📜 Scrollable Notifications */}
       <div className="flex-1 overflow-y-auto pb-6">
         {!filteredNotifications.length ? (
           <div className="p-10 text-center text-muted-foreground">

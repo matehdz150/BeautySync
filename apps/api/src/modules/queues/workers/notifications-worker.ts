@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
 import { Worker } from 'bullmq';
@@ -5,6 +7,22 @@ import { redis } from '../redis/redis.provider';
 
 import { db } from '../../db/client';
 import { notifications } from '../../db/schema/notifications/notifications';
+
+/* =========================================================
+   📡 REALTIME EVENT PUBLISHER
+========================================================= */
+
+async function publishNotificationCreated(branchId: string, id: string) {
+  await redis.publish(
+    'realtime.notifications',
+    JSON.stringify({
+      scope: 'branch',
+      branchId,
+      event: 'notification.created',
+      data: { id },
+    }),
+  );
+}
 
 /* ============================
    🔔 NOTIFICATIONS HANDLER
@@ -15,7 +33,6 @@ async function handler(name: string, data: any) {
 
   switch (name) {
     case 'notification.booking.created':
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       return handleBookingCreated(data);
 
     case 'notification.booking.cancelled':
@@ -32,42 +49,11 @@ async function handler(name: string, data: any) {
 /* ============================
    📅 BOOKING CREATED
 ============================ */
-type BookingCreatedPayload = {
-  bookingId: string;
-
-  schedule: {
-    startsAt: string;
-    endsAt: string;
-  };
-
-  services: {
-    id: string;
-    name: string;
-    durationMin: number;
-    priceCents: number;
-  }[];
-
-  client?: {
-    id: string;
-    name: string | null;
-    avatarUrl: string | null;
-  } | null;
-
-  staff: {
-    id: string;
-    name: string | null;
-    avatarUrl: string | null;
-  }[];
-
-  meta?: {
-    totalCents?: number;
-  };
-};
 
 type BookingCreatedJobData = {
   bookingId: string;
   branchId: string;
-  payload: BookingCreatedPayload;
+  payload: any;
 };
 
 async function handleBookingCreated(data: BookingCreatedJobData) {
@@ -78,20 +64,22 @@ async function handleBookingCreated(data: BookingCreatedJobData) {
     return;
   }
 
-  // ============================
-  // 🏢 MANAGER (branch-level)
-  // ============================
-  await db.insert(notifications).values({
-    target: 'MANAGER',
-    kind: 'BOOKING_CREATED',
-    bookingId,
-    branchId,
-    payload,
-  });
+  // 🏢 MANAGER
+  const [created] = await db
+    .insert(notifications)
+    .values({
+      target: 'MANAGER',
+      kind: 'BOOKING_CREATED',
+      bookingId,
+      branchId,
+      payload,
+    })
+    .returning();
 
-  // ============================
-  // 👤 CLIENT (direct)
-  // ============================
+  // 🔥 SOLO EVENTO
+  await publishNotificationCreated(branchId, created.id);
+
+  // 👤 CLIENT
   if (payload.client?.id) {
     await db.insert(notifications).values({
       target: 'CLIENT',
@@ -106,7 +94,6 @@ async function handleBookingCreated(data: BookingCreatedJobData) {
   console.log('🔔 booking.created notifications saved', {
     bookingId,
     branchId,
-    client: Boolean(payload.client?.id),
   });
 }
 
@@ -117,72 +104,34 @@ async function handleBookingCreated(data: BookingCreatedJobData) {
 type BookingCancelledJob = {
   bookingId: string;
   branchId: string;
-
-  payload: {
-    bookingId: string;
-
-    schedule: {
-      startsAt: string;
-      endsAt: string;
-    };
-
-    services: {
-      id: string;
-      name: string;
-      durationMin: number;
-      priceCents: number;
-    }[];
-
-    client: {
-      id: string;
-      name: string | null;
-      avatarUrl: string | null;
-    } | null;
-
-    staff: {
-      id: string;
-      name: string | null;
-      avatarUrl: string | null;
-    }[];
-
-    meta: {
-      totalCents: number;
-      cancelledBy: 'PUBLIC' | 'MANAGER' | 'SYSTEM';
-      managerUserId?: string;
-      reason?: string;
-    };
-  };
+  payload: any;
 };
 
 async function handleBookingCancelled(data: BookingCancelledJob) {
   const { bookingId, branchId, payload } = data;
-
   if (!bookingId || !branchId) return;
 
-  const { client } = payload;
+  const [created] = await db
+    .insert(notifications)
+    .values({
+      target: 'MANAGER',
+      kind: 'BOOKING_CANCELLED',
+      bookingId,
+      branchId,
+      payload,
+    })
+    .returning();
 
-  // =========================
-  // 🏢 MANAGER
-  // =========================
-  await db.insert(notifications).values({
-    target: 'MANAGER',
-    kind: 'BOOKING_CANCELLED',
-    bookingId,
-    branchId,
-    payload, // 🔥 usar el payload completo
-  });
+  await publishNotificationCreated(branchId, created.id);
 
-  // =========================
-  // 👤 CLIENT
-  // =========================
-  if (client?.id) {
+  if (payload.client?.id) {
     await db.insert(notifications).values({
       target: 'CLIENT',
       kind: 'BOOKING_CANCELLED',
       bookingId,
       branchId,
-      recipientClientId: client.id,
-      payload, // 🔥 mismo payload
+      recipientClientId: payload.client.id,
+      payload,
     });
   }
 
@@ -195,82 +144,37 @@ async function handleBookingCancelled(data: BookingCancelledJob) {
 /* ============================
    🔁 BOOKING RESCHEDULED
 ============================ */
-/* ============================
-   🔁 BOOKING RESCHEDULED
-============================ */
 
 type BookingRescheduledJob = {
   bookingId: string;
   branchId: string;
-
-  payload: {
-    bookingId: string;
-
-    schedule: {
-      startsAt: string;
-      endsAt: string;
-    };
-
-    previousSchedule: {
-      startsAt: string;
-      endsAt: string;
-    };
-
-    services: {
-      id: string;
-      name: string;
-      durationMin: number;
-      priceCents: number;
-    }[];
-
-    client: {
-      id: string;
-      name: string | null;
-      avatarUrl: string | null;
-    } | null;
-
-    staff: {
-      id: string;
-      name: string | null;
-      avatarUrl: string | null;
-    }[];
-
-    meta: {
-      totalCents: number;
-      rescheduledBy: 'PUBLIC' | 'MANAGER' | 'SYSTEM';
-      managerUserId?: string;
-      reason?: string;
-    };
-  };
+  payload: any;
 };
+
 async function handleBookingRescheduled(data: BookingRescheduledJob) {
   const { bookingId, branchId, payload } = data;
-
   if (!bookingId || !branchId || !payload) return;
 
-  const { client } = payload;
+  const [created] = await db
+    .insert(notifications)
+    .values({
+      target: 'MANAGER',
+      kind: 'BOOKING_RESCHEDULED',
+      bookingId,
+      branchId,
+      payload,
+    })
+    .returning();
 
-  // =========================
-  // 🏢 MANAGER
-  // =========================
-  await db.insert(notifications).values({
-    target: 'MANAGER',
-    kind: 'BOOKING_RESCHEDULED',
-    bookingId,
-    branchId,
-    payload, // 🔥 mismo patrón que created/cancelled
-  });
+  await publishNotificationCreated(branchId, created.id);
 
-  // =========================
-  // 👤 CLIENT
-  // =========================
-  if (client?.id) {
+  if (payload.client?.id) {
     await db.insert(notifications).values({
       target: 'CLIENT',
       kind: 'BOOKING_RESCHEDULED',
       bookingId,
       branchId,
-      recipientClientId: client.id,
+      recipientClientId: payload.client.id,
       payload,
     });
   }
