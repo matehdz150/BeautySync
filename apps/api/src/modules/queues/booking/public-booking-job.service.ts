@@ -87,8 +87,6 @@ export class PublicBookingJobsService {
         // job ya ejecutado o no existe → no pasa nada
       }
     }
-
-    console.log('🛑 cancelled scheduled jobs for booking', bookingId);
   }
 
   async scheduleCancellationMail(params: {

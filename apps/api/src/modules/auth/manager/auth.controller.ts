@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   Body,
   Controller,
@@ -43,6 +46,15 @@ export class AuthController {
   ) {
     const result = await this.service.login(dto.email, dto.password);
 
+    // 🔥 ACCESS TOKEN EN COOKIE
+    res.cookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+
+    // 🔥 REFRESH TOKEN EN COOKIE
     res.cookie('refreshToken', result.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -51,7 +63,6 @@ export class AuthController {
     });
 
     return {
-      accessToken: result.accessToken,
       user: result.user,
     };
   }
@@ -75,18 +86,22 @@ export class AuthController {
 
   @Post('refresh')
   @UseGuards(RefreshJwtGuard)
-  refresh(@Req() req: any) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+  refresh(@Req() req: any, @Res({ passthrough: true }) res: express.Response) {
     const payload = req.user;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    return this.service.signTokens({
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const tokens = this.service.signTokens({
       id: payload.sub,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       role: payload.role,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       organizationId: payload.orgId,
     } as any);
+
+    res.cookie('accessToken', tokens.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+
+    return { ok: true };
   }
 }

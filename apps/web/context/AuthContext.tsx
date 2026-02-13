@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { login as loginApi } from "@/lib/services/auth";
 import { useRouter } from "next/navigation";
 import { useBranch } from "./BranchContext";
+import { API_URL } from "@/lib/services/api";
 
 export type Role = "owner" | "manager" | "staff";
 
@@ -17,7 +18,6 @@ export type User = {
 
 type AuthContext = {
   user: User | null;
-  token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
   logout: () => void;
@@ -28,32 +28,20 @@ const Ctx = createContext<AuthContext | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { setBranch } = useBranch();
-
   const router = useRouter();
 
   useEffect(() => {
-    function restore() {
-      const storedUser = localStorage.getItem("user");
-      const storedToken = localStorage.getItem("accessToken");
+    const storedUser = localStorage.getItem("user");
 
-      if (storedUser && storedToken) {
-        const parsed = JSON.parse(storedUser) as User;
-
-        setUser({
-          ...parsed,
-          role: parsed.role as Role,
-        });
-
-        setToken(storedToken);
-      }
-
-      setLoading(false);
+    if (storedUser) {
+      const parsed = JSON.parse(storedUser) as User;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUser(parsed);
     }
 
-    restore();
+    setLoading(false);
   }, []);
 
   async function login(email: string, password: string) {
@@ -65,9 +53,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     setUser(typedUser);
-    setToken(res.accessToken);
-
-    localStorage.setItem("accessToken", res.accessToken);
     localStorage.setItem("user", JSON.stringify(typedUser));
 
     return typedUser;
@@ -89,21 +74,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   function logout() {
     setUser(null);
-    setToken(null);
     setBranch(null);
-
-    // Borra solo lo necesario (mejor práctica)
-    localStorage.removeItem("accessToken");
     localStorage.removeItem("user");
 
-    // Si usas algo más, bórralo aquí
+    // Opcional: endpoint backend para borrar cookie
+    fetch(`${API_URL}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
 
     router.replace("/login");
   }
 
   return (
     <Ctx.Provider
-      value={{ user, token, loading, login, logout, updateUserOrg }}
+      value={{ user, loading, login, logout, updateUserOrg }}
     >
       {children}
     </Ctx.Provider>

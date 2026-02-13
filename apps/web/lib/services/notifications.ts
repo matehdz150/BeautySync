@@ -204,3 +204,27 @@ export async function getNotificationDetail(
     `/notifications/${notificationId}`,
   );
 }
+
+/**
+ * Obtener una notificación individual para sincronización realtime
+ * GET /notifications/item/:id
+ *
+ * Devuelve exactamente el mismo shape que items[] de la lista
+ */
+export async function getNotificationItem(
+  notificationId: string,
+): Promise<Notification> {
+  return api<Notification>(`/notifications/item/${notificationId}`);
+}
+
+/**
+ * Marcar una notificación como leída
+ * PATCH /notifications/:id/read
+ */
+export async function markNotificationAsRead(
+  notificationId: string,
+): Promise<{ success: true }> {
+  return api<{ success: true }>(`/notifications/${notificationId}/read`, {
+    method: "PATCH",  
+  });
+}
