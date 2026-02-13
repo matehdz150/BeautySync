@@ -7,7 +7,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { publicBookings } from '../public';
-import { conversationStatusEnum } from './enums';
+import { conversationStatusEnum } from '../notifications/enums';
 
 export const conversations = pgTable(
   'conversations',
