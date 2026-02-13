@@ -62,10 +62,10 @@ export const conversationMessages = pgTable(
     senderCheck: check(
       'cm_sender_check',
       sql`(
-        (sender_user_id IS NOT NULL AND sender_client_id IS NULL)
-        OR (sender_user_id IS NULL AND sender_client_id IS NOT NULL)
-        OR type = 'SYSTEM'
-      )`,
+    (sender_user_id IS NOT NULL AND sender_client_id IS NULL)
+    OR (sender_user_id IS NULL AND sender_client_id IS NOT NULL)
+    OR type = 'SYSTEM'::conversation_message_type
+  )`,
     ),
   }),
 );

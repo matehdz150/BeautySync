@@ -26,6 +26,7 @@ import { QueuesModule } from './modules/queues/queues.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { RankingsModule } from './modules/rankings/rankings.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { MessagesModule } from './modules/messages/messages.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     BookingModule,
     RankingsModule,
     NotificationsModule,
+    MessagesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
