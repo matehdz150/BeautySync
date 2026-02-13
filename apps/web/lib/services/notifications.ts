@@ -225,6 +225,6 @@ export async function markNotificationAsRead(
   notificationId: string,
 ): Promise<{ success: true }> {
   return api<{ success: true }>(`/notifications/${notificationId}/read`, {
-    method: "PATCH",
+    method: "PATCH",  
   });
 }

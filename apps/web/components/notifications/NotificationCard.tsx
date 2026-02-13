@@ -4,16 +4,18 @@ import { useRouter, useParams } from "next/navigation";
 import {
   Notification,
   BookingNotificationPayload,
+  markNotificationAsRead,
 } from "@/lib/services/notifications";
 import { NotificationAvatar } from "./NotificationAvatar";
 import { formatTime } from "./notification-helpers";
+import { useNotifications } from "@/context/NotificationsContext";
 
 interface Props {
   notification: Notification;
 }
 
 function isBookingNotification(
-  notification: Notification,
+  notification: Notification
 ): notification is Notification & {
   payload: BookingNotificationPayload;
 } {
@@ -21,7 +23,7 @@ function isBookingNotification(
 
   return (
     ["BOOKING_CREATED", "BOOKING_CANCELLED", "BOOKING_RESCHEDULED"].includes(
-      notification.kind,
+      notification.kind
     ) &&
     typeof p === "object" &&
     p !== null &&
@@ -32,6 +34,7 @@ function isBookingNotification(
 export function NotificationCard({ notification }: Props) {
   const router = useRouter();
   const params = useParams();
+  const {markAsReadLocal} = useNotifications();
 
   // ⚠️ Asegúrate que tu carpeta sea:
   // app/inbox/main/[notificationId]/page.tsx
@@ -47,21 +50,27 @@ export function NotificationCard({ notification }: Props) {
   const services =
     payload?.services?.map((s) => s.name).join(", ") ?? "Actividad";
 
-  const starts =
-    payload?.schedule?.startsAt
-      ? new Date(payload.schedule.startsAt)
-      : null;
+  const starts = payload?.schedule?.startsAt
+    ? new Date(payload.schedule.startsAt)
+    : null;
 
   const total =
-    payload?.meta?.totalCents != null
-      ? payload.meta.totalCents / 100
-      : null;
+    payload?.meta?.totalCents != null ? payload.meta.totalCents / 100 : null;
 
-  const handleClick = () => {
-    // ✅ Evita re-navegar si ya está seleccionada
+  const handleClick = async () => {
     if (selected) return;
 
-    // ✅ RUTA ABSOLUTA (NO relativa)
+    // 🧠 optimistic update
+    if (!notification.readAt) {
+      markAsReadLocal(notification.id);
+
+      // backend async (no bloquea UI)
+      markNotificationAsRead(notification.id).catch(() => {
+        // opcional: podrías revertir
+        console.warn("Failed to mark notification as read");
+      });
+    }
+
     router.push(`/dashboard/inbox/main/${notification.id}`, { scroll: false });
   };
 
@@ -106,10 +115,13 @@ export function NotificationCard({ notification }: Props) {
             <div className="text-sm text-muted-foreground truncate max-w-[440px] leading-tight">
               {services}
               {starts &&
-                ` · ${starts.toLocaleDateString()} ${starts.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}`}
+                ` · ${starts.toLocaleDateString()} ${starts.toLocaleTimeString(
+                  [],
+                  {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }
+                )}`}
               {total !== null && ` · $${total.toLocaleString()}`}
             </div>
           </div>

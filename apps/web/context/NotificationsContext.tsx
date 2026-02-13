@@ -8,12 +8,17 @@ import {
   useMemo,
   useEffect,
 } from "react";
-import { getMyNotifications, Notification } from "@/lib/services/notifications";
+import {
+  getMyNotifications,
+  Notification,
+} from "@/lib/services/notifications";
 
 interface ContextType {
   notifications: Notification[];
   unreadCount: number;
+
   addNotification: (n: Notification) => void;
+  markAsReadLocal: (id: string) => void; // 👈 NUEVO
 }
 
 const NotificationsContext = createContext<ContextType | null>(null);
@@ -24,27 +29,29 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // SNAPSHOT
   useEffect(() => {
     getMyNotifications({ kind: "ALL", limit: 50 }).then((res) => {
-      setNotifications((prev) => {
-        const ids = new Set(prev.map(n => n.id));
-        const merged = [...prev];
-
-        for (const n of res.items) {
-          if (!ids.has(n.id)) merged.push(n);
-        }
-
-        return merged;
-      });
+      setNotifications(res.items);
     });
   }, []);
 
-  // REALTIME INSERT
+  // INSERT REALTIME
   const addNotification = useCallback((n: Notification) => {
     if (!n?.id) return;
 
     setNotifications((prev) => {
       if (prev.some(x => x.id === n.id)) return prev;
-      return [n, ...prev]; // <- nueva referencia SIEMPRE
+      return [n, ...prev];
     });
+  }, []);
+
+  // 👇 MARCAR COMO LEIDA LOCAL
+  const markAsReadLocal = useCallback((id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) =>
+        n.id === id && !n.readAt
+          ? { ...n, readAt: new Date().toISOString() }
+          : n
+      )
+    );
   }, []);
 
   const unreadCount = useMemo(
@@ -53,7 +60,9 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   );
 
   return (
-    <NotificationsContext.Provider value={{ notifications, unreadCount, addNotification }}>
+    <NotificationsContext.Provider
+      value={{ notifications, unreadCount, addNotification, markAsReadLocal }}
+    >
       {children}
     </NotificationsContext.Provider>
   );

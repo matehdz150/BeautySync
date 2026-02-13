@@ -101,14 +101,6 @@ export class NotificationsController {
     });
   }
 
-  @Get(':id')
-  getDetail(
-    @Param('id') notificationId: string,
-    @Req() req: { user: { id: string } },
-  ) {
-    return this.service.getNotificationDetail(notificationId, req.user.id);
-  }
-
   @Get('item/:id')
   getListItem(
     @Param('id') notificationId: string,
@@ -134,5 +126,13 @@ export class NotificationsController {
   @Patch('read-all')
   markAllAsRead(@Req() req: { user: { id: string } }) {
     return this.service.markAllAsReadForUser(req.user.id);
+  }
+
+  @Get(':id')
+  getDetail(
+    @Param('id') notificationId: string,
+    @Req() req: { user: { id: string } },
+  ) {
+    return this.service.getNotificationDetail(notificationId, req.user.id);
   }
 }

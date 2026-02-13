@@ -74,23 +74,52 @@ export class NotificationsService {
   }
 
   async markAsRead(notificationId: string, userId: string) {
-    const [updated] = await db
-      .update(notifications)
-      .set({ readAt: new Date() })
-      .where(
-        and(
-          eq(notifications.id, notificationId),
-          eq(notifications.recipientUserId, userId),
-          isNull(notifications.readAt),
-        ),
-      )
-      .returning();
+    // 1️⃣ organization del usuario
+    const [userRow] = await db
+      .select({ organizationId: users.organizationId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
-    if (!updated) {
+    if (!userRow?.organizationId) {
+      throw new NotFoundException('Acceso inválido');
+    }
+
+    // 2️⃣ obtener notificación
+    const [notification] = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, notificationId))
+      .limit(1);
+
+    if (!notification) {
       throw new NotFoundException('Notificación no encontrada');
     }
 
-    // 🔥 emitir evento realtime
+    // 3️⃣ validar que pertenece a su organización
+    const [branch] = await db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(
+        and(
+          eq(branches.id, notification.branchId),
+          eq(branches.organizationId, userRow.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!branch) {
+      throw new NotFoundException('No autorizado');
+    }
+
+    // 4️⃣ update
+    const [updated] = await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.id, notificationId))
+      .returning();
+
+    // 5️⃣ realtime sync
     await redis.publish(
       'realtime.notifications',
       JSON.stringify({
