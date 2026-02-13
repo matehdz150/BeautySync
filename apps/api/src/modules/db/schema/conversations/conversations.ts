@@ -22,6 +22,9 @@ export const conversations = pgTable(
 
     archivedAt: timestamp('archived_at', { withTimezone: true }),
 
+    // 🔥 clave para inbox
+    lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
+
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -31,10 +34,13 @@ export const conversations = pgTable(
       .defaultNow(),
   },
   (t) => ({
-    // 1 booking = 1 conversation
     uniqBooking: uniqueIndex('conversations_uniq_booking').on(t.bookingId),
 
     byStatus: index('conversations_by_status').on(t.status),
+
+    // 🔥 inbox sorting index
+    byLastMessage: index('conversations_by_last_message').on(t.lastMessageAt),
+
     byCreatedAt: index('conversations_by_created_at').on(t.createdAt),
   }),
 );

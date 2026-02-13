@@ -4,11 +4,13 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  check,
 } from 'drizzle-orm/pg-core';
 
 import { conversations } from './conversations';
 import { users } from '../users';
 import { clients } from '../clients';
+import { sql } from 'drizzle-orm';
 
 export const conversationReadStates = pgTable(
   'conversation_read_states',
@@ -52,5 +54,14 @@ export const conversationReadStates = pgTable(
 
     byUser: index('crs_by_user').on(t.userId),
     byClient: index('crs_by_client').on(t.clientId),
+    byConversation: index('crs_by_conversation').on(t.conversationId),
+    actorCheck: check(
+      'crs_actor_check',
+      sql`
+    (user_id IS NOT NULL AND client_id IS NULL)
+    OR
+    (user_id IS NULL AND client_id IS NOT NULL)
+  `,
+    ),
   }),
 );
