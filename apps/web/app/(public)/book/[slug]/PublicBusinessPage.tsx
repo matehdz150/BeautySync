@@ -113,8 +113,8 @@ export default function PublicBusinessPage() {
   const cover = resolvedImages[0];
   const services = (branch?.services ?? []) as Service[];
 
-  const ratingValue = branch?.rating?.average;
-  const ratingCount = branch?.rating?.count;
+  const ratingValue = branch?.rating?.average ?? 0;
+  const ratingCount = branch?.rating?.count ?? 0;
 
   const openLabel = "Abierto hasta 20:00";
   const nextOpenLabel = "— abre el miércoles a las 10:00";
@@ -164,15 +164,15 @@ export default function PublicBusinessPage() {
 
                 <span className="text-black text-2xl">• </span>
 
-                <span className="text-black text-lg font-light">{openLabel}</span>
+                <span className="text-black text-lg font-light">
+                  {openLabel}
+                </span>
 
                 <span className="text-black text-2xl">• </span>
 
                 <span className="truncate max-w-[680px] text-lg font-light">
                   {branch?.address ?? "—"}
                 </span>
-
- 
               </div>
             </div>
 
@@ -182,7 +182,7 @@ export default function PublicBusinessPage() {
                 className="h-13 w-13 rounded-full shadow-none"
                 variant="outline"
                 aria-label="Compartir"
-                tooltip='Compartir'
+                tooltip="Compartir"
               >
                 <Share2 className="w-6 h-6" />
               </Button>
@@ -191,8 +191,7 @@ export default function PublicBusinessPage() {
                 className="h-13 w-13 rounded-full shadow-none"
                 variant="outline"
                 aria-label="Favoritos"
-                tooltip='Favoritos'
-                
+                tooltip="Favoritos"
               >
                 <Heart className="w-6 h-6" />
               </Button>
@@ -399,7 +398,7 @@ function EditorialImage({
       whileHover={{ scale: 1.01 }}
       className={cn(
         "relative w-full overflow-hidden rounded-3xl border border-black/10 bg-gray-100",
-        className
+        className,
       )}
     >
       {image?.url ? (

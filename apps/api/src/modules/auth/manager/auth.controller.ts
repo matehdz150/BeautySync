@@ -80,7 +80,7 @@ export class AuthController {
 
   @Get('debug-headers')
   debugHeaders(@Req() req) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return req.headers;
   }
 
@@ -101,6 +101,14 @@ export class AuthController {
       sameSite: 'lax',
       path: '/',
     });
+
+    return { ok: true };
+  }
+
+  @Post('logout')
+  logout(@Res({ passthrough: true }) res: express.Response) {
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/auth/refresh' });
 
     return { ok: true };
   }

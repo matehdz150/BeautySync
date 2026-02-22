@@ -9,6 +9,7 @@ import {
 
 import InboxSidebar from "@/components/inbox/InboxSidebar";
 import { redirect } from "next/navigation";
+import { ChatProvider } from "@/context/chat/ChatContext";
 
 export default function InboxLayout({
   list,
@@ -39,38 +40,30 @@ export default function InboxLayout({
 
   return (
     <div className="h-full w-full">
-      <ResizablePanelGroup direction="horizontal" className="h-full">
+      <ChatProvider>
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          {/* SIDEBAR */}
+          <ResizablePanel defaultSize={150} minSize={60} maxSize={200}>
+            <div ref={sidebarInnerRef} className="h-full">
+              <InboxSidebar collapsed={sidebarCollapsed} />
+            </div>
+          </ResizablePanel>
 
-        {/* SIDEBAR */}
-        <ResizablePanel
-          defaultSize={150}
-          minSize={60}
-          maxSize={200}
-        >
-          <div ref={sidebarInnerRef} className="h-full">
-            <InboxSidebar collapsed={sidebarCollapsed} />
-          </div>
-        </ResizablePanel>
+          <ResizableHandle />
 
-        <ResizableHandle />
+          {/* LIST PANEL (CONTROLADO POR /@list) */}
+          <ResizablePanel defaultSize={50} minSize={400} maxSize={550}>
+            <div className="h-full border-r">{list}</div>
+          </ResizablePanel>
 
-        {/* LIST PANEL (CONTROLADO POR /@list) */}
-        <ResizablePanel defaultSize={50} minSize={400} maxSize={550}>
-          <div className="h-full border-r">
-            {list}
-          </div>
-        </ResizablePanel>
+          <ResizableHandle />
 
-        <ResizableHandle />
-
-        {/* CONTENT PANEL (CONTROLADO POR /@content) */}
-        <ResizablePanel defaultSize={50}>
-          <div className="h-full">
-            {content}
-          </div>
-        </ResizablePanel>
-
-      </ResizablePanelGroup>
+          {/* CONTENT PANEL (CONTROLADO POR /@content) */}
+          <ResizablePanel defaultSize={50}>
+            <div className="h-full">{content}</div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </ChatProvider>
     </div>
   );
 }
