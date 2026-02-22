@@ -28,7 +28,8 @@ export default function Page() {
       });
   }, [slug, branch, dispatch]);
 
-  if (loading || !branch) return <NotFound />;
+  if (loading) return null; // o skeleton
+  if (!branch) return <NotFound />;
 
   // 🔥 evita flicker
   if (isMobile === null) return null;
