@@ -13,6 +13,10 @@ export type ChatMessage = {
 export type ChatConversationState = {
   messages: ChatMessage[];
   connected: boolean;
+  meta: {
+    bookingId?: string;
+    branchId?: string;
+  };
 };
 
 export type ChatState = Record<string, ChatConversationState>;

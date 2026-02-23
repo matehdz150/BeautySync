@@ -23,6 +23,12 @@ export abstract class ChatRepository {
     createdAt: Date;
   }>;
 
+  abstract getConversationMeta(conversationId: string): Promise<{
+    bookingId: string;
+    branchId: string;
+    organizationId: string;
+  } | null>;
+
   abstract updateLastMessage(conversationId: string, at: Date): Promise<void>;
 
   // lectura
@@ -63,6 +69,19 @@ export abstract class ChatRepository {
     conversationId: string,
     publicUserId: string,
   ): Promise<boolean>;
+
+  abstract getConversationPreviewByBooking(
+    bookingId: string,
+    userId: string,
+  ): Promise<{
+    conversationId: string | null;
+    lastMessage: {
+      body: string;
+      createdAt: string;
+      from: 'CLIENT' | 'BRANCH' | 'SYSTEM';
+    } | null;
+    unread: boolean;
+  }>;
 }
 
 export const CHAT_REPOSITORY = Symbol('CHAT_REPOSITORY');

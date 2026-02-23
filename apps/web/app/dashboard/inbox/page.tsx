@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+// app/dashboard/inbox/page.tsx
 
 export default function InboxIndexPage() {
-  redirect("/dashboard/inbox/main");
+  return null;
 }

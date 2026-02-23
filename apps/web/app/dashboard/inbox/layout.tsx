@@ -40,7 +40,6 @@ export default function InboxLayout({
 
   return (
     <div className="h-full w-full">
-      <ChatProvider>
         <ResizablePanelGroup direction="horizontal" className="h-full">
           {/* SIDEBAR */}
           <ResizablePanel defaultSize={150} minSize={60} maxSize={200}>
@@ -63,7 +62,6 @@ export default function InboxLayout({
             <div className="h-full">{content}</div>
           </ResizablePanel>
         </ResizablePanelGroup>
-      </ChatProvider>
     </div>
   );
 }

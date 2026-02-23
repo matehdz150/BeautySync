@@ -4,14 +4,12 @@ import { useEffect, useState } from "react";
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
 import { DateTime } from "luxon";
 import { cn } from "@/lib/utils";
-import { RefreshCwOff, CalendarSync } from "lucide-react";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import {
   assignClientToBooking,
@@ -24,6 +22,7 @@ import { useUIAlerts } from "@/context/UIAlertsContext";
 import { getBookingStatusUI } from "@/lib/ui/bookingStatus";
 import { CancelBookingButton } from "./detailButtons/CancelBookingButton";
 import { RescheduleBookingButton } from "./detailButtons/RescheduleBookingButton/RescheduleBookingButton";
+import { BookingChatPreview } from "./BookingChatPreview";
 
 export default function AppointmentDetailSheet() {
   const { state } = useCalendar();
@@ -189,7 +188,7 @@ export default function AppointmentDetailSheet() {
                   );
                 })}
               </div>
-
+              <BookingChatPreview bookingId={bookingId} onStartChat={()=>console.log("start chat")}/>
               <div className="flex-1" />
 
               <div className="border-t pt-4 space-y-3">
