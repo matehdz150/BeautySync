@@ -152,19 +152,25 @@ export class ChatService {
     limit: number;
     organizationId: string;
   }) {
-    const access = await this.repo.getConversationAccess(params.conversationId);
+    const meta = await this.repo.getConversationMeta(params.conversationId);
 
-    if (!access) throw new Error('CONVERSATION_NOT_FOUND');
+    if (!meta) throw new Error('CONVERSATION_NOT_FOUND');
 
-    if (access.organizationId !== params.organizationId)
+    if (meta.organizationId !== params.organizationId)
       throw new Error('FORBIDDEN');
 
-    return this.repo.getMessages({
+    const page = await this.repo.getMessages({
       conversationId: params.conversationId,
       actor: params.actor,
       cursor: params.cursor,
       limit: params.limit,
     });
+
+    return {
+      bookingId: meta.bookingId,
+      branchId: meta.branchId,
+      ...page,
+    };
   }
 
   async sendMessageAsPublic(input: {
@@ -272,5 +278,26 @@ export class ChatService {
     publicUserId: string,
   ): Promise<boolean> {
     return this.repo.publicOwnsConversation(conversationId, publicUserId);
+  }
+
+  async getConversationPreviewForManager(params: {
+    bookingId: string;
+    organizationId: string;
+    userId: string;
+  }) {
+    const participants = await this.repo.getBookingParticipants(
+      params.bookingId,
+    );
+
+    if (!participants) throw new Error('BOOKING_NOT_FOUND');
+
+    if (participants.organizationId !== params.organizationId) {
+      throw new Error('FORBIDDEN');
+    }
+
+    return this.repo.getConversationPreviewByBooking(
+      params.bookingId,
+      params.userId,
+    );
   }
 }

@@ -122,4 +122,16 @@ export class ChatManagerController {
       this.sse.removeClient(`branch:${branchId}`, res);
     });
   }
+
+  @Get('booking/:bookingId/conversation')
+  async getConversationPreview(
+    @CurrentUser() user: { id: string; orgId: string },
+    @Param('bookingId') bookingId: string,
+  ) {
+    return this.chat.getConversationPreviewForManager({
+      bookingId,
+      organizationId: user.orgId,
+      userId: user.id,
+    });
+  }
 }

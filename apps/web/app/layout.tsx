@@ -6,6 +6,7 @@ import { BranchProvider } from "@/context/BranchContext";
 import { PaymentProvider } from "@/context/PaymentContext";
 import Script from "next/script";
 import { UIAlertsProvider } from "@/context/UIAlertsContext";
+import { ChatProvider } from "@/context/chat/ChatContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,7 +44,11 @@ export default function RootLayout({
         <UIAlertsProvider>
           <BranchProvider>
           <AuthProvider>
-            <PaymentProvider>{children}</PaymentProvider>
+            <PaymentProvider>
+               <ChatProvider>
+                {children}
+               </ChatProvider>
+              </PaymentProvider>
           </AuthProvider>
         </BranchProvider>
         </UIAlertsProvider>

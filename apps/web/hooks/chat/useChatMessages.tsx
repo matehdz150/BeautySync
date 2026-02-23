@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { api } from "@/lib/services/api";
 import { useChat } from "./useChat";
 import { ChatMessage } from "@/context/chat/chat.types";
@@ -14,26 +14,44 @@ type ServerMessage = {
 
 export function useChatMessages(conversationId: string | null) {
   const chat = useChat(conversationId ?? "__none__");
-  const loadedRef = useRef(false);
 
   useEffect(() => {
     if (!conversationId) return;
-    if (loadedRef.current) return;
 
-    loadedRef.current = true;
+    let cancelled = false;
 
-    (async () => {
-      const data = await api(`/manager/chat/${conversationId}/messages?limit=50`);
+    async function load() {
+      try {
+        const data = await api(
+          `/manager/chat/${conversationId}/messages?limit=50`
+        );
 
-      const msgs: ChatMessage[] = data.items.map((m: ServerMessage) => ({
-        id: m.id,
-        body: m.body,
-        createdAt: m.createdAt,
-        from: m.from,
-      }));
+        if (cancelled) return;
 
-      // insertarlos sin duplicar
-      msgs.forEach(chat.pushIncomingMessage);
-    })();
+        chat.setMeta({
+          bookingId: data.bookingId,
+          branchId: data.branchId,
+        });
+
+        const msgs: ChatMessage[] = data.items.map(
+          (m: ServerMessage) => ({
+            id: m.id,
+            body: m.body,
+            createdAt: m.createdAt,
+            from: m.from,
+          })
+        );
+
+        msgs.forEach((m) => chat.pushIncomingMessage(m));
+      } catch (err) {
+        console.error("Failed to load messages", err);
+      }
+    }
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [conversationId]);
 }

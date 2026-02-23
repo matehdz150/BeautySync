@@ -11,11 +11,14 @@ import { useSendMessage } from "@/hooks/chat/useSendMessage";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 
 export default function ChatPage() {
-  const { chatId } = useParams<{ chatId: string }>();
+  const params = useParams<{ chatId: string }>();
+  const chatId = params?.chatId ?? null;
+
   const [text, setText] = useState("");
 
-  const chat = useChat(chatId);
-  const send = useSendMessage(chatId, chatId);
+  // 🔥 proteger contra null
+  const chat = useChat(chatId ?? "__none__");
+  const send = useSendMessage(chatId);
 
   useChatStream(chatId);
   useChatMessages(chatId);
@@ -28,12 +31,13 @@ export default function ChatPage() {
     if (!el) return;
 
     el.scrollTop = el.scrollHeight;
-  }, [chat.messages]);
+  }, [chat.messages.length]);
 
   if (!chatId) return null;
 
   function handleSend() {
     if (!text.trim()) return;
+
     send(text);
     setText("");
   }
@@ -65,7 +69,10 @@ export default function ChatPage() {
           return (
             <div
               key={msg.id}
-              className={cn("flex", fromMe ? "justify-end" : "justify-start")}
+              className={cn(
+                "flex",
+                fromMe ? "justify-end" : "justify-start"
+              )}
             >
               <div
                 className={cn(

@@ -19,6 +19,10 @@ type ChatContextValue = {
     conversationId: string,
     real: ChatMessage,
   ) => void;
+  setMeta: (
+    conversationId: string,
+    meta: { bookingId?: string; branchId?: string },
+  ) => void;
 };
 
 export const ChatContext = createContext<ChatContextValue | null>(null);
@@ -27,7 +31,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<ChatState>({});
 
   function getConv(prev: ChatState, id: string) {
-    return prev[id] ?? { messages: [], connected: false };
+    return (
+      prev[id] ?? {
+        messages: [],
+        connected: false,
+        meta: {},
+      }
+    );
   }
 
   function addOptimisticMessage(conversationId: string, msg: ChatMessage) {
@@ -66,14 +76,35 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => {
       const conv = getConv(prev, conversationId);
 
-      // evitar duplicados por SSE reconnection
-      if (conv.messages.some((m) => m.id === msg.id)) return prev;
+      // 🔥 1️⃣ Si ya existe por ID real → ignorar
+      if (conv.messages.some((m) => m.id === msg.id)) {
+        return prev;
+      }
+
+      let replaced = false;
+
+      const newMessages = conv.messages.map((m) => {
+        // 🔥 2️⃣ Reemplazar primer mensaje pending del mismo tipo
+        if (!replaced && m.pending && m.from === msg.from) {
+          replaced = true;
+          return {
+            ...msg,
+            pending: false,
+          };
+        }
+        return m;
+      });
+
+      // 🔥 3️⃣ Si no había pending que reemplazar → insertar normal
+      if (!replaced) {
+        newMessages.push(msg);
+      }
 
       return {
         ...prev,
         [conversationId]: {
           ...conv,
-          messages: [...conv.messages, msg],
+          messages: newMessages,
         },
       };
     });
@@ -104,6 +135,26 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         [conversationId]: {
           ...conv,
           connected: value,
+        },
+      };
+    });
+  }
+
+  function setMeta(
+    conversationId: string,
+    meta: { bookingId?: string; branchId?: string },
+  ) {
+    setState((prev) => {
+      const conv = getConv(prev, conversationId);
+
+      return {
+        ...prev,
+        [conversationId]: {
+          ...conv,
+          meta: {
+            ...conv.meta,
+            ...meta,
+          },
         },
       };
     });
@@ -146,6 +197,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     <ChatContext.Provider
       value={{
         state,
+        setMeta,
         addOptimisticMessage,
         confirmMessage,
         pushIncomingMessage,
