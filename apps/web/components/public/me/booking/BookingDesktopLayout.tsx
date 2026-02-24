@@ -9,17 +9,16 @@ type Props = {
   side: React.ReactNode;
 };
 
-type SideType = "rate" | "reschedule" | null;
+type SideType = "rate" | "reschedule" | "messages" | null;
 
 export function BookingDesktopLayout({ list, detail, side }: Props) {
   const pathname = usePathname();
 
   const mode = useMemo<"list" | "detail" | "side">(() => {
-    if (/\/me\/bookings\/[^/]+\/(rate|reschedule)$/.test(pathname))
+    if (/\/me\/bookings\/[^/]+\/(rate|reschedule|messages)$/.test(pathname))
       return "side";
 
-    if (/\/me\/bookings\/[^/]+$/.test(pathname))
-      return "detail";
+    if (/\/me\/bookings\/[^/]+$/.test(pathname)) return "detail";
 
     return "list";
   }, [pathname]);
@@ -27,6 +26,7 @@ export function BookingDesktopLayout({ list, detail, side }: Props) {
   const sideType = useMemo<SideType>(() => {
     if (/\/rate$/.test(pathname)) return "rate";
     if (/\/reschedule$/.test(pathname)) return "reschedule";
+    if (/\/messages$/.test(pathname)) return "messages";
     return null;
   }, [pathname]);
 
@@ -55,6 +55,15 @@ export function BookingDesktopLayout({ list, detail, side }: Props) {
 
         .booking-grid[data-mode="side"][data-side="reschedule"] {
           grid-template-columns: 1fr 480px;
+        }
+
+        .booking-grid[data-mode="side"][data-side="messages"] {
+          grid-template-columns: 1fr 520px;
+        }
+
+        .booking-grid[data-side="messages"] .panel-side {
+          max-height: 70vh;
+          align-self: start;
         }
 
         /* ===== PANEL ANIMATIONS ===== */
@@ -108,18 +117,14 @@ export function BookingDesktopLayout({ list, detail, side }: Props) {
           {/* DETAIL */}
           {(mode === "detail" || mode === "side") && (
             <main className="min-w-0 overflow-hidden rounded-2xl">
-              <div className="panel panel-detail">
-                {detail}
-              </div>
+              <div className="panel panel-detail">{detail}</div>
             </main>
           )}
 
-          {/* SIDE (rate / reschedule) */}
+          {/* SIDE */}
           {mode === "side" && (
-            <aside className="min-w-0 overflow-hidden">
-              <div className="panel panel-side">
-                {side}
-              </div>
+            <aside className="min-w-0 overflow-hidden rounded-2xl">
+              <div className="panel panel-side">{side}</div>
             </aside>
           )}
         </div>

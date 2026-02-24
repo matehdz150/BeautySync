@@ -12,14 +12,14 @@ export const completedStatus: BookingStatusConfig = {
   actions: ({ booking }) => [
     {
       type: "link",
-      icon: <Star />,
+      icon: Star ,
       title: "Agregar calificación",
       subtitle: "Cuéntanos tu experiencia",
       href: `${booking.bookingId}/rate`,
     },
     {
       type: "link",
-      icon: <Store />,
+      icon: Store,
       title: "Información del establecimiento",
       subtitle: booking.branch.address ?? booking.branch.name,
       href: `/explore/${booking.branch.slug}`,
