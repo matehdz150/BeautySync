@@ -4,12 +4,7 @@ import {
   Notification,
   BookingNotificationPayload,
 } from "@/lib/services/notifications";
-import {
-  CalendarDays,
-  XCircle,
-  RefreshCw,
-  MessageCircle,
-} from "lucide-react";
+import { CalendarDays, XCircle, RefreshCw, MessageCircle } from "lucide-react";
 
 function isBookingCreatedNotification(
   notification: Notification,
@@ -69,12 +64,25 @@ export function NotificationAvatar({
         </div>
       );
 
-    case "CHAT_MESSAGE":
+    case "CHAT_MESSAGE": {
+      const p = notification.payload as any;
+
+      if (p?.sender?.avatarUrl) {
+        return (
+          <img
+            src={p.sender.avatarUrl}
+            alt={p.sender.name ?? "Usuario"}
+            className="h-8 w-8 rounded-full object-cover shrink-0"
+          />
+        );
+      }
+
       return (
-        <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-          <MessageCircle className={`${iconClass} text-blue-600`} />
+        <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0 text-sm font-medium">
+          {p?.sender?.name?.charAt(0) ?? "M"}
         </div>
       );
+    }
 
     default:
       return (

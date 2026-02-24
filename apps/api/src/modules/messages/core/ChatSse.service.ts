@@ -37,4 +37,10 @@ export class ChatSseService {
       res.write(data);
     }
   }
+  isActive(conversationId: string): boolean {
+    return (this.clients.get(conversationId)?.size ?? 0) > 0;
+  }
+  isBranchActive(branchKey: string): boolean {
+    return (this.clients.get(branchKey)?.size ?? 0) > 0;
+  }
 }

@@ -44,11 +44,13 @@ export default function NotificationDetailPage() {
 
   const actions = resolveActions(notification, booking);
 
-  const isCancelledNotification =
-    notification.kind === "BOOKING_CANCELLED";
+  console.log(notification);
 
-  const isRescheduledNotification =
-    notification.kind === "BOOKING_RESCHEDULED";
+  const isCancelledNotification = notification.kind === "BOOKING_CANCELLED";
+
+  const isRescheduledNotification = notification.kind === "BOOKING_RESCHEDULED";
+
+  const isChatNotification = notification.kind === "CHAT_MESSAGE";
 
   return (
     <div className="h-full bg-background flex flex-col">
@@ -57,9 +59,7 @@ export default function NotificationDetailPage() {
         <div className="w-full px-4 md:px-6 lg:px-8 py-8 space-y-8">
           {/* HEADER */}
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold leading-tight">
-              {branch.name}
-            </h1>
+            <h1 className="text-2xl font-bold leading-tight">{branch.name}</h1>
 
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-4 w-4" />
@@ -85,6 +85,86 @@ export default function NotificationDetailPage() {
             </div>
           </div>
 
+          {isChatNotification && (
+            <div className="flex flex-col items-center justify-center py-10 px-4 space-y-10">
+              {/* 🔔 Header minimal */}
+              <div className="text-center space-y-3 max-w-sm">
+                <div className="h-16 w-16 mx-auto rounded-full bg-muted flex items-center justify-center">
+                  <MessageCircle className="h-7 w-7 text-muted-foreground" />
+                </div>
+
+                <h2 className="text-2xl font-bold tracking-tight">
+                  Nuevo mensaje
+                </h2>
+
+                <p className="text-muted-foreground text-sm">
+                  Tienes un mensaje pendiente en tu bandeja.
+                </p>
+              </div>
+
+              {/* 💬 Floating Notification Card */}
+              <div className="w-full max-w-md">
+                <div className="relative rounded-3xl bg-white shadow-xl border px-5 py-4 flex items-center gap-4 transition hover:scale-[1.01] duration-200">
+                  {/* Avatar */}
+                  {notification.payload?.sender?.avatarUrl ? (
+                    <img
+                      src={notification.payload.sender.avatarUrl}
+                      alt={notification.payload.sender.name}
+                      className="h-12 w-12 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <MessageCircle className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  )}
+
+                  {/* Text content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="font-semibold truncate">
+                        {notification.payload?.sender?.name ?? "Nuevo mensaje"}
+                      </p>
+
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {new Date(notification.createdAt).toLocaleTimeString(
+                          [],
+                          {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )}
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground truncate mt-1">
+                      {notification.payload?.preview}
+                    </p>
+                  </div>
+
+                  {/* Unread dot */}
+                  {!notification.readAt && (
+                    <span className="absolute -top-1 -right-1 h-3 w-3 bg-blue-500 rounded-full ring-4 ring-white" />
+                  )}
+                </div>
+              </div>
+
+              {/* 🔘 CTA principal estilo pill */}
+              <div className="w-full max-w-md space-y-4">
+                <Button
+                  size="lg"
+                  className="w-full h-14 rounded-full text-base font-semibold shadow-md"
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/inbox/messages/${notification.payload?.conversationId}`,
+                    )
+                  }
+                >
+                  Ir al chat
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* 🔥 CANCELLED BANNER */}
           {isCancelledNotification && (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -105,7 +185,7 @@ export default function NotificationDetailPage() {
           )}
 
           {/* CLIENTE */}
-          {client && (
+          {!isChatNotification && client && (
             <div className="border rounded-2xl p-6 flex items-center gap-4 bg-white">
               <div className="h-14 w-14 rounded-full overflow-hidden border shrink-0">
                 <img
@@ -119,9 +199,7 @@ export default function NotificationDetailPage() {
                 <p className="text-xs uppercase text-muted-foreground tracking-wide">
                   Cliente
                 </p>
-                <p className="text-lg font-semibold truncate">
-                  {client.name}
-                </p>
+                <p className="text-lg font-semibold truncate">{client.name}</p>
                 <p className="text-sm text-muted-foreground truncate">
                   {client.email}
                 </p>
@@ -133,9 +211,7 @@ export default function NotificationDetailPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() =>
-                  router.push(`/dashboard/clients/${client.id}`)
-                }
+                onClick={() => router.push(`/dashboard/clients/${client.id}`)}
                 className="h-10 rounded-full px-5 font-semibold"
               >
                 Ver perfil
@@ -177,8 +253,7 @@ export default function NotificationDetailPage() {
                         </p>
 
                         <p className="text-xs text-muted-foreground">
-                          {appt.category?.name} ·{" "}
-                          {appt.service.durationMin} min
+                          {appt.category?.name} · {appt.service.durationMin} min
                         </p>
                       </div>
 
@@ -187,8 +262,7 @@ export default function NotificationDetailPage() {
                           isCancelled ? "line-through" : ""
                         }`}
                       >
-                        $
-                        {(appt.priceCents / 100).toLocaleString()}
+                        ${(appt.priceCents / 100).toLocaleString()}
                       </p>
                     </div>
 
@@ -206,12 +280,11 @@ export default function NotificationDetailPage() {
                         </span>
                       )}
 
-                      {isRescheduledNotification &&
-                        !isCancelled && (
-                          <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-600 font-medium">
-                            Reagendado
-                          </span>
-                        )}
+                      {isRescheduledNotification && !isCancelled && (
+                        <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-600 font-medium">
+                          Reagendado
+                        </span>
+                      )}
                     </div>
 
                     {/* Staff */}
@@ -255,9 +328,7 @@ export default function NotificationDetailPage() {
                 <div className="text-right text-xs text-muted-foreground space-y-1">
                   <p>
                     {booking.appointments.length} servicio
-                    {booking.appointments.length > 1
-                      ? "s"
-                      : ""}
+                    {booking.appointments.length > 1 ? "s" : ""}
                   </p>
 
                   <span className="px-2 py-1 rounded-full bg-background border font-medium">
@@ -279,9 +350,7 @@ export default function NotificationDetailPage() {
               .map((action) => (
                 <Button
                   key={action}
-                  onClick={() =>
-                    handleAction(action, booking.id, router)
-                  }
+                  onClick={() => handleAction(action, booking.id, router)}
                   variant="outline"
                   size="sm"
                   className="flex-1 h-11"
@@ -293,9 +362,7 @@ export default function NotificationDetailPage() {
 
             {actions.includes("VIEW_BOOKING") && (
               <Button
-                onClick={() =>
-                  handleAction("VIEW_BOOKING", booking.id, router)
-                }
+                onClick={() => handleAction("VIEW_BOOKING", booking.id, router)}
                 variant="default"
                 size="sm"
                 className="flex-[3] h-11"
@@ -312,11 +379,7 @@ export default function NotificationDetailPage() {
 
 /* ================= ACTION HANDLER ================= */
 
-function handleAction(
-  type: ActionType,
-  bookingId: string,
-  router: any
-) {
+function handleAction(type: ActionType, bookingId: string, router: any) {
   switch (type) {
     case "EDIT_BOOKING":
       router.push(`/dashboard/bookings/${bookingId}/edit`);

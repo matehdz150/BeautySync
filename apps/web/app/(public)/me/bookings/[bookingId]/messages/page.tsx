@@ -15,7 +15,8 @@ import { useChat } from "@/hooks/chat/useChat";
 
 import type {
   PublicBookingDetailResponse,
-  PublicBookingAppointmentItem,} from "@/lib/services/public/me/appointments";
+  PublicBookingAppointmentItem,
+} from "@/lib/services/public/me/appointments";
 
 export default function BookingMessagePage() {
   const params = useParams();
@@ -23,11 +24,13 @@ export default function BookingMessagePage() {
   const bookingId = Array.isArray(raw) ? raw[0] : raw;
 
   const [message, setMessage] = useState("");
-  const [localConversationId, setLocalConversationId] =
-    useState<string | null>(null);
+  const [localConversationId, setLocalConversationId] = useState<string | null>(
+    null,
+  );
 
-  const [booking, setBooking] =
-    useState<PublicBookingDetailResponse["booking"] | null>(null);
+  const [booking, setBooking] = useState<
+    PublicBookingDetailResponse["booking"] | null
+  >(null);
 
   const [bookingLoading, setBookingLoading] = useState(true);
 
@@ -63,8 +66,7 @@ export default function BookingMessagePage() {
   const { conversation } = useConversationByBooking(bookingId);
   const serverConversationId = conversation?.conversationId ?? null;
 
-  const conversationId =
-    localConversationId ?? serverConversationId ?? null;
+  const conversationId = localConversationId ?? serverConversationId ?? null;
 
   useChatMessages(conversationId, "public");
   useChatStream(conversationId, "public");
@@ -124,10 +126,8 @@ export default function BookingMessagePage() {
   // ================================
   return (
     <div className="flex h-full flex-col bg-white">
-
       {/* ================= HEADER ================= */}
       <div className="px-6 py-4 border-b border-black/5 flex items-center gap-4">
-
         <div className="h-14 w-14 rounded-2xl overflow-hidden shrink-0 bg-black/5">
           {booking?.branch.imageUrl && (
             <img
@@ -140,7 +140,6 @@ export default function BookingMessagePage() {
         </div>
 
         <div className="min-w-0 flex-1">
-
           <p className="text-base font-semibold truncate">
             {booking?.branch.name ?? "Sucursal"}
           </p>
@@ -151,7 +150,6 @@ export default function BookingMessagePage() {
 
           {booking && (
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-black/60">
-
               <span>{formatDate(booking.date)}</span>
 
               {firstAppointment && (
@@ -162,9 +160,7 @@ export default function BookingMessagePage() {
                   <span className="text-black/30">•</span>
 
                   <span className="font-medium text-black/70">
-                    {booking.appointments
-                      .map((a) => a.service.name)
-                      .join(", ")}
+                    {booking.appointments.map((a) => a.service.name).join(", ")}
                   </span>
                 </>
               )}
@@ -189,7 +185,7 @@ export default function BookingMessagePage() {
               m.from === "CLIENT"
                 ? "ml-auto bg-black text-white"
                 : "bg-black/[0.05] text-black",
-              m.pending && "opacity-50"
+              m.pending && "opacity-50",
             )}
           >
             {m.body}
@@ -200,23 +196,49 @@ export default function BookingMessagePage() {
       </div>
 
       {/* ================= INPUT ================= */}
-      <div className="sticky bottom-0 px-4 pb-4 pt-2 bg-gradient-to-t from-white via-white/80 to-transparent">
-        <div className="flex items-center gap-3 rounded-full bg-white/70 backdrop-blur-xl border border-black/10 shadow-lg px-4 py-2">
-
+      <div className="sticky bottom-0 px-4 pb-4 pt-2 bg-gradient-to-t from-white via-white/90 to-transparent">
+        <div
+          className="
+      flex items-center gap-3
+      rounded-2xl
+      bg-[#f1f1f3]
+      px-4 py-3
+      shadow-[0_1px_0_rgba(0,0,0,0.03)]
+      transition-all
+      duration-200
+    "
+        >
           <input
             type="text"
-            placeholder="Escribe un mensaje..."
+            placeholder="Manda un mensaje..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            className="flex-1 bg-transparent outline-none text-sm placeholder:text-black/40"
+            className="
+        flex-1
+        bg-transparent
+        outline-none
+        text-[15px]
+        text-black
+        placeholder:text-black/40
+      "
           />
 
           <button
             onClick={handleSend}
-            className="flex items-center justify-center h-9 w-9 rounded-full bg-black text-white hover:scale-105 active:scale-95 transition"
+            className="
+        flex items-center justify-center
+        h-9 w-9
+        rounded-full
+        bg-[#e5e5ea]
+        text-black/70
+        transition-all
+        duration-200
+        hover:bg-[#dadadd]
+        active:scale-90
+      "
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-4 w-4 rotate-45" />
           </button>
         </div>
       </div>
