@@ -18,8 +18,7 @@ export function BookingDesktopLayout({ list, detail, side }: Props) {
     if (/\/me\/bookings\/[^/]+\/(rate|reschedule|messages)$/.test(pathname))
       return "side";
 
-    if (/\/me\/bookings\/[^/]+$/.test(pathname))
-      return "detail";
+    if (/\/me\/bookings\/[^/]+$/.test(pathname)) return "detail";
 
     return "list";
   }, [pathname]);
@@ -60,6 +59,11 @@ export function BookingDesktopLayout({ list, detail, side }: Props) {
 
         .booking-grid[data-mode="side"][data-side="messages"] {
           grid-template-columns: 1fr 520px;
+        }
+
+        .booking-grid[data-side="messages"] .panel-side {
+          max-height: 70vh;
+          align-self: start;
         }
 
         /* ===== PANEL ANIMATIONS ===== */
@@ -113,15 +117,13 @@ export function BookingDesktopLayout({ list, detail, side }: Props) {
           {/* DETAIL */}
           {(mode === "detail" || mode === "side") && (
             <main className="min-w-0 overflow-hidden rounded-2xl">
-              <div className="panel panel-detail">
-                {detail}
-              </div>
+              <div className="panel panel-detail">{detail}</div>
             </main>
           )}
 
           {/* SIDE */}
           {mode === "side" && (
-            <aside className="min-w-0 overflow-hidden">
+            <aside className="min-w-0 overflow-hidden rounded-2xl">
               <div className="panel panel-side">{side}</div>
             </aside>
           )}
