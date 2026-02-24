@@ -4,16 +4,29 @@ import {
 } from "@/lib/services/notifications";
 
 function isBooking(notification: Notification) {
-  return notification.kind === "BOOKING_CREATED";
+  return [
+    "BOOKING_CREATED",
+    "BOOKING_CANCELLED",
+    "BOOKING_RESCHEDULED",
+  ].includes(notification.kind);
 }
 
 export function getSenderName(notification: Notification) {
   if (isBooking(notification)) {
     const p = notification.payload as BookingNotificationPayload;
-    return p.client?.name ?? "Nuevo booking";
+    return p.client?.name ?? "Cliente";
+  }
+
+  if (isChat(notification)) {
+    const p = notification.payload as any;
+    return p.sender?.name ?? "Nuevo mensaje";
   }
 
   return "Sistema";
+}
+
+export function isChat(notification: Notification) {
+  return notification.kind === "CHAT_MESSAGE";
 }
 
 export function getSubject(notification: Notification) {
@@ -34,12 +47,38 @@ export function getSubject(notification: Notification) {
 export function getPreview(notification: Notification) {
   if (isBooking(notification)) {
     const p = notification.payload as BookingNotificationPayload;
-    return p.services?.length
-      ? p.services.map((s) => s.name).join(", ")
-      : "Nueva cita registrada";
+
+    const services =
+      p.services?.map((s) => s.name).join(", ") ?? "Actividad";
+
+    const starts = p.schedule?.startsAt
+      ? new Date(p.schedule.startsAt)
+      : null;
+
+    const total =
+      p.meta?.totalCents != null
+        ? p.meta.totalCents / 100
+        : null;
+
+    return [
+      services,
+      starts &&
+        `${starts.toLocaleDateString()} ${starts.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`,
+      total !== null && `$${total.toLocaleString()}`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
 
-  return "Nueva actividad en tu cuenta";
+  if (isChat(notification)) {
+    const p = notification.payload as any;
+    return p.preview ?? "Nuevo mensaje";
+  }
+
+  return "Nueva actividad";
 }
 
 export function formatTime(date: string) {

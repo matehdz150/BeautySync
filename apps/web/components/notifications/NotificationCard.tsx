@@ -7,7 +7,7 @@ import {
   markNotificationAsRead,
 } from "@/lib/services/notifications";
 import { NotificationAvatar } from "./NotificationAvatar";
-import { formatTime } from "./notification-helpers";
+import { formatTime, getPreview, getSenderName } from "./notification-helpers";
 import { useNotifications } from "@/context/NotificationsContext";
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
 }
 
 function isBookingNotification(
-  notification: Notification
+  notification: Notification,
 ): notification is Notification & {
   payload: BookingNotificationPayload;
 } {
@@ -23,7 +23,7 @@ function isBookingNotification(
 
   return (
     ["BOOKING_CREATED", "BOOKING_CANCELLED", "BOOKING_RESCHEDULED"].includes(
-      notification.kind
+      notification.kind,
     ) &&
     typeof p === "object" &&
     p !== null &&
@@ -34,7 +34,7 @@ function isBookingNotification(
 export function NotificationCard({ notification }: Props) {
   const router = useRouter();
   const params = useParams();
-  const {markAsReadLocal} = useNotifications();
+  const { markAsReadLocal } = useNotifications();
 
   // ⚠️ Asegúrate que tu carpeta sea:
   // app/inbox/main/[notificationId]/page.tsx
@@ -42,20 +42,6 @@ export function NotificationCard({ notification }: Props) {
 
   const selected = currentId === notification.id;
   const unread = !notification.readAt;
-
-  const payload = isBookingNotification(notification)
-    ? notification.payload
-    : null;
-
-  const services =
-    payload?.services?.map((s) => s.name).join(", ") ?? "Actividad";
-
-  const starts = payload?.schedule?.startsAt
-    ? new Date(payload.schedule.startsAt)
-    : null;
-
-  const total =
-    payload?.meta?.totalCents != null ? payload.meta.totalCents / 100 : null;
 
   const handleClick = async () => {
     if (selected) return;
@@ -104,26 +90,30 @@ export function NotificationCard({ notification }: Props) {
 
           {/* Text */}
           <div className="flex flex-col gap-[2px] min-w-0">
-            <div className="text-sm font-semibold truncate leading-tight">
-              {payload?.client?.name ?? "Sistema"}
+            {/* Línea 1 → QUIÉN */}
+            <div
+              className={`text-sm truncate leading-tight ${
+                unread ? "font-semibold" : "font-medium"
+              }`}
+            >
+              {getSenderName(notification)}
             </div>
 
-            <div className="text-sm font-medium truncate leading-tight">
+            {/* Línea 2 → QUÉ PASÓ */}
+            <div
+              className={`text-sm truncate leading-tight ${
+                unread ? "font-medium text-foreground" : "text-muted-foreground"
+              }`}
+            >
               {getSubject(notification.kind)}
             </div>
 
-            <div className="text-sm text-muted-foreground truncate max-w-[440px] leading-tight">
-              {services}
-              {starts &&
-                ` · ${starts.toLocaleDateString()} ${starts.toLocaleTimeString(
-                  [],
-                  {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }
-                )}`}
-              {total !== null && ` · $${total.toLocaleString()}`}
-            </div>
+            {/* Línea 3 → DETALLE */}
+            {notification.kind !== "CHAT_MESSAGE" && (
+              <div className="text-xs text-muted-foreground truncate">
+                {getPreview(notification)}
+              </div>
+            )}
           </div>
         </div>
 
@@ -135,7 +125,7 @@ export function NotificationCard({ notification }: Props) {
   );
 }
 
-function getSubject(kind: Notification["kind"]) {
+export function getSubject(kind: Notification["kind"]) {
   switch (kind) {
     case "BOOKING_CREATED":
       return "Nueva cita creada";

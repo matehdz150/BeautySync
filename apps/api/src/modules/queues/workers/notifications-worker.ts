@@ -7,6 +7,25 @@ import { redis } from '../redis/redis.provider';
 
 import { db } from '../../db/client';
 import { notifications } from '../../db/schema/notifications/notifications';
+import { sql } from 'drizzle-orm';
+
+/* =========================================================
+   🔎 HELPERS
+========================================================= */
+
+async function getClientIdFromConversation(conversationId: string) {
+  const row = await db.execute<{ clientId: string }>(sql`
+    SELECT cl.id as "clientId"
+    FROM conversations c
+    JOIN public_bookings b ON b.id = c.booking_id
+    JOIN public_user_clients puc ON puc.public_user_id = b.public_user_id
+    JOIN clients cl ON cl.id = puc.client_id
+    WHERE c.id = ${conversationId}
+    LIMIT 1
+  `);
+
+  return row[0]?.clientId ?? null;
+}
 
 /* =========================================================
    📡 REALTIME EVENT PUBLISHER
@@ -40,6 +59,9 @@ async function handler(name: string, data: any) {
 
     case 'notification.booking.rescheduled':
       return handleBookingRescheduled(data);
+
+    case 'notification.chat.message':
+      return handleChatMessage(data);
 
     default:
       console.warn('⚠️ Unhandled notification job', name);
@@ -183,6 +205,85 @@ async function handleBookingRescheduled(data: BookingRescheduledJob) {
     bookingId,
     branchId,
   });
+}
+
+type ChatMessageJob = {
+  conversationId: string;
+  bookingId: string;
+  branchId: string;
+  payload: {
+    preview: string;
+    sender: {
+      id: string;
+      type: 'CLIENT' | 'USER';
+      name: string;
+      avatarUrl: string | null;
+    };
+  };
+};
+
+async function handleChatMessage(data: ChatMessageJob) {
+  const { conversationId, bookingId, branchId, payload } = data;
+
+  if (!conversationId || !branchId || !payload?.sender) {
+    console.warn('⚠️ chat.message skipped (invalid payload)', data);
+    return;
+  }
+
+  const sender = payload.sender;
+
+  // ===============================
+  // CLIENT → notificar MANAGER
+  // ===============================
+  if (sender.type === 'CLIENT') {
+    const [created] = await db
+      .insert(notifications)
+      .values({
+        target: 'MANAGER',
+        kind: 'CHAT_MESSAGE',
+        bookingId,
+        branchId,
+        payload,
+      })
+      .returning();
+
+    await publishNotificationCreated(branchId, created.id);
+
+    console.log('🔔 chat.message → manager notified', {
+      conversationId,
+      branchId,
+    });
+
+    return;
+  }
+
+  // ===============================
+  // USER → notificar CLIENT
+  // ===============================
+  if (sender.type === 'USER') {
+    const clientId = await getClientIdFromConversation(conversationId);
+
+    if (!clientId) {
+      console.warn('⚠️ chat.message no client found', {
+        conversationId,
+      });
+      return;
+    }
+
+    await db.insert(notifications).values({
+      target: 'CLIENT',
+      kind: 'CHAT_MESSAGE',
+      bookingId,
+      branchId,
+      recipientClientId: clientId,
+      payload,
+    });
+
+    console.log('🔔 chat.message → client notified', {
+      conversationId,
+      branchId,
+    });
+  }
 }
 
 /* ============================

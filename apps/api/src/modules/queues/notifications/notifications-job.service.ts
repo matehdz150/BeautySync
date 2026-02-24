@@ -238,4 +238,48 @@ export class NotificationsJobsService {
       },
     );
   }
+
+  /**
+   * 💬 Nuevo mensaje de chat
+   */
+  async chatMessage(params: {
+    conversationId: string;
+    bookingId: string;
+    branchId: string;
+    preview: string;
+
+    actor: {
+      type: 'CLIENT' | 'USER';
+      id: string;
+    };
+
+    senderName: string;
+    senderAvatar?: string | null;
+  }) {
+    await this.queue.add(
+      'notification.chat.message',
+      {
+        conversationId: params.conversationId,
+        bookingId: params.bookingId,
+        branchId: params.branchId,
+
+        payload: {
+          conversationId: params.conversationId,
+          bookingId: params.bookingId,
+          preview: params.preview,
+
+          sender: {
+            id: params.actor.id,
+            type: params.actor.type,
+            name: params.senderName,
+            avatarUrl: params.senderAvatar ?? null,
+          },
+        },
+      },
+      {
+        jobId: `notification-chat-${params.conversationId}-${Date.now()}`,
+        removeOnComplete: true,
+      },
+    );
+  }
 }

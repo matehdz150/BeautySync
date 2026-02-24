@@ -21,6 +21,7 @@ import { DrizzleChatRepository } from './infrastructure/drizzle/chat.drizzle.rep
 import { AuthModule } from '../auth/manager/auth.module';
 import { PublicAuthModule } from '../auth/public/public-auth.module';
 import { CHAT_REPOSITORY } from './core/chat.repository';
+import { NotificationsJobsService } from '../queues/notifications/notifications-job.service';
 
 @Module({
   imports: [DbModule, RedisModule, AuthModule, PublicAuthModule],
@@ -40,6 +41,7 @@ import { CHAT_REPOSITORY } from './core/chat.repository';
     ChatService,
     ChatEventBus,
     ChatSseService,
+    NotificationsJobsService,
     {
       provide: CHAT_REPOSITORY,
       useClass: DrizzleChatRepository,
