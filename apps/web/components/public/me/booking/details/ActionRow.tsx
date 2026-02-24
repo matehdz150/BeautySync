@@ -1,9 +1,16 @@
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
+type IconType = React.ComponentType<{
+  className?: string;
+  width?: number;
+  height?: number;
+}>;
+
+
 type ActionRowProps =
   | {
-      icon: React.ReactNode;
+      icon: IconType;
       title: string;
       subtitle: string;
       href: string;
@@ -12,7 +19,7 @@ type ActionRowProps =
       className?: string;
     }
   | {
-      icon: React.ReactNode;
+      icon: IconType;
       title: string;
       subtitle: string;
       onClick: () => void | Promise<void>;
@@ -24,6 +31,8 @@ type ActionRowProps =
 export function ActionRow(props: ActionRowProps) {
   const { icon, title, subtitle, disabled, className } = props;
 
+  const Icon = icon;
+
   const baseClass = cn(
     "flex items-center gap-4 rounded-2xl px-2 py-3 transition",
     "hover:bg-black/[0.03] active:scale-[0.99]",
@@ -34,7 +43,7 @@ export function ActionRow(props: ActionRowProps) {
   const content = (
     <>
       <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600">
-        {icon}
+        <Icon />
       </div>
 
       <div className="min-w-0 flex-1">

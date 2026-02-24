@@ -5,6 +5,8 @@ import {
   XCircle,
   Store,
   ShoppingCart,
+  MessageCircle,
+  Settings,
 } from "lucide-react";
 import { BookingStatusConfig } from "./types";
 
@@ -18,33 +20,50 @@ export const confirmedStatus: BookingStatusConfig = {
   actions: ({ booking, cancelling }) => [
     {
       type: "link",
-      icon: <ShoppingCart />,
+      icon: ShoppingCart,
       title: "Volver a reservar",
       subtitle: "Reserva tu próxima cita",
       href: `/book/${booking.branch.slug}`,
     },
     {
       type: "link",
-      icon: <Store />,
+      icon: Store ,
       title: "Información del establecimiento",
       subtitle: booking.branch.address ?? booking.branch.name,
       href: `/explore/${booking.branch.slug}`,
     },
+
+    // 🔽 NUEVO BOTÓN UNIFICADO
     {
-      type: "link",
-      icon: <CalendarSync />,
-      title: "Reagendar cita",
-      subtitle: "Cambia el horario de tu cita",
-      href: `${booking.bookingId}/reschedule`,
-    },
-    {
-      type: "action",
-      icon: <XCircle className="text-red-600" />,
-      title: cancelling ? "Cancelando..." : "Cancelar cita",
-      subtitle: "Esta acción no se puede deshacer",
-      onClick: "cancel",
-      danger: true,
-      disabled: cancelling,
+      type: "dropdown",
+      icon: Settings,
+      title: "Gestionar cita",
+      subtitle: "Reagendar, cancelar o enviar mensaje",
+      items: [
+        {
+          type: "link",
+          icon: CalendarSync,
+          title: "Reagendar cita",
+          subtitle: "Cambio de planes? puedes reagendar",
+          href: `${booking.bookingId}/reschedule`,
+        },
+        {
+          type: "link",
+          icon: MessageCircle ,
+          title: "Enviar mensaje a la sucursal",
+          subtitle: "Tienes dudas? contacta al negocio",
+          href: `/dashboard/inbox/messages/${booking.conversationId}`,
+        },
+        {
+          type: "action",
+          icon: XCircle,
+          title: cancelling ? "Cancelando..." : "Cancelar cita",
+          subtitle: "Tuviste problemas? cancela tu cita",
+          onClick: "cancel",
+          danger: true,
+          disabled: cancelling,
+        },
+      ],
     },
   ],
 };
