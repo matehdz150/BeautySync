@@ -5,11 +5,16 @@ export type BookingStatus =
   | "COMPLETED"
   | "NO_SHOW";
 
+type IconType = React.ComponentType<{
+  className?: string;
+  width?: number;
+  height?: number;
+}>;
 
 export type BookingAction =
   | {
       type: "link";
-      icon: React.ReactNode;
+      icon: IconType;
       title: string;
       subtitle: string;
       href: string;
@@ -18,12 +23,21 @@ export type BookingAction =
     }
   | {
       type: "action";
-      icon: React.ReactNode;
+      icon: IconType;
       title: string;
       subtitle: string;
       onClick: "cancel";
       disabled?: boolean;
       danger?: boolean;
+      className?: string;
+    }
+  | {
+      type: "dropdown";
+      icon: IconType;
+      title: string;
+      subtitle: string;
+      items: BookingAction[];
+      disabled?: boolean;
       className?: string;
     };
 
@@ -41,6 +55,8 @@ export type BookingDetailVM = {
 
   paymentMethod: "ONLINE" | "ONSITE";
   notes: string | null;
+
+  conversationId?: string | null;
 
   branch: {
     imageUrl?: string | null;

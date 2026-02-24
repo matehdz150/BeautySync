@@ -2,6 +2,7 @@
 
 import { ActionRow } from "./ActionRow";
 import { BookingDetailVM, BookingAction } from "./booking-types";
+import { DropdownActionRow } from "./DropdownActionRow";
 import { statusConfigMap } from "./status";
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
   cancelling: boolean;
   onCancel: () => Promise<void>;
 };
+
 
 export function BookingActions({ booking, cancelling, onCancel }: Props) {
   const config = statusConfigMap[booking.status];
@@ -40,6 +42,21 @@ export function BookingActions({ booking, cancelling, onCancel }: Props) {
               onClick={onCancel}
               disabled={cancelling || action.disabled}
               className={action.className}
+            />
+          );
+        }
+
+        if (action.type === "dropdown") {
+          return (
+            <DropdownActionRow
+              key={i}
+              icon={action.icon}
+              title={action.title}
+              subtitle={action.subtitle}
+              items={action.items}
+              disabled={action.disabled}
+              className={action.className}
+              onCancel={onCancel}
             />
           );
         }
