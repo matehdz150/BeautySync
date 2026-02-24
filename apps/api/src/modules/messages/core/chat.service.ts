@@ -233,7 +233,13 @@ export class ChatService {
       params.conversationId,
     );
 
-    return this.repo.getMessages({
+    const meta = await this.repo.getConversationMeta(params.conversationId);
+
+    if (!meta) {
+      throw new Error('CONVERSATION_NOT_FOUND');
+    }
+
+    const page = await this.repo.getMessages({
       conversationId: params.conversationId,
       cursor: params.cursor,
       limit: params.limit,
@@ -242,6 +248,12 @@ export class ChatService {
         clientId,
       },
     });
+
+    return {
+      bookingId: meta.bookingId,
+      branchId: meta.branchId,
+      ...page,
+    };
   }
 
   async markConversationReadAsPublic(
@@ -298,6 +310,39 @@ export class ChatService {
     return this.repo.getConversationPreviewByBooking(
       params.bookingId,
       params.userId,
+    );
+  }
+
+  async getConversationPreviewForPublic(params: {
+    bookingId: string;
+    publicUserId: string;
+  }) {
+    // 1️⃣ obtener clientIds del usuario público
+    const clientIds = await this.repo.getClientIdByPublicUser(
+      params.publicUserId,
+    );
+
+    if (!clientIds.length) {
+      throw new Error('FORBIDDEN');
+    }
+
+    // 2️⃣ validar que el booking pertenece a uno de sus clients
+    const participants = await this.repo.getBookingParticipants(
+      params.bookingId,
+    );
+
+    if (!participants) {
+      throw new Error('BOOKING_NOT_FOUND');
+    }
+
+    if (!clientIds.includes(participants.clientId)) {
+      throw new Error('FORBIDDEN');
+    }
+
+    // 3️⃣ obtener preview (igual que manager pero sin org validation)
+    return this.repo.getConversationPreviewByBooking(
+      params.bookingId,
+      participants.clientId,
     );
   }
 }

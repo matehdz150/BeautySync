@@ -12,7 +12,12 @@ type ServerMessage = {
   from: "CLIENT" | "BRANCH" | "SYSTEM";
 };
 
-export function useChatMessages(conversationId: string | null) {
+type ChatScope = "manager" | "public";
+
+export function useChatMessages(
+  conversationId: string | null,
+  scope: ChatScope = "manager" // 👈 default mantiene manager intacto
+) {
   const chat = useChat(conversationId ?? "__none__");
 
   useEffect(() => {
@@ -22,8 +27,11 @@ export function useChatMessages(conversationId: string | null) {
 
     async function load() {
       try {
+        const base =
+          scope === "manager" ? "/manager/chat" : "/public/chat";
+
         const data = await api(
-          `/manager/chat/${conversationId}/messages?limit=50`
+          `${base}/${conversationId}/messages?limit=50`
         );
 
         if (cancelled) return;
@@ -53,5 +61,5 @@ export function useChatMessages(conversationId: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [conversationId]);
+  }, [conversationId, scope]);
 }
