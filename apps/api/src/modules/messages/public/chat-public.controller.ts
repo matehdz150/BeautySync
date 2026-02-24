@@ -68,4 +68,15 @@ export class ChatPublicController {
       publicUserId: user.publicUserId,
     });
   }
+
+  @Get('booking/:bookingId')
+  async getConversationByBooking(
+    @PublicUser() user: { publicUserId: string },
+    @Param('bookingId') bookingId: string,
+  ) {
+    return this.chat.getConversationPreviewForPublic({
+      bookingId,
+      publicUserId: user.publicUserId,
+    });
+  }
 }

@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { useChat } from "./useChat";
 
+type ChatScope = "manager" | "public";
+
 function mapActorToFrom(actor: { type: string }): "CLIENT" | "BRANCH" | "SYSTEM" {
   switch (actor.type) {
     case "CLIENT":
@@ -14,7 +16,10 @@ function mapActorToFrom(actor: { type: string }): "CLIENT" | "BRANCH" | "SYSTEM"
   }
 }
 
-export function useChatStream(conversationId: string | null) {
+export function useChatStream(
+  conversationId: string | null,
+  scope: ChatScope = "manager"
+) {
   const chat = useChat(conversationId ?? "__none__");
   const chatRef = useRef(chat);
 
@@ -25,15 +30,15 @@ export function useChatStream(conversationId: string | null) {
   useEffect(() => {
     if (!conversationId) return;
 
-    console.log("🟡 CONNECTING SSE (EventSource)", conversationId);
+    const base =
+      scope === "manager" ? "/manager/chat" : "/public/chat";
 
     const es = new EventSource(
-      `${process.env.NEXT_PUBLIC_API_URL}/manager/chat/${conversationId}/stream`,
+      `${process.env.NEXT_PUBLIC_API_URL}${base}/${conversationId}/stream`,
       { withCredentials: true }
     );
 
     es.onopen = () => {
-      console.log("🟢 SSE CONNECTED");
       chatRef.current.setConnected(true);
     };
 
@@ -47,23 +52,16 @@ export function useChatStream(conversationId: string | null) {
         from: mapActorToFrom(data.actor),
       };
 
-      if (message.from === "BRANCH") {
-        chatRef.current.confirmLastPendingMessage(message);
-        return;
-      }
-
       chatRef.current.pushIncomingMessage(message);
     });
 
     es.onerror = () => {
-      console.log("🔴 SSE ERROR");
       chatRef.current.setConnected(false);
     };
 
     return () => {
-      console.log("⚫ SSE CLOSED", conversationId);
       es.close();
       chatRef.current.setConnected(false);
     };
-  }, [conversationId]);
+  }, [conversationId, scope]);
 }
