@@ -52,7 +52,7 @@ export const confirmedStatus: BookingStatusConfig = {
           icon: MessageCircle ,
           title: "Enviar mensaje a la sucursal",
           subtitle: "Tienes dudas? contacta al negocio",
-          href: `/dashboard/inbox/messages/${booking.conversationId}`,
+          href: `/me/bookings/${booking.bookingId}/messages`,
         },
         {
           type: "action",

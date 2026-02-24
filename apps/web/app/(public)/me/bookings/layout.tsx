@@ -24,6 +24,7 @@ import { RatingPanel } from "@/components/public/me/booking/rating/RatingPanel";
 import { BookingDesktopLayout } from "@/components/public/me/booking/BookingDesktopLayout";
 import BookingReschedulePage from "./[bookingId]/reschedule/page";
 import BookingRatePage from "./[bookingId]/rate/page";
+import BookingMessagePage from "./[bookingId]/messages/page";
 
 type BookingStatus =
   | "CONFIRMED"
@@ -123,6 +124,7 @@ export default function BookingsLayout({
 
   const isRateRoute = /\/me\/bookings\/[^/]+\/rate$/.test(pathname);
   const isReschedule = /\/reschedule$/.test(pathname);
+  const isMessageRoute = /\/me\/bookings\/[^/]+\/messages$/.test(pathname);
   useEffect(() => {
     let alive = true;
 
@@ -335,7 +337,9 @@ export default function BookingsLayout({
     isRateRoute ? (
       <BookingRatePage />
     ) : isReschedule ? (
-      <BookingReschedulePage />
+      <BookingReschedulePage />)
+      : isMessageRoute ? (
+     <BookingMessagePage/>
     ) : null
   }
     />

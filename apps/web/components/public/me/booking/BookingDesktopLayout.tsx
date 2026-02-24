@@ -9,13 +9,13 @@ type Props = {
   side: React.ReactNode;
 };
 
-type SideType = "rate" | "reschedule" | null;
+type SideType = "rate" | "reschedule" | "messages" | null;
 
 export function BookingDesktopLayout({ list, detail, side }: Props) {
   const pathname = usePathname();
 
   const mode = useMemo<"list" | "detail" | "side">(() => {
-    if (/\/me\/bookings\/[^/]+\/(rate|reschedule)$/.test(pathname))
+    if (/\/me\/bookings\/[^/]+\/(rate|reschedule|messages)$/.test(pathname))
       return "side";
 
     if (/\/me\/bookings\/[^/]+$/.test(pathname))
@@ -27,6 +27,7 @@ export function BookingDesktopLayout({ list, detail, side }: Props) {
   const sideType = useMemo<SideType>(() => {
     if (/\/rate$/.test(pathname)) return "rate";
     if (/\/reschedule$/.test(pathname)) return "reschedule";
+    if (/\/messages$/.test(pathname)) return "messages";
     return null;
   }, [pathname]);
 
@@ -55,6 +56,10 @@ export function BookingDesktopLayout({ list, detail, side }: Props) {
 
         .booking-grid[data-mode="side"][data-side="reschedule"] {
           grid-template-columns: 1fr 480px;
+        }
+
+        .booking-grid[data-mode="side"][data-side="messages"] {
+          grid-template-columns: 1fr 520px;
         }
 
         /* ===== PANEL ANIMATIONS ===== */
@@ -114,12 +119,10 @@ export function BookingDesktopLayout({ list, detail, side }: Props) {
             </main>
           )}
 
-          {/* SIDE (rate / reschedule) */}
+          {/* SIDE */}
           {mode === "side" && (
             <aside className="min-w-0 overflow-hidden">
-              <div className="panel panel-side">
-                {side}
-              </div>
+              <div className="panel panel-side">{side}</div>
             </aside>
           )}
         </div>

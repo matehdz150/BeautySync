@@ -118,7 +118,7 @@ export default function MeLayout({ children }: { children: React.ReactNode }) {
 
   // 🔥 Si estás viendo el detalle de una booking: /me/bookings/[id]
   const isBookingDetail =
-  /^\/me\/bookings\/[^/]+(\/(rate|reschedule))?$/.test(pathname);
+  /^\/me\/bookings\/[^/]+(\/(rate|reschedule|messages))?$/.test(pathname);
   const isFavoritesDetail = /^\/me\/favorites\/[^/]+$/.test(pathname);
 
   // 🔥 Cuando hay detalle abierto, colapsamos el sidebar
