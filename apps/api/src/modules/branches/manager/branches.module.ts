@@ -6,6 +6,8 @@ import { BranchImagesService } from './branch-images.service';
 import { AuthModule } from '../../auth/manager/auth.module';
 import { BranchesPublicController } from '../public/branches.public.controller';
 import { BranchesPublicService } from '../public/branches.public.service';
+import { BranchSettingsController } from './branch-settings.controller';
+import { BranchSettingsService } from './branch-settings.service';
 
 @Module({
   imports: [AuthModule],
@@ -13,8 +15,14 @@ import { BranchesPublicService } from '../public/branches.public.service';
     BranchesController,
     BranchImagesController,
     BranchesPublicController,
+    BranchSettingsController,
   ],
-  providers: [BranchesService, BranchImagesService, BranchesPublicService],
+  providers: [
+    BranchesService,
+    BranchImagesService,
+    BranchesPublicService,
+    BranchSettingsService,
+  ],
   exports: [BranchesService],
 })
 export class BranchesModule {}
