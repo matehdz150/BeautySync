@@ -57,3 +57,56 @@ export async function getBranchBasic(branchId: string) {
     method: "GET",
   });
 }
+
+// ===============================
+// Branch Settings
+// ===============================
+
+export type BranchSettings = {
+  id: string;
+  branchId: string;
+  timezone: string;
+
+  minBookingNoticeMin: number;
+  maxBookingAheadDays: number;
+
+  cancelationWindowMin: number;
+  rescheduleWindowMin: number;
+
+  bufferBeforeMin: number;
+  bufferAfterMin: number;
+
+  createdAt: string;
+};
+
+export async function getBranchSettings(branchId: string) {
+  return api<{ ok: true; settings: BranchSettings }>(
+    `/branches/${branchId}/settings`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+export type UpdateBranchSettingsDto = {
+  timezone?: string;
+  minBookingNoticeMin?: number;
+  maxBookingAheadDays?: number;
+  cancelationWindowMin?: number;
+  rescheduleWindowMin?: number;
+  bufferBeforeMin?: number;
+  bufferAfterMin?: number;
+};
+
+export async function updateBranchSettings(
+  branchId: string,
+  dto: UpdateBranchSettingsDto
+) {
+  return api<{ ok: true; settings: BranchSettings }>(
+    `/branches/${branchId}/settings`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(dto),
+    }
+  );
+}
