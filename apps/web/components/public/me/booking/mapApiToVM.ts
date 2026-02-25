@@ -18,6 +18,11 @@ type BookingDetailApiResponse = {
       address?: string;
     };
 
+    policies: {
+      cancelationWindowMin: number;
+      rescheduleWindowMin: number;
+    };
+
     paymentMethod: "ONLINE" | "ONSITE";
     notes: string | null;
     totalCents: number;
@@ -41,23 +46,17 @@ type BookingDetailApiResponse = {
  * Convierte la respuesta del API al ViewModel
  * que consume la UI
  */
-export function mapApiToVM(
-  res: BookingDetailApiResponse
-): BookingDetailVM {
+export function mapApiToVM(res: BookingDetailApiResponse): BookingDetailVM {
   const b = res?.booking;
 
   if (!b?.id) {
     throw new Error("Booking no encontrado");
   }
 
-  const appointments = Array.isArray(b.appointments)
-    ? b.appointments
-    : [];
+  const appointments = Array.isArray(b.appointments) ? b.appointments : [];
 
   const sorted = [...appointments].sort(
-    (a, z) =>
-      new Date(a.startIso).getTime() -
-      new Date(z.startIso).getTime()
+    (a, z) => new Date(a.startIso).getTime() - new Date(z.startIso).getTime(),
   );
 
   const first = sorted[0];
@@ -83,18 +82,14 @@ export function mapApiToVM(
   const status: BookingStatus =
     sorted
       .map((a) => a.status)
-      .sort(
-        (a, z) => statusPriority(z) - statusPriority(a)
-      )[0] ?? "PENDING";
+      .sort((a, z) => statusPriority(z) - statusPriority(a))[0] ?? "PENDING";
 
   return {
     bookingId: b.id,
     status,
 
-    startsAtISO:
-      first?.startIso ?? new Date().toISOString(),
-    endsAtISO:
-      last?.endIso ?? new Date().toISOString(),
+    startsAtISO: first?.startIso ?? new Date().toISOString(),
+    endsAtISO: last?.endIso ?? new Date().toISOString(),
 
     hasRating: Boolean(b.hasRating),
 
@@ -110,6 +105,11 @@ export function mapApiToVM(
       slug: b.branch.slug,
       imageUrl: b.branch.imageUrl,
       address: b.branch.address,
+    },
+
+    policies: {
+      cancelationWindowMin: b.policies?.cancelationWindowMin ?? 120,
+      rescheduleWindowMin: b.policies?.rescheduleWindowMin ?? 480,
     },
 
     appointments: sorted.map((a) => ({

@@ -427,6 +427,11 @@ export class BookingsCoreService {
       where: eq(branchSettings.branchId, branch.id),
     });
 
+    const policies = {
+      cancelationWindowMin: settings?.cancelationWindowMin ?? 120,
+      rescheduleWindowMin: settings?.rescheduleWindowMin ?? 480,
+    };
+
     const tz = settings?.timezone ?? 'America/Mexico_City';
 
     // 4) cargar services y staff de los appointments
@@ -533,6 +538,8 @@ export class BookingsCoreService {
           address: branch.address ?? '',
           imageUrl: coverUrl,
         },
+
+        policies,
 
         date: bookingDate,
 
