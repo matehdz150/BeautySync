@@ -23,6 +23,7 @@ export const branchSettings = pgTable(
     minBookingNoticeMin: integer("min_booking_notice_min").default(0),
     maxBookingAheadDays: integer("max_booking_ahead_days").default(60),
     cancelationWindowMin: integer("cancelation_window_min").default(120),
+    rescheduleWindowMin: integer("reschedule_window_min").default(480),
 
     bufferBeforeMin: integer("buffer_before_min").default(0),
     bufferAfterMin: integer("buffer_after_min").default(0),

@@ -1576,6 +1576,31 @@ export class BookingsCoreService {
       throw new BadRequestException('Booking has no appointments');
     }
 
+    // ============================
+    // 🔒 RESCHEDULE POLICY CHECK
+    // ============================
+
+    const branchSettingsRow = await this.db.query.branchSettings.findFirst({
+      where: eq(branchSettings.branchId, booking.branchId),
+    });
+
+    const rescheduleWindowMin = branchSettingsRow?.rescheduleWindowMin ?? 480; // fallback 8h
+
+    const now = DateTime.utc();
+    const bookingStart = DateTime.fromJSDate(booking.startsAt).toUTC();
+
+    const diffMinutes = bookingStart.diff(now, 'minutes').minutes;
+
+    if (rescheduledBy === 'PUBLIC') {
+      if (diffMinutes < rescheduleWindowMin) {
+        throw new BadRequestException(
+          `This booking cannot be rescheduled less than ${
+            rescheduleWindowMin / 60
+          } hours before start time`,
+        );
+      }
+    }
+
     // Snapshot BEFORE
     const beforeSnapshot = {
       booking: {
