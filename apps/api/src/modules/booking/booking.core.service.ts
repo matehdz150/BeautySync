@@ -1373,14 +1373,35 @@ export class BookingsCoreService {
         throw new BadRequestException('Completed booking cannot be cancelled');
       }
 
-      const startsAtUtc = DateTime.fromJSDate(booking.startsAt, {
-        zone: 'utc',
-      });
+      const startsAtUtc = DateTime.fromJSDate(booking.startsAt).toUTC();
 
       if (startsAtUtc <= nowUtc) {
         throw new BadRequestException(
           'Booking already started and cannot be cancelled',
         );
+      }
+
+      // ============================
+      // 🔒 CANCELLATION POLICY CHECK
+      // ============================
+
+      const branchSettingsRow = await tx.query.branchSettings.findFirst({
+        where: eq(branchSettings.branchId, booking.branchId),
+      });
+
+      const cancelationWindowMin =
+        branchSettingsRow?.cancelationWindowMin ?? 120; // fallback 2h
+
+      const diffMinutes = startsAtUtc.diff(nowUtc, 'minutes').minutes;
+
+      if (cancelledBy === 'PUBLIC') {
+        if (diffMinutes < cancelationWindowMin) {
+          throw new BadRequestException(
+            `This booking cannot be cancelled less than ${
+              cancelationWindowMin / 60
+            } hours before start time`,
+          );
+        }
       }
 
       await tx
