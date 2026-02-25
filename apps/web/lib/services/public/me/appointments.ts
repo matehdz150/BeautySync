@@ -83,6 +83,11 @@ export type PublicBookingDetailResponse = {
   booking: {
     id: string;
 
+    status: string;
+
+    startsAtISO: string;
+    endsAtISO: string;
+
     rating: PublicBookingRating | null;
 
     branch: {
@@ -92,7 +97,13 @@ export type PublicBookingDetailResponse = {
       imageUrl: string | null;
     };
 
+    policies: {
+      cancelationWindowMin: number;
+      rescheduleWindowMin: number;
+    };
+
     date: string;
+
     paymentMethod: PublicBookingPaymentMethod;
     notes: string | null;
 

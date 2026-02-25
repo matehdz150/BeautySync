@@ -66,6 +66,12 @@ export type BookingDetailVM = {
     address?: string;
   };
 
+  // 🔥 NUEVO
+  policies: {
+    cancelationWindowMin: number;
+    rescheduleWindowMin: number;
+  };
+
   appointments: Array<{
     id: string;
     status: BookingStatus;

@@ -427,6 +427,11 @@ export class BookingsCoreService {
       where: eq(branchSettings.branchId, branch.id),
     });
 
+    const policies = {
+      cancelationWindowMin: settings?.cancelationWindowMin ?? 120,
+      rescheduleWindowMin: settings?.rescheduleWindowMin ?? 480,
+    };
+
     const tz = settings?.timezone ?? 'America/Mexico_City';
 
     // 4) cargar services y staff de los appointments
@@ -533,6 +538,8 @@ export class BookingsCoreService {
           address: branch.address ?? '',
           imageUrl: coverUrl,
         },
+
+        policies,
 
         date: bookingDate,
 
@@ -1373,14 +1380,35 @@ export class BookingsCoreService {
         throw new BadRequestException('Completed booking cannot be cancelled');
       }
 
-      const startsAtUtc = DateTime.fromJSDate(booking.startsAt, {
-        zone: 'utc',
-      });
+      const startsAtUtc = DateTime.fromJSDate(booking.startsAt).toUTC();
 
       if (startsAtUtc <= nowUtc) {
         throw new BadRequestException(
           'Booking already started and cannot be cancelled',
         );
+      }
+
+      // ============================
+      // 🔒 CANCELLATION POLICY CHECK
+      // ============================
+
+      const branchSettingsRow = await tx.query.branchSettings.findFirst({
+        where: eq(branchSettings.branchId, booking.branchId),
+      });
+
+      const cancelationWindowMin =
+        branchSettingsRow?.cancelationWindowMin ?? 120; // fallback 2h
+
+      const diffMinutes = startsAtUtc.diff(nowUtc, 'minutes').minutes;
+
+      if (cancelledBy === 'PUBLIC') {
+        if (diffMinutes < cancelationWindowMin) {
+          throw new BadRequestException(
+            `This booking cannot be cancelled less than ${
+              cancelationWindowMin / 60
+            } hours before start time`,
+          );
+        }
       }
 
       await tx
@@ -1574,6 +1602,31 @@ export class BookingsCoreService {
 
     if (!currentAppointments.length) {
       throw new BadRequestException('Booking has no appointments');
+    }
+
+    // ============================
+    // 🔒 RESCHEDULE POLICY CHECK
+    // ============================
+
+    const branchSettingsRow = await this.db.query.branchSettings.findFirst({
+      where: eq(branchSettings.branchId, booking.branchId),
+    });
+
+    const rescheduleWindowMin = branchSettingsRow?.rescheduleWindowMin ?? 480; // fallback 8h
+
+    const now = DateTime.utc();
+    const bookingStart = DateTime.fromJSDate(booking.startsAt).toUTC();
+
+    const diffMinutes = bookingStart.diff(now, 'minutes').minutes;
+
+    if (rescheduledBy === 'PUBLIC') {
+      if (diffMinutes < rescheduleWindowMin) {
+        throw new BadRequestException(
+          `This booking cannot be rescheduled less than ${
+            rescheduleWindowMin / 60
+          } hours before start time`,
+        );
+      }
     }
 
     // Snapshot BEFORE
