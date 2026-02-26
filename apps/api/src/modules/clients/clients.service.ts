@@ -4,6 +4,7 @@ import { clients } from 'src/modules/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
+import { appointments } from 'src/modules/db/schema';
 
 @Injectable()
 export class ClientsService {
@@ -14,13 +15,97 @@ export class ClientsService {
   }
 
   async findOne(id: string) {
-    const row = await this.db.query.clients.findFirst({
+    // =========================
+    // 🧍 CLIENT BASE
+    // =========================
+    const client = await this.db.query.clients.findFirst({
       where: eq(clients.id, id),
     });
 
-    if (!row) throw new BadRequestException('Client not found');
+    if (!client) {
+      throw new BadRequestException('Client not found');
+    }
 
-    return row;
+    // =========================
+    // 📊 STATS
+    // =========================
+    const [stats] = await this.db.execute<{
+      totalAppointments: number;
+      completedAppointments: number;
+      cancelledAppointments: number;
+      ratingCount: number;
+      averageRating: number | null;
+    }>(sql`
+    SELECT
+      (SELECT COUNT(*) FROM appointments WHERE client_id = ${id})::int as "totalAppointments",
+
+      (SELECT COUNT(*) FROM appointments 
+        WHERE client_id = ${id} AND status = 'COMPLETED')::int as "completedAppointments",
+
+      (SELECT COUNT(*) FROM appointments 
+        WHERE client_id = ${id} AND status = 'CANCELLED')::int as "cancelledAppointments",
+
+      (SELECT COUNT(*) FROM public_booking_ratings pbr
+        JOIN appointments a ON a.public_booking_id = pbr.booking_id
+        WHERE a.client_id = ${id})::int as "ratingCount",
+
+      (SELECT AVG(pbr.rating)::float FROM public_booking_ratings pbr
+        JOIN appointments a ON a.public_booking_id = pbr.booking_id
+        WHERE a.client_id = ${id}) as "averageRating"
+  `);
+
+    const safeStats = {
+      totalAppointments: stats?.totalAppointments ?? 0,
+      completedAppointments: stats?.completedAppointments ?? 0,
+      cancelledAppointments: stats?.cancelledAppointments ?? 0,
+      ratingCount: stats?.ratingCount ?? 0,
+      averageRating:
+        stats?.ratingCount > 0 ? Number(stats.averageRating) : null,
+    };
+
+    // =========================
+    // 📅 PUBLIC BOOKINGS
+    // =========================
+    const bookings = await this.db.execute(sql`
+    SELECT DISTINCT
+      pb.id,
+      pb.status,
+      pb.starts_at as "startsAt",
+      pb.ends_at as "endsAt",
+      pb.payment_method as "paymentMethod",
+      pb.total_cents as "totalCents",
+      pb.created_at as "createdAt",
+      b.id as "branchId",
+      b.name as "branchName"
+    FROM public_bookings pb
+    JOIN appointments a ON a.public_booking_id = pb.id
+    JOIN branches b ON b.id = pb.branch_id
+    WHERE a.client_id = ${id}
+    ORDER BY pb.starts_at DESC
+  `);
+
+    // =========================
+    // 🧾 APPOINTMENTS (FULL)
+    // =========================
+    const appointmentsData = await this.db.query.appointments.findMany({
+      where: eq(appointments.clientId, id),
+      with: {
+        staff: true,
+        service: true,
+        publicUser: true,
+      },
+      orderBy: (a, { desc }) => [desc(a.start)],
+    });
+
+    // =========================
+    // 🔁 RESPONSE
+    // =========================
+    return {
+      client,
+      stats: safeStats,
+      bookings,
+      appointments: appointmentsData,
+    };
   }
 
   async create(dto: CreateClientDto) {
