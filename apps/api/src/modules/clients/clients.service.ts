@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import * as client from 'src/modules/db/client';
 import { clients } from 'src/modules/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 
@@ -54,14 +54,47 @@ export class ClientsService {
   }
 
   async findByOrganization(organizationId: string) {
-    const rows = await this.db.query.clients.findMany({
-      where: eq(clients.organizationId, organizationId),
-    });
+    const rows = await this.db.execute<{
+      id: string;
+      name: string | null;
+      email: string | null;
+      phone: string | null;
+      avatarUrl: string | null;
+      totalBookings: number;
+      averageRating: number | null;
+      ratingCount: number;
+    }>(sql`
+    SELECT
+      c.id,
+      c.name,
+      c.email,
+      c.phone,
+      c.avatar_url as "avatarUrl",
 
-    if (!rows.length) {
-      throw new BadRequestException('No clients found for this organization');
-    }
+      COUNT(DISTINCT b.id) as "totalBookings",
 
-    return rows;
+      ROUND(AVG(r.rating)::numeric, 2) as "averageRating",
+
+      COUNT(DISTINCT r.id) as "ratingCount"
+
+    FROM clients c
+
+    LEFT JOIN public_user_clients puc
+      ON puc.client_id = c.id
+
+    LEFT JOIN public_bookings b
+      ON b.public_user_id = puc.public_user_id
+
+    LEFT JOIN public_booking_ratings r
+      ON r.public_user_id = puc.public_user_id
+
+    WHERE c.organization_id = ${organizationId}
+
+    GROUP BY c.id
+
+    ORDER BY c.created_at DESC
+  `);
+
+    return rows ?? [];
   }
 }

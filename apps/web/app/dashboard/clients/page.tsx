@@ -36,9 +36,9 @@ export type ClientRow = {
   name: string;
   email: string | null;
   avatar: string | null;
-  status: "active" | "inactive";
-  totalAppointments?: number;
-  rating?: number;
+  totalBookings?: number;
+  averageRating: number | null;
+  ratingCount: number;
 };
 
 /* =====================
@@ -60,12 +60,13 @@ export default function ClientsPage() {
 
       const mapped: ClientRow[] = data.map((c: any) => ({
         id: c.id,
-        name: c.name,
-        email: c.email ?? "—",
+        name: c.name ?? "Cliente",
+        email: c.email ?? null,
         avatar: c.avatarUrl ?? null,
-        status: c.isActive ? "active" : "inactive",
-        rating: c.rating ?? 5,
-        totalAppointments: c.totalAppointments ?? 0,
+        totalBookings: Number(c.totalBookings ?? 0),
+        averageRating:
+          c.averageRating !== null ? Number(c.averageRating) : null,
+        ratingCount: Number(c.ratingCount ?? 0),
       }));
 
       setClients(mapped);
@@ -84,7 +85,7 @@ export default function ClientsPage() {
   }
 
   const filtered = clients.filter((c) =>
-    c.name.toLowerCase().includes(query.toLowerCase())
+    c.name.toLowerCase().includes(query.toLowerCase()),
   );
 
   return (
@@ -120,11 +121,7 @@ export default function ClientsPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
 
-          <Button
-            onClick={() =>
-              router.push("/dashboard/clients/actions/new")
-            }
-          >
+          <Button onClick={() => router.push("/dashboard/clients/actions/new")}>
             Agregar cliente
             <Plus />
           </Button>
@@ -180,7 +177,8 @@ export default function ClientsPage() {
                               {c.name}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {c.totalAppointments} citas
+                              {c.totalBookings}{" "}
+                              {c.totalBookings === 1 ? "cita" : "citas"}
                             </p>
                           </div>
                         </div>
@@ -188,10 +186,21 @@ export default function ClientsPage() {
 
                       {/* RATING */}
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                          <span className="font-medium">{c.rating}</span>
-                        </div>
+                        {c.ratingCount > 0 ? (
+                          <div className="flex items-center gap-1">
+                            <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                            <span className="font-medium">
+                              {c.averageRating?.toFixed(1)}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              ({c.ratingCount})
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Sin reseñas
+                          </span>
+                        )}
                       </TableCell>
 
                       {/* EMAIL */}
