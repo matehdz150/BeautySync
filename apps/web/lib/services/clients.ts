@@ -31,3 +31,79 @@ export async function createClient(input: { name: string; email?: string }) {
     }),
   });
 }
+
+// =============================
+// 📊 Client Detail Types
+// =============================
+
+export type ClientStats = {
+  totalAppointments: number;
+  completedAppointments: number;
+  cancelledAppointments: number;
+  ratingCount: number;
+  averageRating: number | null;
+};
+
+export type ClientBooking = {
+  id: string;
+  status: string;
+  startsAt: string;
+  endsAt: string;
+  paymentMethod: string;
+  totalCents: number;
+  createdAt: string;
+  branchId: string;
+  branchName: string;
+};
+
+export type ClientAppointment = {
+  id: string;
+  start: string;
+  end: string;
+  status: string;
+  priceCents: number | null;
+
+  staff: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+    jobRole?: string | null;
+  };
+
+  service: {
+    id: string;
+    name: string;
+    durationMin: number;
+    priceCents: number;
+  };
+
+  publicUser?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    avatarUrl: string | null;
+  } | null;
+};
+
+export type ClientDetail = {
+  client: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    avatarUrl: string | null;
+    createdAt?: string;
+  };
+
+  stats: ClientStats;
+
+  bookings: ClientBooking[];
+
+  appointments: ClientAppointment[];
+};
+
+export async function getClientDetail(
+  id: string,
+): Promise<ClientDetail> {
+  return api<ClientDetail>(`/clients/${id}`);
+}
