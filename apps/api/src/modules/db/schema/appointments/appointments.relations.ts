@@ -4,6 +4,7 @@ import { clients } from '../clients';
 import { publicUsers } from '../public/public-users';
 import { services } from '../services';
 import { staff } from '../staff';
+import { publicBookings } from '../public/public-bookings';
 
 export const appointmentsRelations = relations(appointments, ({ one }) => ({
   client: one(clients, {
@@ -20,8 +21,14 @@ export const appointmentsRelations = relations(appointments, ({ one }) => ({
     fields: [appointments.serviceId],
     references: [services.id],
   }),
+
   staff: one(staff, {
     fields: [appointments.staffId],
     references: [staff.id],
+  }),
+
+  publicBooking: one(publicBookings, {
+    fields: [appointments.publicBookingId],
+    references: [publicBookings.id],
   }),
 }));

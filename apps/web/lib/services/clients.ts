@@ -54,6 +54,7 @@ export type ClientBooking = {
   createdAt: string;
   branchId: string;
   branchName: string;
+  appointments: ClientAppointment[]
 };
 
 export type ClientAppointment = {
@@ -98,8 +99,6 @@ export type ClientDetail = {
   stats: ClientStats;
 
   bookings: ClientBooking[];
-
-  appointments: ClientAppointment[];
 };
 
 export async function getClientDetail(

@@ -81,7 +81,7 @@ export default function ClientsPage() {
   }
 
   function goToEdit(id: string) {
-    router.push(`/dashboard/clients/actions/edit/${id}`);
+    router.push(`/dashboard/clients/actions/view/${id}`);
   }
 
   const filtered = clients.filter((c) =>

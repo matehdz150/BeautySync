@@ -4,7 +4,6 @@ import { clients } from 'src/modules/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
-import { appointments } from 'src/modules/db/schema';
 
 @Injectable()
 export class ClientsService {
@@ -29,7 +28,7 @@ export class ClientsService {
     // =========================
     // 📊 STATS
     // =========================
-    const [stats] = await this.db.execute<{
+    const [statsRow] = await this.db.execute<{
       totalAppointments: number;
       completedAppointments: number;
       cancelledAppointments: number;
@@ -37,37 +36,41 @@ export class ClientsService {
       averageRating: number | null;
     }>(sql`
     SELECT
-      (SELECT COUNT(*) FROM appointments WHERE client_id = ${id})::int as "totalAppointments",
-
-      (SELECT COUNT(*) FROM appointments 
-        WHERE client_id = ${id} AND status = 'COMPLETED')::int as "completedAppointments",
-
-      (SELECT COUNT(*) FROM appointments 
-        WHERE client_id = ${id} AND status = 'CANCELLED')::int as "cancelledAppointments",
-
-      (SELECT COUNT(*) FROM public_booking_ratings pbr
-        JOIN appointments a ON a.public_booking_id = pbr.booking_id
-        WHERE a.client_id = ${id})::int as "ratingCount",
-
-      (SELECT AVG(pbr.rating)::float FROM public_booking_ratings pbr
-        JOIN appointments a ON a.public_booking_id = pbr.booking_id
-        WHERE a.client_id = ${id}) as "averageRating"
+      COUNT(a.id)::int as "totalAppointments",
+      COUNT(a.id) FILTER (WHERE a.status = 'COMPLETED')::int as "completedAppointments",
+      COUNT(a.id) FILTER (WHERE a.status = 'CANCELLED')::int as "cancelledAppointments",
+      COUNT(DISTINCT pbr.id)::int as "ratingCount",
+      AVG(pbr.rating)::float as "averageRating"
+    FROM appointments a
+    LEFT JOIN public_booking_ratings pbr
+      ON pbr.booking_id = a.public_booking_id
+    WHERE a.client_id = ${id}
   `);
 
-    const safeStats = {
-      totalAppointments: stats?.totalAppointments ?? 0,
-      completedAppointments: stats?.completedAppointments ?? 0,
-      cancelledAppointments: stats?.cancelledAppointments ?? 0,
-      ratingCount: stats?.ratingCount ?? 0,
+    const stats = {
+      totalAppointments: statsRow?.totalAppointments ?? 0,
+      completedAppointments: statsRow?.completedAppointments ?? 0,
+      cancelledAppointments: statsRow?.cancelledAppointments ?? 0,
+      ratingCount: statsRow?.ratingCount ?? 0,
       averageRating:
-        stats?.ratingCount > 0 ? Number(stats.averageRating) : null,
+        statsRow?.ratingCount > 0 ? Number(statsRow.averageRating) : null,
     };
 
     // =========================
-    // 📅 PUBLIC BOOKINGS
+    // 📅 BOOKINGS
     // =========================
-    const bookings = await this.db.execute(sql`
-    SELECT DISTINCT
+    const bookingsRaw = await this.db.execute<{
+      id: string;
+      status: string;
+      startsAt: string;
+      endsAt: string;
+      paymentMethod: string;
+      totalCents: number;
+      createdAt: string;
+      branchId: string;
+      branchName: string;
+    }>(sql`
+    SELECT
       pb.id,
       pb.status,
       pb.starts_at as "startsAt",
@@ -81,30 +84,123 @@ export class ClientsService {
     JOIN appointments a ON a.public_booking_id = pb.id
     JOIN branches b ON b.id = pb.branch_id
     WHERE a.client_id = ${id}
+    GROUP BY pb.id, b.id
     ORDER BY pb.starts_at DESC
   `);
 
     // =========================
-    // 🧾 APPOINTMENTS (FULL)
+    // 🧾 APPOINTMENTS
     // =========================
-    const appointmentsData = await this.db.query.appointments.findMany({
-      where: eq(appointments.clientId, id),
-      with: {
-        staff: true,
-        service: true,
-        publicUser: true,
-      },
-      orderBy: (a, { desc }) => [desc(a.start)],
+    const appointmentsRaw = await this.db.execute<{
+      id: string;
+      publicBookingId: string | null;
+      start: string;
+      end: string;
+      status: string;
+      priceCents: number | null;
+
+      staffId: string;
+      staffName: string;
+      staffAvatarUrl: string | null;
+      staffJobRole: string | null;
+
+      serviceId: string;
+      serviceName: string;
+      serviceDurationMin: number;
+      servicePriceCents: number;
+
+      publicUserId: string | null;
+      publicUserName: string | null;
+      publicUserEmail: string | null;
+      publicUserAvatarUrl: string | null;
+    }>(sql`
+    SELECT
+      a.id,
+      a.public_booking_id as "publicBookingId",
+      a.start,
+      a.end,
+      a.status,
+      a.price_cents as "priceCents",
+
+      s.id as "staffId",
+      s.name as "staffName",
+      s.avatar_url as "staffAvatarUrl",
+      s."jobRole" as "staffJobRole",
+
+      sv.id as "serviceId",
+      sv.name as "serviceName",
+      sv.duration_min as "serviceDurationMin",
+      sv.price_cents as "servicePriceCents",
+
+      pu.id as "publicUserId",
+      pu.name as "publicUserName",
+      pu.email as "publicUserEmail",
+      pu.avatar_url as "publicUserAvatarUrl"
+
+    FROM appointments a
+    JOIN staff s ON s.id = a.staff_id
+    JOIN services sv ON sv.id = a.service_id
+    LEFT JOIN public_users pu ON pu.id = a.public_user_id
+    WHERE a.client_id = ${id}
+  `);
+
+    // =========================
+    // 🔗 AGRUPAR
+    // =========================
+    const bookings = bookingsRaw.map((booking) => {
+      const bookingAppointments = appointmentsRaw
+        .filter((a) => a.publicBookingId === booking.id)
+        .map((a) => ({
+          id: a.id,
+          start: a.start,
+          end: a.end,
+          status: a.status,
+          priceCents: a.priceCents ?? null,
+
+          staff: {
+            id: a.staffId,
+            name: a.staffName,
+            avatarUrl: a.staffAvatarUrl ?? null,
+            jobRole: a.staffJobRole ?? null,
+          },
+
+          service: {
+            id: a.serviceId,
+            name: a.serviceName,
+            durationMin: a.serviceDurationMin,
+            priceCents: a.servicePriceCents,
+          },
+
+          publicUser: a.publicUserId
+            ? {
+                id: a.publicUserId,
+                name: a.publicUserName ?? null,
+                email: a.publicUserEmail ?? null,
+                avatarUrl: a.publicUserAvatarUrl ?? null,
+              }
+            : null,
+        }));
+
+      return {
+        ...booking,
+        appointments: bookingAppointments,
+      };
     });
 
     // =========================
-    // 🔁 RESPONSE
+    // 🔁 FINAL RESPONSE
     // =========================
     return {
-      client,
-      stats: safeStats,
+      client: {
+        id: client.id,
+        name: client.name ?? null,
+        email: client.email ?? null,
+        phone: client.phone ?? null,
+        avatarUrl: client.avatarUrl ?? null,
+        createdAt: client.createdAt?.toISOString?.() ?? null,
+      },
+      stats,
       bookings,
-      appointments: appointmentsData,
     };
   }
 
