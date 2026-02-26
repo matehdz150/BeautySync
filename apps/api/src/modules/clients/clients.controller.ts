@@ -34,7 +34,6 @@ export class ClientsController {
     return this.service.findByOrganization(orgId);
   }
 
-  @UseGuards(OrgParamGuard)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);

@@ -76,10 +76,6 @@ export default function BookingMessagePage() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chat.messages.length]);
-
   async function handleSend() {
     const body = message.trim();
     if (!body) return;
