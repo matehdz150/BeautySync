@@ -7,7 +7,6 @@ import {
   Sidebar,
   SidebarHeader,
   SidebarContent,
-  SidebarFooter,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
@@ -15,16 +14,12 @@ import {
 } from "@/components/ui/sidebar";
 
 import {
-  LoaderPinwheel,
   LayoutDashboard,
   Calendar,
   Scissors,
   Users,
-  CircleUser,
   ChartLine,
   UserPen,
-  LogOut,
-  Settings,
   Hash,
   ChevronsUpDown,
   Smile,
@@ -36,9 +31,7 @@ import {
 } from "lucide-react";
 
 import { useAuth, type Role } from "@/context/AuthContext";
-import { UserMenu } from "../UserMenu";
 import { AppSidebarFooter } from "./SidebarFooter";
-import { Kbd, KbdGroup } from "../ui/kbd";
 
 // ====== TIPOS ======
 
@@ -55,7 +48,7 @@ const items: NavItem[] = [
   {
     label: "Inbox",
     icon: Inbox,
-    href: "/dashboard/inbox",
+    href: "/dashboard/inbox/main",
     allow: ["owner", "manager"],
   },
   {
@@ -165,7 +158,7 @@ export function AppSidebar() {
           {!collapsed && (
             <div className="flex flex-col leading-tight w-full">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-lg text-white">Brushea</span>
+                <span className="font-semibold text-lg text-white">Lumia</span>
                 <ChevronsUpDown size={15} />
               </div>
               <span className="text-xs text-muted-foreground">

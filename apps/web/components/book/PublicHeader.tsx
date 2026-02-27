@@ -9,9 +9,7 @@ import {
   ChevronDown,
   Contact,
   Heart,
-  LogOut,
   Settings,
-  User,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -36,7 +34,7 @@ export function PublicHeader() {
       {/* DESKTOP */}
       <div className="hidden md:flex mx-auto px-15 py-2 h-20 items-center justify-between">
         <Link href="/" className="flex items-center gap-3 shrink-0">
-          <span className="font-semibold text-3xl tracking-tight">BeautySync</span>
+          <span className="font-semibold text-3xl tracking-tight">Belza</span>
         </Link>
 
         <div className="flex items-center gap-3">
@@ -51,7 +49,7 @@ export function PublicHeader() {
                 </Button>
 
                 {bookingsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-black text-white text-[11px] font-semibold flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 min-w-4.5 h-4.5 px-1 rounded-full bg-black text-white text-[11px] font-semibold flex items-center justify-center">
                     {bookingsCount > 99 ? "99+" : bookingsCount}
                   </span>
                 )}

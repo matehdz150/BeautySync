@@ -86,6 +86,23 @@ export type ClientAppointment = {
   } | null;
 };
 
+export type ClientReview = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+
+  bookingId: string;
+  branchId: string;
+  branchName: string;
+
+  staff?: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  }[];
+};
+
 export type ClientDetail = {
   client: {
     id: string;
@@ -99,6 +116,8 @@ export type ClientDetail = {
   stats: ClientStats;
 
   bookings: ClientBooking[];
+
+  reviews: ClientReview[]
 };
 
 export async function getClientDetail(

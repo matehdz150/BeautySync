@@ -21,9 +21,7 @@ export class ClientsService {
       where: eq(clients.id, id),
     });
 
-    if (!client) {
-      throw new BadRequestException('Client not found');
-    }
+    if (!client) throw new BadRequestException('Client not found');
 
     // =========================
     // 📊 STATS
@@ -53,7 +51,9 @@ export class ClientsService {
       cancelledAppointments: statsRow?.cancelledAppointments ?? 0,
       ratingCount: statsRow?.ratingCount ?? 0,
       averageRating:
-        statsRow?.ratingCount > 0 ? Number(statsRow.averageRating) : null,
+        (statsRow?.ratingCount ?? 0) > 0
+          ? Number(statsRow?.averageRating)
+          : null,
     };
 
     // =========================
@@ -89,7 +89,7 @@ export class ClientsService {
   `);
 
     // =========================
-    // 🧾 APPOINTMENTS
+    // 🧾 APPOINTMENTS (para colgarlas a booking)
     // =========================
     const appointmentsRaw = await this.db.execute<{
       id: string;
@@ -118,7 +118,7 @@ export class ClientsService {
       a.id,
       a.public_booking_id as "publicBookingId",
       a.start,
-      a.end,
+      a."end",
       a.status,
       a.price_cents as "priceCents",
 
@@ -145,50 +145,158 @@ export class ClientsService {
   `);
 
     // =========================
-    // 🔗 AGRUPAR
+    // 🧠 Index: appointments by bookingId
     // =========================
-    const bookings = bookingsRaw.map((booking) => {
-      const bookingAppointments = appointmentsRaw
-        .filter((a) => a.publicBookingId === booking.id)
-        .map((a) => ({
-          id: a.id,
-          start: a.start,
-          end: a.end,
-          status: a.status,
-          priceCents: a.priceCents ?? null,
+    const apptsByBookingId = new Map<string, any[]>();
 
-          staff: {
-            id: a.staffId,
-            name: a.staffName,
-            avatarUrl: a.staffAvatarUrl ?? null,
-            jobRole: a.staffJobRole ?? null,
-          },
+    for (const a of appointmentsRaw) {
+      if (!a.publicBookingId) continue;
 
-          service: {
-            id: a.serviceId,
-            name: a.serviceName,
-            durationMin: a.serviceDurationMin,
-            priceCents: a.servicePriceCents,
-          },
+      const item = {
+        id: a.id,
+        start: a.start,
+        end: a.end,
+        status: a.status,
+        priceCents: a.priceCents ?? null,
 
-          publicUser: a.publicUserId
-            ? {
-                id: a.publicUserId,
-                name: a.publicUserName ?? null,
-                email: a.publicUserEmail ?? null,
-                avatarUrl: a.publicUserAvatarUrl ?? null,
-              }
-            : null,
-        }));
+        staff: {
+          id: a.staffId,
+          name: a.staffName,
+          avatarUrl: a.staffAvatarUrl ?? null,
+          jobRole: a.staffJobRole ?? null,
+        },
 
-      return {
-        ...booking,
-        appointments: bookingAppointments,
+        service: {
+          id: a.serviceId,
+          name: a.serviceName,
+          durationMin: a.serviceDurationMin,
+          priceCents: a.servicePriceCents,
+        },
+
+        publicUser: a.publicUserId
+          ? {
+              id: a.publicUserId,
+              name: a.publicUserName ?? null,
+              email: a.publicUserEmail ?? null,
+              avatarUrl: a.publicUserAvatarUrl ?? null,
+            }
+          : null,
       };
-    });
+
+      const arr = apptsByBookingId.get(a.publicBookingId) ?? [];
+      arr.push(item);
+      apptsByBookingId.set(a.publicBookingId, arr);
+    }
+
+    const bookings = bookingsRaw.map((b) => ({
+      ...b,
+      appointments: apptsByBookingId.get(b.id) ?? [],
+    }));
 
     // =========================
-    // 🔁 FINAL RESPONSE
+    // ⭐ REVIEWS (UNA SOLA QUERY, APARTE)
+    // =========================
+    const reviewsFlat = await this.db.execute<{
+      id: string;
+      rating: number;
+      comment: string | null;
+      createdAt: string;
+
+      bookingId: string;
+
+      branchId: string;
+      branchName: string;
+
+      staffId: string | null;
+      staffName: string | null;
+      staffAvatarUrl: string | null;
+    }>(sql`
+    SELECT
+      pbr.id,
+      pbr.rating,
+      pbr.comment,
+      pbr.created_at as "createdAt",
+      pbr.booking_id as "bookingId",
+
+      b.id as "branchId",
+      b.name as "branchName",
+
+      s.id as "staffId",
+      s.name as "staffName",
+      s.avatar_url as "staffAvatarUrl"
+
+    FROM public_booking_ratings pbr
+    JOIN public_bookings pb ON pb.id = pbr.booking_id
+    JOIN branches b ON b.id = pb.branch_id
+    JOIN appointments a ON a.public_booking_id = pb.id
+
+    LEFT JOIN public_booking_rating_staff pbrs
+      ON pbrs.rating_id = pbr.id
+    LEFT JOIN staff s
+      ON s.id = pbrs.staff_id
+
+    WHERE a.client_id = ${id}
+    ORDER BY pbr.created_at DESC
+  `);
+
+    // dedupe por reviewId + staff[]
+    type ReviewAgg = {
+      id: string;
+      rating: number;
+      comment: string | null;
+      createdAt: string;
+      bookingId: string;
+      branchId: string;
+      branchName: string;
+      staff: { id: string; name: string; avatarUrl: string | null }[];
+    };
+
+    const reviewsMap = new Map<string, ReviewAgg>();
+
+    for (const row of reviewsFlat) {
+      let agg = reviewsMap.get(row.id);
+
+      if (!agg) {
+        agg = {
+          id: row.id,
+          rating: row.rating,
+          comment: row.comment ?? null,
+          createdAt: row.createdAt,
+          bookingId: row.bookingId,
+          branchId: row.branchId,
+          branchName: row.branchName,
+          staff: [],
+        };
+        reviewsMap.set(row.id, agg);
+      }
+
+      if (row.staffId) {
+        // evita duplicados por joins
+        const exists = agg.staff.some((s) => s.id === row.staffId);
+        if (!exists) {
+          agg.staff.push({
+            id: row.staffId,
+            name: row.staffName ?? 'Staff',
+            avatarUrl: row.staffAvatarUrl ?? null,
+          });
+        }
+      }
+    }
+
+    // si quieres cumplir "staff?: ..." puedes mandar [] o undefined cuando no hay
+    const reviews = Array.from(reviewsMap.values()).map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      comment: r.comment,
+      createdAt: r.createdAt,
+      bookingId: r.bookingId,
+      branchId: r.branchId,
+      branchName: r.branchName,
+      staff: r.staff.length ? r.staff : [],
+    }));
+
+    // =========================
+    // 🔁 FINAL RESPONSE (contrato exacto)
     // =========================
     return {
       client: {
@@ -201,6 +309,7 @@ export class ClientsService {
       },
       stats,
       bookings,
+      reviews,
     };
   }
 

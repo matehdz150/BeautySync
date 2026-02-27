@@ -1,13 +1,19 @@
+// app/clients/[clientid]/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import {
-  getClientDetail,
-  ClientDetail,
-} from "@/lib/services/clients";
+import { getClientDetail, ClientDetail } from "@/lib/services/clients";
+import ClientDetailView from "./ClientDetailView";
 
-export default function ClientDetailPage() {
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Star } from "lucide-react";
+
+
+
+export default function Page() {
   const params = useParams();
   const clientId = params?.clientid as string;
 
@@ -20,7 +26,6 @@ export default function ClientDetailPage() {
 
     async function load() {
       try {
-        setLoading(true);
         const res = await getClientDetail(clientId);
         setData(res);
       } catch (err) {
@@ -34,156 +39,172 @@ export default function ClientDetailPage() {
     load();
   }, [clientId]);
 
-  if (loading) {
-    return <div className="p-6">Cargando cliente...</div>;
-  }
+  if (loading) return <div className="p-6">Cargando cliente...</div>;
 
   if (error || !data) {
     return (
-      <div className="p-6 text-red-500">
-        {error ?? "Cliente no encontrado"}
+      <div className="p-6 text-red-500">{error ?? "Cliente no encontrado"}</div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full">
+      <div className="flex h-[calc(100vh-80px)]">
+        {/* LEFT SIDEBAR */}
+        <ClientSidebar data={data} />
+
+        {/* RIGHT CONTENT */}
+        <div className="flex-1 min-w-0">
+          <ClientDetailView data={data} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientSidebar({ data }: { data: ClientDetail }) {
+  const { client, stats } = data;
+
+  const createdLabel = client.createdAt
+    ? new Date(client.createdAt).toLocaleDateString(undefined, {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
+
+  const initial = (client.name?.trim()?.[0] ?? "C").toUpperCase();
+
+  return (
+    <aside className="w-[320px] shrink-0 border-r bg-white flex flex-col">
+      {/* TOP */}
+      <div className="px-6 pt-10 pb-6 flex flex-col items-center">
+        <Avatar className="h-20 w-20">
+          <AvatarImage
+            src={client.avatarUrl ?? undefined}
+            alt={client.name ?? "Cliente"}
+          />
+          <AvatarFallback className="text-lg font-semibold">
+            {initial}
+          </AvatarFallback>
+        </Avatar>
+
+        <h2 className="mt-4 text-lg font-semibold text-center">
+          {client.name ?? "Cliente"}
+        </h2>
+
+        <p className="text-sm text-muted-foreground mt-1 text-center truncate max-w-[240px]">
+          {client.email ?? "—"}
+        </p>
+
+        <p className="text-sm text-muted-foreground text-center">
+          {client.phone ?? "—"}
+        </p>
+
+        <div className="mt-5 flex items-center gap-3 w-full justify-center">
+          <Button
+            variant="outline"
+            className="rounded-full px-4 shadow-none"
+          >
+            Actions
+          </Button>
+
+          <Button className="rounded-full px-6">
+            Book now
+          </Button>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* STATS */}
+      <div className="px-6 py-6 space-y-6 text-sm">
+        <StatRow label="Total citas" value={stats.totalAppointments} />
+
+        <StatRow
+          label="Completadas"
+          value={stats.completedAppointments}
+        />
+
+        <StatRow
+          label="Canceladas"
+          value={stats.cancelledAppointments}
+        />
+
+        <RatingRow value={stats.averageRating} />
+
+        <StatRow
+          label="Reseñas"
+          value={stats.ratingCount}
+        />
+
+        <Separator />
+
+        <div className="text-xs text-muted-foreground">
+          Created {createdLabel}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function StatRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="flex justify-between items-center">
+      <span className="text-muted-foreground">
+        {label}
+      </span>
+      <span className="font-semibold text-base">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+
+function RatingRow({
+  value,
+}: {
+  value: number | null;
+}) {
+  if (!value || value <= 0) {
+    return (
+      <div className="flex justify-between items-center">
+        <span className="text-muted-foreground">
+          Rating
+        </span>
+        <span className="text-base font-semibold">
+          —
+        </span>
       </div>
     );
   }
 
-  const { client, stats, bookings } = data;
+  const rounded = Math.round(value);
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col">
-      {/* ================= HEADER ================= */}
-      <div className="p-6 border-b shrink-0 bg-white">
-        <h1 className="text-2xl font-bold">
-          {client.name ?? "Cliente"}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {client.email ?? "Sin email"}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {client.phone ?? "Sin teléfono"}
-        </p>
-      </div>
+    <div className="flex justify-between items-center">
+      <span className="text-muted-foreground">
+        Rating
+      </span>
 
-      {/* ================= CONTENT SCROLLABLE ================= */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
-        {/* ================= STATS ================= */}
-        <section>
-          <h2 className="text-lg font-semibold mb-3">
-            Métricas
-          </h2>
+      <div className="flex items-center gap-1">
+        {Array.from({ length: rounded }).map((_, i) => (
+          <Star
+            key={i}
+            className="h-4 w-4 fill-black text-black"
+          />
+        ))}
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-            <div className="border rounded-lg p-4">
-              <p className="text-muted-foreground">
-                Total citas
-              </p>
-              <p className="text-xl font-semibold">
-                {stats.totalAppointments}
-              </p>
-            </div>
-
-            <div className="border rounded-lg p-4">
-              <p className="text-muted-foreground">
-                Completadas
-              </p>
-              <p className="text-xl font-semibold">
-                {stats.completedAppointments}
-              </p>
-            </div>
-
-            <div className="border rounded-lg p-4">
-              <p className="text-muted-foreground">
-                Canceladas
-              </p>
-              <p className="text-xl font-semibold">
-                {stats.cancelledAppointments}
-              </p>
-            </div>
-
-            <div className="border rounded-lg p-4">
-              <p className="text-muted-foreground">
-                Rating
-              </p>
-              <p className="text-xl font-semibold">
-                {stats.averageRating ?? "—"}
-              </p>
-            </div>
-
-            <div className="border rounded-lg p-4">
-              <p className="text-muted-foreground">
-                Reseñas
-              </p>
-              <p className="text-xl font-semibold">
-                {stats.ratingCount}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* ================= HISTORY ================= */}
-        <section>
-          <h2 className="text-lg font-semibold mb-3">
-            Historial
-          </h2>
-
-          {bookings.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Sin historial
-            </p>
-          ) : (
-            <div className="space-y-6">
-              {bookings.map((b) => (
-                <div
-                  key={b.id}
-                  className="border rounded-lg p-4 space-y-4 bg-white"
-                >
-                  {/* Booking */}
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-semibold">
-                        {b.branchName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(b.startsAt).toLocaleString()}
-                      </p>
-                    </div>
-
-                    <div className="text-sm">
-                      ${(b.totalCents / 100).toLocaleString()}
-                    </div>
-                  </div>
-
-                  {/* Appointments */}
-                  <div className="space-y-2">
-                    {b.appointments.map((a) => (
-                      <div
-                        key={a.id}
-                        className="border rounded p-3 text-sm bg-muted/30"
-                      >
-                        <p className="font-medium">
-                          {a.service.name}
-                        </p>
-
-                        <p>
-                          Staff: {a.staff?.name ?? "—"}
-                        </p>
-
-                        <p>
-                          {new Date(a.start).toLocaleString()}
-                        </p>
-
-                        {a.priceCents != null && (
-                          <p>
-                            ${(a.priceCents / 100).toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+        <span className="ml-2 text-sm font-semibold">
+          {value.toFixed(1)}
+        </span>
       </div>
     </div>
   );
