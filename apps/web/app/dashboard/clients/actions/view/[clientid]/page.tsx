@@ -27,6 +27,7 @@ export default function Page() {
     async function load() {
       try {
         const res = await getClientDetail(clientId);
+        console.log(res)
         setData(res);
       } catch (err) {
         console.error(err);
