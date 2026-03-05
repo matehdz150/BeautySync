@@ -4,13 +4,13 @@ import { useState } from "react";
 import { ClientDetail } from "@/lib/services/clients";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Calendar, ChevronDown } from "lucide-react";
+import { Calendar, ChevronDown, Star } from "lucide-react";
 
 interface Props {
   data: ClientDetail;
 }
 
-type Tab = "overview" | "bookings" | "sales" | "rewards"| "reviews";
+type Tab = "overview" | "bookings" | "sales" | "rewards" | "reviews";
 
 export default function ClientDetailView({ data }: Props) {
   const { client, stats, bookings, reviews } = data;
@@ -235,9 +235,7 @@ function BookingsSection({ bookings }: any) {
                   <div className="border rounded-xl p-6 bg-white  space-y-4">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-sm text-muted-foreground">
-                          Cita
-                        </p>
+                        <p className="text-sm text-muted-foreground">Cita</p>
 
                         <p className="text-xs text-muted-foreground">
                           {new Date(b.startsAt).toLocaleString()} ·{" "}
@@ -264,7 +262,10 @@ function BookingsSection({ bookings }: any) {
                     ))}
 
                     <div className="flex gap-3 pt-2">
-                      <Button variant={'default'} className="px-4 py-1.5 text-sm rounded-full">
+                      <Button
+                        variant={"default"}
+                        className="px-4 py-1.5 text-sm rounded-full"
+                      >
                         Ver detalles
                       </Button>
                     </div>
@@ -327,41 +328,79 @@ function FilterButton({
 /* -------------------------------------------------------------------------- */
 
 function ReviewsSection({ reviews }: any) {
-  if (reviews.length === 0) {
+  if (!reviews || reviews.length === 0) {
     return (
       <section>
-        <h2 className="text-lg font-semibold mb-3">Reseñas</h2>
-        <p className="text-sm text-muted-foreground">Sin reseñas</p>
+        <h2 className="text-lg font-semibold mb-4">Reseñas</h2>
+        <p className="text-sm text-muted-foreground">
+          Este cliente aún no tiene reseñas.
+        </p>
       </section>
     );
   }
 
   return (
     <section>
-      <h2 className="text-lg font-semibold mb-3">Reseñas</h2>
+      <h2 className="text-lg font-semibold mb-4">Reseñas</h2>
 
       <div className="space-y-4">
-        {reviews.map((r: any) => (
-          <div key={r.id} className="border rounded-lg p-4 bg-white">
-            <div className="flex justify-between">
-              <p className="font-medium">{r.branchName}</p>
-              <p>⭐ {r.rating}</p>
-            </div>
+        {reviews.map((r: any) => {
+          const date = new Date(r.createdAt).toLocaleDateString(undefined, {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          });
 
-            {r.comment && <p className="text-sm mt-2">{r.comment}</p>}
+          return (
+            <div
+              key={r.id}
+              className="border rounded-xl p-4 bg-white hover:bg-muted/20 transition"
+            >
+              {/* HEADER */}
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-semibold text-sm">{r.branchName}</p>
 
-            {r.staff && r.staff.length > 0 && (
-              <div className="text-xs mt-2 text-muted-foreground">
-                Staff:
-                {r.staff.map((s: any) => (
-                  <span key={s.id} className="ml-2">
-                    {s.name}
-                  </span>
-                ))}
+                  <p className="text-xs text-muted-foreground">{date}</p>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: r.rating }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className="h-4 w-4 fill-yellow-400 text-yellow-400"
+                    />
+                  ))}
+                </div>
               </div>
-            )}
-          </div>
-        ))}
+
+              {/* COMMENT */}
+              <div className="text-sm text-muted-foreground leading-relaxed mt-2">
+                {r.comment ? (
+                  r.comment
+                ) : (
+                  <span className="italic text-muted-foreground/70">
+                    No se agregó comentario.
+                  </span>
+                )}
+              </div>
+
+              {/* STAFF */}
+              {r.staff && r.staff.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {r.staff.map((s: any) => (
+                    <span
+                      key={s.id}
+                      className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground"
+                    >
+                      {s.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
