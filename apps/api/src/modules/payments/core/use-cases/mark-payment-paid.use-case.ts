@@ -9,7 +9,10 @@ export class MarkPaymentPaidUseCase {
     private readonly paymentsRepo: paymentRepository.PaymentsRepositoryPort,
   ) {}
 
-  async execute(paymentId: string) {
-    await this.paymentsRepo.markPaid(paymentId, new Date());
+  async execute(paymentId: string, method: paymentRepository.PaymentMethod) {
+    await this.paymentsRepo.markPaid(paymentId, {
+      paymentMethod: method,
+      paidAt: new Date(),
+    });
   }
 }

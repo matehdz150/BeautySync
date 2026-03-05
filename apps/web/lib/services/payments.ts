@@ -169,13 +169,15 @@ export async function removePaymentItem(
   });
 }
 
-/* =====================
-   FINALIZE PAYMENT
-===================== */
-
-export async function finalizePayment(paymentId: string) {
+export async function finalizePayment(
+  paymentId: string,
+  method: PaymentMethod
+) {
   return api(`/payments/${paymentId}/finalize`, {
     method: "POST",
+    body: JSON.stringify({
+      method,
+    }),
   });
 }
 

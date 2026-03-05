@@ -22,6 +22,7 @@ import { RemovePaymentItemUseCase } from '../../core/use-cases/remove-payment-it
 import { FinalizePaymentUseCase } from '../../core/use-cases/finalize-payment.use-case';
 import { CancelPaymentUseCase } from '../../core/use-cases/cancel-payment.use-case';
 import { GetPaymentUseCase } from '../../core/use-cases/get-payment.use-case';
+import { FinalizePaymentDto } from '../dto/finalize-payment.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('payments')
@@ -83,8 +84,8 @@ export class PaymentsController {
   ===================== */
 
   @Post(':id/finalize')
-  finalize(@Param('id') paymentId: string) {
-    return this.finalizePayment.execute(paymentId);
+  finalize(@Param('id') paymentId: string, @Body() dto: FinalizePaymentDto) {
+    return this.finalizePayment.execute(paymentId, dto.method);
   }
 
   /* =====================

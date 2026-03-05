@@ -1,6 +1,9 @@
 import { Payment } from '../entities/payment.entity';
 import { PaymentItem } from '../entities/payment-item.entity';
 import { CreatePaymentItem } from '../entities/payment-item.entity';
+import { PaymentMethod } from 'src/modules/db/schema/payments/payment';
+
+export type { PaymentMethod };
 
 export interface PaymentsRepositoryPort {
   createPayment(payment: Partial<Payment>): Promise<Payment>;
@@ -11,7 +14,13 @@ export interface PaymentsRepositoryPort {
 
   findByBookingId(bookingId: string): Promise<Payment | null>;
 
-  markPaid(paymentId: string, paidAt: Date): Promise<void>;
+  markPaid(
+    paymentId: string,
+    data: {
+      paymentMethod: PaymentMethod;
+      paidAt: Date;
+    },
+  );
 
   getItems(paymentId: string): Promise<PaymentItem[]>;
 

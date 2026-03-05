@@ -18,6 +18,8 @@ export const paymentMethodEnum = pgEnum('payment_method', [
   'gift_card',
 ]);
 
+export type PaymentMethod = (typeof paymentMethodEnum.enumValues)[number];
+
 export const paymentStatusEnum = pgEnum('payment_status', [
   'pending',
   'paid',
