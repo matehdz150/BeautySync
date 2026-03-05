@@ -367,9 +367,11 @@ OPEN BOOKING PAYMENT
   ===================================================== */
 
   async function finalize() {
-    if (!state.paymentId) return;
+    if (!state.paymentId || !state.paymentMethod) return;
 
-    await finalizePayment(state.paymentId);
+    const res = await finalizePayment(state.paymentId, state.paymentMethod);
+
+    console.log("💳 finalizePayment response:", res);
 
     dispatch({ type: "RESET_PAYMENT" });
   }

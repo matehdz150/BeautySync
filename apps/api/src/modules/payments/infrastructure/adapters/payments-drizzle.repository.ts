@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
-import { payments, paymentItems } from 'src/modules/db/schema';
+import { payments, paymentItems, PaymentMethod } from 'src/modules/db/schema';
 import type { DB } from 'src/modules/db/client';
 
 import { PaymentsRepositoryPort } from '../../core/ports/payment.repository';
@@ -53,12 +53,19 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
     );
   }
 
-  async markPaid(paymentId: string, paidAt: Date): Promise<void> {
+  async markPaid(
+    paymentId: string,
+    data: {
+      paymentMethod: PaymentMethod;
+      paidAt: Date;
+    },
+  ) {
     await this.db
       .update(payments)
       .set({
         status: 'paid',
-        paidAt,
+        paymentMethod: data.paymentMethod,
+        paidAt: data.paidAt,
       })
       .where(eq(payments.id, paymentId));
   }
@@ -130,13 +137,30 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
       .where(eq(payments.id, paymentId));
   }
 
-  async findByBookingId(bookingId: string) {
-    const [payment] = await this.db
+  async findByBookingId(bookingId: string): Promise<Payment | null> {
+    const [row] = await this.db
       .select()
       .from(payments)
       .where(eq(payments.bookingId, bookingId))
+      .orderBy(desc(payments.createdAt)) // 🔥 clave
       .limit(1);
 
-    return payment ?? null;
+    if (!row) return null;
+
+    return new Payment(
+      row.id,
+      row.organizationId,
+      row.branchId,
+      row.bookingId,
+      row.clientId,
+      row.cashierStaffId,
+      row.status,
+      row.subtotalCents,
+      row.discountsCents,
+      row.taxCents,
+      row.totalCents,
+      row.createdAt,
+      row.paidAt,
+    );
   }
 }
