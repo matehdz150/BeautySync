@@ -9,19 +9,17 @@ import { ClientSelectDropdown } from "./ClientSelectDropdown";
 
 type ClientSummaryProps = {
   client?: Client;
-  onAddClient?: () => void;
   onActionsClick?: () => void;
   className?: string;
 };
 
 export function ClientSummary({
   client,
-  onAddClient,
   onActionsClick,
   className,
 }: ClientSummaryProps) {
+  const { setClient } = usePayment();
 
-    const {dispatch} = usePayment()
   /* =========================
      ❌ SIN CLIENTE
   ========================= */
@@ -33,7 +31,6 @@ export function ClientSummary({
           className
         )}
       >
-        {/* LEFT */}
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
             <UserPlus className="h-6 w-6 text-indigo-400" />
@@ -47,13 +44,9 @@ export function ClientSummary({
           </div>
         </div>
 
-        {/* ACTION */}
         <ClientSelectDropdown
           onSelect={(client) => {
-            dispatch({
-              type: "SET_CLIENT",
-              payload: client,
-            });
+            setClient(client);
           }}
         />
       </div>
@@ -63,6 +56,7 @@ export function ClientSummary({
   /* =========================
      ✅ CON CLIENTE
   ========================= */
+
   return (
     <div
       className={cn(
@@ -70,16 +64,17 @@ export function ClientSummary({
         className
       )}
     >
-      {/* LEFT */}
       <div className="flex items-center gap-4">
-        <Avatar className="h-10 w-10 ">
+        <Avatar className="h-10 w-10">
           <AvatarFallback className="bg-indigo-400 text-white">
             <User className="h-5 w-5" />
           </AvatarFallback>
         </Avatar>
 
         <div className="space-y-0.5">
-          <p className="text-base font-semibold leading-tight">{client.name}</p>
+          <p className="text-base font-semibold leading-tight">
+            {client.name}
+          </p>
 
           {client.email && (
             <p className="text-sm text-muted-foreground">{client.email}</p>
@@ -87,7 +82,6 @@ export function ClientSummary({
         </div>
       </div>
 
-      {/* ACTION */}
       <Button
         variant="outline"
         size="sm"

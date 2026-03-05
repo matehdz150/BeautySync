@@ -27,6 +27,17 @@ export type PaymentItemType =
   | "tax";
 
 /* =====================
+   CLIENT
+===================== */
+
+export type Client = {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+};
+
+/* =====================
    PAYMENT ITEM
 ===================== */
 
@@ -64,7 +75,11 @@ export type Payment = {
   branchId: string;
 
   bookingId?: string | null;
+
   clientId?: string | null;
+
+  // 👇 NUEVO
+  client?: Client | null;
 
   cashierStaffId: string;
 

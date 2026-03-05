@@ -153,7 +153,7 @@ type Ctx = {
     organizationId: string;
     branchId: string;
     bookingId: string;
-  }) => Promise<void>;
+  }) => Promise<ApiPayment>;
 
   addItem: (item: PaymentItem) => Promise<void>;
 
@@ -242,8 +242,8 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   }
 
   /* =====================================================
-  OPEN BOOKING PAYMENT
-  ===================================================== */
+OPEN BOOKING PAYMENT
+===================================================== */
 
   async function openBookingPaymentAction(params: {
     organizationId: string;
@@ -257,16 +257,32 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
       cashierStaffId: getCashierId(),
     });
 
+    // 🔎 DEBUG mínimo
+    console.log("💳 openBookingPaymentService response:", payment);
+
     dispatch({
       type: "SET_PAYMENT",
       payload: {
         paymentId: payment.id,
+
+        // 👇 cliente que viene del backend
+        client: payment.client
+          ? {
+              id: payment.client.id,
+              name: payment.client.name,
+              email: payment.client.email ?? undefined,
+              phone: payment.client.phone ?? null,
+            }
+          : undefined,
+
         items: mapItems(payment.items ?? []),
         subtotal: payment.subtotalCents / 100,
         discounts: payment.discountsCents / 100,
         total: payment.totalCents / 100,
       },
     });
+
+    return payment;
   }
 
   /* =====================================================

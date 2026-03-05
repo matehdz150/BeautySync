@@ -1,7 +1,7 @@
 // src/modules/branch/branch-settings.service.ts
 
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { branchSettings } from 'drizzle/schema';
+import { branchSettings } from 'src/modules/db/schema';
 import { eq } from 'drizzle-orm';
 import * as client from 'src/modules/db/client';
 

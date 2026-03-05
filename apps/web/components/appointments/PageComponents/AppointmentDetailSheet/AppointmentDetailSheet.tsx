@@ -23,8 +23,10 @@ import { getBookingStatusUI } from "@/lib/ui/bookingStatus";
 import { CancelBookingButton } from "./detailButtons/CancelBookingButton";
 import { RescheduleBookingButton } from "./detailButtons/RescheduleBookingButton/RescheduleBookingButton";
 import { BookingChatPreview } from "./BookingChatPreview";
+import { useRouter } from "next/navigation";
 
 export default function AppointmentDetailSheet() {
+  const router = useRouter();
   const { state } = useCalendar();
   const { closeAppointment } = useCalendarActions();
   const { branch } = useBranch();
@@ -212,7 +214,7 @@ export default function AppointmentDetailSheet() {
                     </>
                   )}
 
-                  <Button className="flex-1 py-6">Pagar</Button>
+                  <Button className="flex-1 py-6" onClick={()=> router.push('/dashboard/order/'+bookingId)}>Pagar</Button>
                 </div>
               </div>
             </div>
