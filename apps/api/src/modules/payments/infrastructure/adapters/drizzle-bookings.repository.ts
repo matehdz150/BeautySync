@@ -36,6 +36,7 @@ export class DrizzleBookingsRepository implements BookingsRepositoryPort {
     name: string | null;
     email?: string | null;
     phone?: string | null;
+    avatarUrl?: string | null;
   } | null> {
     const [row] = await this.db
       .select({
@@ -43,6 +44,7 @@ export class DrizzleBookingsRepository implements BookingsRepositoryPort {
         name: clients.name,
         email: clients.email,
         phone: clients.phone,
+        avatarUrl: clients.avatarUrl,
       })
       .from(publicBookings)
       .leftJoin(
@@ -67,6 +69,7 @@ export class DrizzleBookingsRepository implements BookingsRepositoryPort {
       name: row.name,
       email: row.email,
       phone: row.phone,
+      avatarUrl: row.avatarUrl ?? null,
     };
   }
 }

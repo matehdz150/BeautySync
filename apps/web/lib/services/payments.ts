@@ -35,6 +35,7 @@ export type Client = {
   name: string;
   email?: string | null;
   phone?: string | null;
+  avatarUrl?: string | null;
 };
 
 /* =====================

@@ -28,6 +28,7 @@ export type Client = {
   name: string;
   email?: string;
   phone?: string | null;
+  avatarUrl?: string | null;
 };
 
 export type PaymentMethod =
@@ -272,6 +273,7 @@ OPEN BOOKING PAYMENT
               name: payment.client.name,
               email: payment.client.email ?? undefined,
               phone: payment.client.phone ?? null,
+              avatarUrl: payment.client.avatarUrl ?? null,
             }
           : undefined,
 

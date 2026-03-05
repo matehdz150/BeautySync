@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, User, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Client, usePayment } from "@/context/PaymentContext";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ClientSelectDropdown } from "./ClientSelectDropdown";
 
 type ClientSummaryProps = {
@@ -66,6 +66,12 @@ export function ClientSummary({
     >
       <div className="flex items-center gap-4">
         <Avatar className="h-10 w-10">
+          {/* 👇 Imagen si existe */}
+          {client.avatarUrl && (
+            <AvatarImage src={client.avatarUrl} alt={client.name ?? "Client"} />
+          )}
+
+          {/* 👇 Fallback si no hay imagen */}
           <AvatarFallback className="bg-indigo-400 text-white">
             <User className="h-5 w-5" />
           </AvatarFallback>

@@ -12,5 +12,6 @@ export interface BookingsRepositoryPort {
     name: string | null;
     email?: string | null;
     phone?: string | null;
+    avatarUrl?: string | null;
   } | null>;
 }

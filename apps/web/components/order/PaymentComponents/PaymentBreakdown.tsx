@@ -5,26 +5,17 @@ import { cn } from "@/lib/utils";
 import { usePayment } from "@/context/PaymentContext";
 
 export function PaymentBreakdown({
-  taxRate = 0.05,
   currency = "MXN",
 }: {
-  taxRate?: number;
   currency?: string;
 }) {
-  const { state, dispatch } = usePayment();
+  const { state, removeItem } = usePayment();
 
   const items = state.items;
 
-  const subtotal = items
-    .filter((i) => i.type !== "discount" && i.amount > 0)
-    .reduce((s, i) => s + i.amount, 0);
-
-  const discount = items
-    .filter((i) => i.type === "discount")
-    .reduce((s, i) => s + i.amount, 0);
-
-  const tax = Math.max(0, (subtotal + discount) * taxRate);
-  const total = subtotal + discount + tax;
+  const subtotal = state.subtotal;
+  const discounts = state.discounts;
+  const total = state.total;
 
   return (
     <div className="space-y-3 text-sm">
@@ -47,12 +38,7 @@ export function PaymentBreakdown({
             </span>
 
             <button
-              onClick={() =>
-                dispatch({
-                  type: "REMOVE_ITEM",
-                  payload: { id: item.id },
-                })
-              }
+              onClick={() => removeItem(item.id)}
               className="text-muted-foreground hover:text-black"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -76,8 +62,10 @@ export function PaymentBreakdown({
       {/* SUBTOTAL */}
       <Row label="Subtotal" value={subtotal} />
 
-      {/* TAX */}
-      <Row label="Tax" value={tax} />
+      {/* DISCOUNTS */}
+      {discounts > 0 && (
+        <Row label="Descuentos" value={-discounts} highlight />
+      )}
 
       <hr />
 
@@ -90,9 +78,22 @@ export function PaymentBreakdown({
   );
 }
 
-function Row({ label, value }: { label: string; value: number }) {
+function Row({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  highlight?: boolean;
+}) {
   return (
-    <div className="flex justify-between text-muted-foreground">
+    <div
+      className={cn(
+        "flex justify-between text-muted-foreground",
+        highlight && "text-indigo-500"
+      )}
+    >
       <span>{label}</span>
       <span>${value.toFixed(2)}</span>
     </div>

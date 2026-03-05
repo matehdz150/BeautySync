@@ -7,6 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+
 import {
   Dialog,
   DialogContent,
@@ -14,9 +15,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
 import { EllipsisVertical, Percent, Ticket, DollarSign } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import { usePayment } from "@/context/PaymentContext";
 
@@ -26,28 +30,33 @@ export function DiscountMenu() {
   const [openDialog, setOpenDialog] = useState(false);
   const [type, setType] = useState<DiscountType>("percentage");
   const [value, setValue] = useState("");
-  const { dispatch, subtotal } = usePayment();
 
-  function handleApply() {
+  const { state, addItem } = usePayment();
+
+  const subtotal = state.subtotal;
+
+  async function handleApply() {
     if (!value) return;
 
     const numericValue = Number(value);
     if (numericValue <= 0) return;
 
-    const amount =
-      type === "percentage" ? -(subtotal * numericValue) / 100 : -numericValue;
+    let amount = 0;
 
-    dispatch({
-      type: "ADD_ITEM",
-      payload: {
-        id: crypto.randomUUID(),
-        label:
-          type === "percentage"
-            ? `Descuento ${numericValue}%`
-            : `Descuento $${numericValue}`,
-        type: "discount",
-        amount,
-      },
+    if (type === "percentage") {
+      amount = -(subtotal * numericValue) / 100;
+    } else {
+      amount = -numericValue;
+    }
+
+    await addItem({
+      id: crypto.randomUUID(),
+      label:
+        type === "percentage"
+          ? `Descuento ${numericValue}%`
+          : `Descuento $${numericValue}`,
+      type: "discount",
+      amount,
     });
 
     setOpenDialog(false);
@@ -56,13 +65,12 @@ export function DiscountMenu() {
 
   return (
     <>
-      {/* ================= MENU ================= */}
+      {/* MENU */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
             className="rounded-md py-6 shadow-none w-15"
-            tooltip="Opciones"
           >
             <EllipsisVertical />
           </Button>
@@ -77,19 +85,14 @@ export function DiscountMenu() {
             Agregar descuento
           </DropdownMenuItem>
 
-          <DropdownMenuItem
-            onClick={() => {
-              console.log("Agregar cupón");
-            }}
-            className="flex items-center gap-2"
-          >
+          <DropdownMenuItem className="flex items-center gap-2">
             <Ticket className="h-4 w-4" />
             Agregar cupón
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* ================= DIALOG ================= */}
+      {/* DIALOG */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="sm:max-w-105 min-h-90">
           <DialogHeader>

@@ -25,7 +25,7 @@ export class OpenBookingPaymentUseCase {
     clientId?: string;
   }) {
     /* =========================
-     1️⃣ Obtener cliente
+     1️⃣ Resolver cliente
   ========================= */
 
     const client = data.clientId
@@ -33,7 +33,29 @@ export class OpenBookingPaymentUseCase {
       : await this.bookingsRepo.findBookingClient(data.bookingId);
 
     /* =========================
-     2️⃣ Servicios
+     2️⃣ Verificar payment existente
+  ========================= */
+
+    const existingPayment = await this.paymentsRepo.findByBookingId(
+      data.bookingId,
+    );
+
+    if (existingPayment) {
+      const items = await this.paymentsRepo.getItems(existingPayment.id);
+
+      const subtotal = items.reduce((s, i) => s + i.amountCents, 0);
+
+      return {
+        ...existingPayment,
+        client, // 👈 mismo cliente que en flujo nuevo
+        items,
+        subtotalCents: subtotal,
+        totalCents: subtotal,
+      };
+    }
+
+    /* =========================
+     3️⃣ Servicios
   ========================= */
 
     const services = await this.bookingsRepo.findBookingServices(
@@ -41,7 +63,7 @@ export class OpenBookingPaymentUseCase {
     );
 
     /* =========================
-     3️⃣ Crear payment
+     4️⃣ Crear payment
   ========================= */
 
     const payment = await this.paymentsRepo.createPayment({
@@ -58,7 +80,7 @@ export class OpenBookingPaymentUseCase {
     });
 
     /* =========================
-     4️⃣ Items
+     5️⃣ Items
   ========================= */
 
     if (services.length > 0) {
