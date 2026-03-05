@@ -3,19 +3,86 @@ import { eq } from 'drizzle-orm';
 
 import { payments, paymentItems } from 'src/modules/db/schema';
 import type { DB } from 'src/modules/db/client';
-import { CreatePaymentItem } from '../../core/entities/payment-item.entity';
+
+import { PaymentsRepositoryPort } from '../../core/ports/payment.repository';
+import {
+  CreatePaymentItem,
+  PaymentItem,
+} from '../../core/entities/payment-item.entity';
+import { Payment } from '../../core/entities/payment.entity';
 
 @Injectable()
-export class DrizzlePaymentsRepository {
+export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
   constructor(@Inject('DB') private readonly db: DB) {}
 
-  async createPayment(data: typeof payments.$inferInsert) {
-    const [payment] = await this.db.insert(payments).values(data).returning();
+  /* =====================
+     PAYMENT
+  ===================== */
 
-    return payment;
+  async createPayment(payment: Partial<Payment>): Promise<Payment> {
+    const [result] = await this.db
+      .insert(payments)
+      .values(payment as typeof payments.$inferInsert)
+      .returning();
+
+    return result;
   }
 
-  async addItems(paymentId: string, items: CreatePaymentItem[]) {
+  async findById(paymentId: string): Promise<Payment | null> {
+    const [row] = await this.db
+      .select()
+      .from(payments)
+      .where(eq(payments.id, paymentId));
+
+    if (!row) return null;
+
+    return new Payment(
+      row.id,
+      row.organizationId,
+      row.branchId,
+      row.bookingId,
+      row.clientId,
+      row.cashierStaffId,
+      row.status,
+      row.subtotalCents,
+      row.discountsCents,
+      row.taxCents,
+      row.totalCents,
+      row.createdAt,
+      row.paidAt,
+    );
+  }
+
+  async markPaid(paymentId: string, paidAt: Date): Promise<void> {
+    await this.db
+      .update(payments)
+      .set({
+        status: 'paid',
+        paidAt,
+      })
+      .where(eq(payments.id, paymentId));
+  }
+
+  async updateTotals(
+    paymentId: string,
+    totals: {
+      subtotalCents: number;
+      discountsCents: number;
+      taxCents: number;
+      totalCents: number;
+    },
+  ): Promise<void> {
+    await this.db
+      .update(payments)
+      .set(totals)
+      .where(eq(payments.id, paymentId));
+  }
+
+  /* =====================
+     PAYMENT ITEMS
+  ===================== */
+
+  async addItems(paymentId: string, items: CreatePaymentItem[]): Promise<void> {
     const values: (typeof paymentItems.$inferInsert)[] = items.map((item) => ({
       paymentId,
       type: item.type,
@@ -29,44 +96,37 @@ export class DrizzlePaymentsRepository {
     await this.db.insert(paymentItems).values(values);
   }
 
-  async findById(paymentId: string) {
-    const [payment] = await this.db
-      .select()
-      .from(payments)
-      .where(eq(payments.id, paymentId));
-
-    return payment ?? null;
+  async removeItem(itemId: string): Promise<void> {
+    await this.db.delete(paymentItems).where(eq(paymentItems.id, itemId));
   }
 
-  async markPaid(paymentId: string, paidAt: Date) {
-    await this.db
-      .update(payments)
-      .set({
-        status: 'paid',
-        paidAt,
-      })
-      .where(eq(payments.id, paymentId));
-  }
-
-  async getItems(paymentId: string) {
-    return this.db
+  async getItems(paymentId: string): Promise<PaymentItem[]> {
+    const rows = await this.db
       .select()
       .from(paymentItems)
       .where(eq(paymentItems.paymentId, paymentId));
+
+    return rows.map(
+      (row) =>
+        new PaymentItem(
+          row.id,
+          row.paymentId,
+          row.type,
+          row.label,
+          row.amountCents,
+          row.referenceId ?? undefined,
+          row.staffId ?? undefined,
+          row.meta as Record<string, unknown> | undefined,
+        ),
+    );
   }
 
-  async updateTotals(
-    paymentId: string,
-    totals: {
-      subtotalCents: number;
-      discountsCents: number;
-      taxCents: number;
-      totalCents: number;
-    },
-  ) {
+  async cancelPayment(paymentId: string): Promise<void> {
     await this.db
       .update(payments)
-      .set(totals)
+      .set({
+        status: 'cancelled',
+      })
       .where(eq(payments.id, paymentId));
   }
 }

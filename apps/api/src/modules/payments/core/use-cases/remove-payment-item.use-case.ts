@@ -1,11 +1,10 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { CreatePaymentItem } from '../entities/payment-item.entity';
 import { PAYMENTS_REPOSITORY } from '../ports/tokens';
 import * as paymentRepository from '../ports/payment.repository';
 import { RecalculatePaymentTotalsUseCase } from './recalculate-payment-totals.use-case';
 
 @Injectable()
-export class AddPaymentItemUseCase {
+export class RemovePaymentItemUseCase {
   constructor(
     @Inject(PAYMENTS_REPOSITORY)
     private readonly paymentsRepo: paymentRepository.PaymentsRepositoryPort,
@@ -13,7 +12,7 @@ export class AddPaymentItemUseCase {
     private readonly recalcTotals: RecalculatePaymentTotalsUseCase,
   ) {}
 
-  async execute(paymentId: string, items: CreatePaymentItem[]) {
+  async execute(paymentId: string, itemId: string) {
     const payment = await this.paymentsRepo.findById(paymentId);
 
     if (!payment) {
@@ -24,7 +23,7 @@ export class AddPaymentItemUseCase {
       throw new Error('Cannot modify finalized payment');
     }
 
-    await this.paymentsRepo.addItems(paymentId, items);
+    await this.paymentsRepo.removeItem(itemId);
 
     await this.recalcTotals.execute(paymentId);
   }
