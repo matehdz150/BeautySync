@@ -9,6 +9,8 @@ export interface PaymentsRepositoryPort {
 
   findById(paymentId: string): Promise<Payment | null>;
 
+  findByBookingId(bookingId: string): Promise<Payment | null>;
+
   markPaid(paymentId: string, paidAt: Date): Promise<void>;
 
   getItems(paymentId: string): Promise<PaymentItem[]>;

@@ -7,4 +7,11 @@ export interface BookingsRepositoryPort {
       staffId?: string | null;
     }[]
   >;
+  findBookingClient(bookingId: string): Promise<{
+    id: string;
+    name: string | null;
+    email?: string | null;
+    phone?: string | null;
+    avatarUrl?: string | null;
+  } | null>;
 }

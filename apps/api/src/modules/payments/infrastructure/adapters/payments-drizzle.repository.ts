@@ -129,4 +129,14 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
       })
       .where(eq(payments.id, paymentId));
   }
+
+  async findByBookingId(bookingId: string) {
+    const [payment] = await this.db
+      .select()
+      .from(payments)
+      .where(eq(payments.bookingId, bookingId))
+      .limit(1);
+
+    return payment ?? null;
+  }
 }

@@ -13,6 +13,7 @@ import { RemovePaymentItemUseCase } from './core/use-cases/remove-payment-item.u
 import { FinalizePaymentUseCase } from './core/use-cases/finalize-payment.use-case';
 import { CancelPaymentUseCase } from './core/use-cases/cancel-payment.use-case';
 import { GetPaymentUseCase } from './core/use-cases/get-payment.use-case';
+import { DrizzleBookingsRepository } from './infrastructure/adapters/drizzle-bookings.repository';
 
 @Module({
   imports: [AuthModule],
@@ -35,7 +36,7 @@ import { GetPaymentUseCase } from './core/use-cases/get-payment.use-case';
     },
     {
       provide: BOOKINGS_REPOSITORY,
-      useClass: DrizzlePaymentsRepository,
+      useClass: DrizzleBookingsRepository,
     },
   ],
 })

@@ -24,24 +24,64 @@ export class OpenBookingPaymentUseCase {
     cashierStaffId: string;
     clientId?: string;
   }) {
+    /* =========================
+     1️⃣ Resolver cliente
+  ========================= */
+
+    const client = data.clientId
+      ? { id: data.clientId }
+      : await this.bookingsRepo.findBookingClient(data.bookingId);
+
+    /* =========================
+     2️⃣ Verificar payment existente
+  ========================= */
+
+    const existingPayment = await this.paymentsRepo.findByBookingId(
+      data.bookingId,
+    );
+
+    if (existingPayment) {
+      const items = await this.paymentsRepo.getItems(existingPayment.id);
+
+      const subtotal = items.reduce((s, i) => s + i.amountCents, 0);
+
+      return {
+        ...existingPayment,
+        client, // 👈 mismo cliente que en flujo nuevo
+        items,
+        subtotalCents: subtotal,
+        totalCents: subtotal,
+      };
+    }
+
+    /* =========================
+     3️⃣ Servicios
+  ========================= */
+
     const services = await this.bookingsRepo.findBookingServices(
       data.bookingId,
     );
+
+    /* =========================
+     4️⃣ Crear payment
+  ========================= */
 
     const payment = await this.paymentsRepo.createPayment({
       organizationId: data.organizationId,
       branchId: data.branchId,
       cashierStaffId: data.cashierStaffId,
-      clientId: data.clientId ?? null,
+      clientId: client?.id ?? null,
       bookingId: data.bookingId,
-
       status: 'pending',
-
       subtotalCents: 0,
       discountsCents: 0,
       taxCents: 0,
       totalCents: 0,
     });
+
+    /* =========================
+     5️⃣ Items
+  ========================= */
 
     if (services.length > 0) {
       const items = services.map(
@@ -56,8 +96,27 @@ export class OpenBookingPaymentUseCase {
       );
 
       await this.paymentsRepo.addItems(payment.id, items);
+
+      const subtotal = items.reduce((sum, i) => sum + i.amountCents, 0);
+
+      await this.paymentsRepo.updateTotals(payment.id, {
+        subtotalCents: subtotal,
+        discountsCents: 0,
+        taxCents: 0,
+        totalCents: subtotal,
+      });
     }
 
-    return payment;
+    const items = await this.paymentsRepo.getItems(payment.id);
+
+    const subtotal = items.reduce((s, i) => s + i.amountCents, 0);
+
+    return {
+      ...payment,
+      client,
+      items,
+      subtotalCents: subtotal,
+      totalCents: subtotal,
+    };
   }
 }

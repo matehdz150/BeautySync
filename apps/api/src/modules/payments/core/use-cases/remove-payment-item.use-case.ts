@@ -26,5 +26,7 @@ export class RemovePaymentItemUseCase {
     await this.paymentsRepo.removeItem(itemId);
 
     await this.recalcTotals.execute(paymentId);
+
+    return this.paymentsRepo.findById(paymentId);
   }
 }
