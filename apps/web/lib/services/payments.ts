@@ -32,30 +32,30 @@ export type PaymentItemType =
 
 export type PaymentItemInput = {
   type: PaymentItemType;
-  referenceId?: string | null;
   label: string;
-  amountCents: number; // +cargo | -descuento
+  amountCents: number;
+  referenceId?: string | null;
   staffId?: string | null;
   meta?: Record<string, any>;
 };
 
-export type CreatePaymentInput = {
-  organizationId: string;
-  branchId: string;
+export type PaymentItem = {
+  id: string;
+  paymentId: string;
 
-  clientId?: string | null;
-  appointmentId?: string | null;
+  type: PaymentItemType;
+  label: string;
+  amountCents: number;
 
-  cashierStaffId: string;
+  referenceId?: string | null;
+  staffId?: string | null;
 
-  paymentMethod: PaymentMethod;
-  paymentProvider?: string | null;
-  externalReference?: string | null;
-
-  notes?: string | null;
-
-  items: PaymentItemInput[];
+  meta?: Record<string, any>;
 };
+
+/* =====================
+   PAYMENT
+===================== */
 
 export type Payment = {
   id: string;
@@ -63,14 +63,10 @@ export type Payment = {
   organizationId: string;
   branchId: string;
 
+  bookingId?: string | null;
   clientId?: string | null;
-  appointmentId?: string | null;
 
   cashierStaffId: string;
-
-  paymentMethod: PaymentMethod;
-  paymentProvider?: string | null;
-  externalReference?: string | null;
 
   status: PaymentStatus;
 
@@ -79,49 +75,108 @@ export type Payment = {
   taxCents: number;
   totalCents: number;
 
-  notes?: string | null;
-
   createdAt: string;
   paidAt?: string | null;
+
+  items?: PaymentItem[];
 };
 
-export async function createPayment(input: CreatePaymentInput) {
-  return api<Payment>("/payments", {
+/* =====================
+   OPEN PAYMENT (POS)
+===================== */
+
+export type OpenPaymentInput = {
+  organizationId: string;
+  branchId: string;
+
+  clientId?: string | null;
+
+  cashierStaffId: string;
+};
+
+export async function openPayment(input: OpenPaymentInput) {
+  return api<Payment>("/payments/open", {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export async function getPaymentById(id: string) {
-  return api<Payment>(`/payments/${id}`);
-}
+/* =====================
+   OPEN BOOKING PAYMENT
+===================== */
 
-export type ListPaymentsParams = {
+export type OpenBookingPaymentInput = {
+  organizationId: string;
   branchId: string;
 
-  clientId?: string;
-  appointmentId?: string;
-  cashierStaffId?: string;
-  status?: PaymentStatus;
+  bookingId: string;
+  clientId?: string | null;
 
-  from?: string; // ISO date
-  to?: string;   // ISO date
-
-  limit?: number;
-  offset?: number;
+  cashierStaffId: string;
 };
 
-export async function listPayments(params: ListPaymentsParams) {
-  return api<{
-    total: number;
-    data: Payment[];
-  }>(`/payments?${new URLSearchParams(params as any)}`);
+export async function openBookingPayment(input: OpenBookingPaymentInput) {
+  return api<Payment>("/payments/open-booking", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
-export async function getPaymentsByAppointment(appointmentId: string) {
-  return api<Payment[]>(`/payments/by-appointment/${appointmentId}`);
+/* =====================
+   ADD ITEMS
+===================== */
+
+export type AddPaymentItemsInput = {
+  items: PaymentItemInput[];
+};
+
+export async function addPaymentItems(
+  paymentId: string,
+  input: AddPaymentItemsInput
+) {
+  return api(`/payments/${paymentId}/items`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
-export async function getPaymentsByClient(clientId: string) {
-  return api<Payment[]>(`/payments/client/${clientId}`);
+/* =====================
+   REMOVE ITEM
+===================== */
+
+export async function removePaymentItem(
+  paymentId: string,
+  itemId: string
+) {
+  return api(`/payments/${paymentId}/items/${itemId}`, {
+    method: "DELETE",
+  });
+}
+
+/* =====================
+   FINALIZE PAYMENT
+===================== */
+
+export async function finalizePayment(paymentId: string) {
+  return api(`/payments/${paymentId}/finalize`, {
+    method: "POST",
+  });
+}
+
+/* =====================
+   CANCEL PAYMENT
+===================== */
+
+export async function cancelPayment(paymentId: string) {
+  return api(`/payments/${paymentId}/cancel`, {
+    method: "POST",
+  });
+}
+
+/* =====================
+   GET PAYMENT
+===================== */
+
+export async function getPayment(paymentId: string) {
+  return api<Payment>(`/payments/${paymentId}`);
 }

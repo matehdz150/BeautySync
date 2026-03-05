@@ -17,7 +17,14 @@ import { cn } from "@/lib/utils";
 import { useBranch } from "@/context/BranchContext";
 import { usePayment } from "@/context/PaymentContext";
 import { getServicesByBranch } from "@/lib/services/services";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 /* ---------- UI ---------- */
 
@@ -26,10 +33,10 @@ type Tab = (typeof TABS)[number];
 
 /* ---------- TYPES (ajusta si tu backend trae más campos) ---------- */
 
-type Category={
-  id: string,
-  colorHex: string,
-}
+type Category = {
+  id: string;
+  colorHex: string;
+};
 
 type Service = {
   id: string;
@@ -46,11 +53,11 @@ function uid() {
     : `${Date.now()}-${Math.random()}`;
 }
 
-export function AddToCartDrawer() {
+export function AddToCartDrawer({ children }: { children: React.ReactNode }) {
   const { branch } = useBranch();
   const branchId = branch?.id;
 
-  const { dispatch } = usePayment();
+  const { addItem } = usePayment();
 
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("Servicios");
@@ -95,41 +102,27 @@ export function AddToCartDrawer() {
     });
   }, [services, search]);
 
-  function addServiceToCart(s: Service) {
-    dispatch({
-      type: "ADD_ITEM",
-      payload: {
-        id: uid(), // 👈 id del item en carrito (no del service)
-        label: s.name,
-        type: "service",
-        amount: (s.priceCents ?? 0) / 100,
-
-        // si tu PaymentItem ya trae estos campos, perfecto:
-        date: undefined, // no hay appointment aquí
-        duration: s.durationMin,
-        staff: undefined, // quien atendió no aplica aquí (solo hay cajero staff en state.staff)
-        meta: {
-          color: s.category.colorHex ?? "#E5E7EB",
-          durationMin: s.durationMin,
-          icon: s.category.colorHex ?? null,
-        },
-      } as any, // quita el "as any" cuando tu PaymentItem ya incluya date/duration/meta
+  async function addServiceToCart(s: Service) {
+    await addItem({
+      id: s.id, // referencia al service
+      label: s.name,
+      type: "service",
+      amount: (s.priceCents ?? 0) / 100,
+      meta: {
+        color: s.category.colorHex ?? "#E5E7EB",
+        durationMin: s.durationMin,
+        icon: null,
+      },
     });
 
-    // opcional: cerrar drawer al agregar
     setOpen(false);
   }
-  
-  console.log(filteredServices)
+
+  console.log(filteredServices);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="outline" className="w-full gap-2 shadow-none py-6">
-          <ShoppingCart className="h-4 w-4" />
-          Agregar productos al carrito
-        </Button>
-      </SheetTrigger>
+      <SheetTrigger asChild>{children}</SheetTrigger>
 
       <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
         <div className="flex flex-col h-full px-6 py-5 gap-4">
@@ -149,9 +142,7 @@ export function AddToCartDrawer() {
             </BreadcrumbList>
           </Breadcrumb>
           <SheetHeader>
-            <SheetTitle className="text-3xl">
-              Agregar al carrito
-            </SheetTitle>
+            <SheetTitle className="text-3xl">Agregar al carrito</SheetTitle>
           </SheetHeader>
 
           {/* HEADER */}
@@ -174,7 +165,7 @@ export function AddToCartDrawer() {
                   onClick={() => setTab(t)}
                   className={cn(
                     "px-4 py-1.5 text-sm rounded-full transition",
-                    tab === t ? "bg-black text-white" : "hover:bg-muted"
+                    tab === t ? "bg-black text-white" : "hover:bg-muted",
                   )}
                 >
                   {t}

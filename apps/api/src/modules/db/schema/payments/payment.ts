@@ -59,7 +59,7 @@ export const payments = pgTable(
        PAGO
     ===================== */
 
-    paymentMethod: paymentMethodEnum('payment_method').notNull(),
+    paymentMethod: paymentMethodEnum('payment_method'),
 
     paymentProvider: text('payment_provider'),
 

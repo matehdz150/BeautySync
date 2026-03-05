@@ -27,5 +27,7 @@ export class AddPaymentItemUseCase {
     await this.paymentsRepo.addItems(paymentId, items);
 
     await this.recalcTotals.execute(paymentId);
+
+    return this.paymentsRepo.findById(paymentId);
   }
 }
