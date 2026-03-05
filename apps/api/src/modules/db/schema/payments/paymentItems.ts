@@ -21,26 +21,31 @@ export const paymentItems = pgTable(
     /* =====================
        ITEM
     ===================== */
+
     type: paymentItemTypeEnum('type').notNull(),
 
     referenceId: uuid('reference_id'),
-    // id del service/product original (opcional)
+    // id del appointment / product / coupon etc
 
     label: text('label').notNull(),
 
     amountCents: integer('amount_cents').notNull(),
-    // +cargo | -descuento
+    // positivo = cargo
+    // negativo = descuento
 
     /* =====================
-       STAFF ASOCIADO AL ITEM
+       STAFF ASOCIADO
     ===================== */
+
     staffId: uuid('staff_id'),
 
     /* =====================
        METADATA FLEXIBLE
     ===================== */
+
     meta: jsonb('meta'),
-    // { color, durationMin, icon, etc }
+    // ej:
+    // { durationMin, serviceName, color, couponCode }
 
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
@@ -48,7 +53,7 @@ export const paymentItems = pgTable(
   },
   (table) => ({
     /* =====================
-       ÍNDICES PARA ANALYTICS
+       ÍNDICES
     ===================== */
 
     paymentIdx: index('payment_items_payment_idx').on(table.paymentId),
@@ -58,5 +63,7 @@ export const paymentItems = pgTable(
     staffIdx: index('payment_items_staff_idx').on(table.staffId),
 
     referenceIdx: index('payment_items_reference_idx').on(table.referenceId),
+
+    createdIdx: index('payment_items_created_idx').on(table.createdAt),
   }),
 );

@@ -1,3 +1,5 @@
+// payments/dto/list-payments.dto.ts
+
 import {
   IsOptional,
   IsUUID,
@@ -6,11 +8,12 @@ import {
   IsInt,
   Min,
 } from 'class-validator';
-import { paymentStatusEnum } from '../../db/schema/payments/payment';
+
+import { paymentStatusEnum } from 'src/modules/db/schema';
 
 export class ListPaymentsDto {
   @IsUUID()
-  branchId: string;
+  branchId!: string;
 
   @IsOptional()
   @IsUUID()
@@ -24,7 +27,6 @@ export class ListPaymentsDto {
   @IsEnum(paymentStatusEnum.enumValues)
   status?: (typeof paymentStatusEnum.enumValues)[number];
 
-  // YYYY-MM-DD
   @IsOptional()
   @IsDateString()
   from?: string;
