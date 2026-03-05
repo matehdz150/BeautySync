@@ -13,6 +13,10 @@ export interface PaymentsRepositoryPort {
 
   getItems(paymentId: string): Promise<PaymentItem[]>;
 
+  removeItem(itemId: string): Promise<void>;
+
+  cancelPayment(paymentId: string): Promise<void>;
+
   updateTotals(
     paymentId: string,
     totals: {

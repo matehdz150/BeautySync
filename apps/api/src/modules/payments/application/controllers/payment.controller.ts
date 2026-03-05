@@ -4,78 +4,104 @@ import {
   Body,
   Get,
   Param,
-  Query,
+  Delete,
   UseGuards,
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from 'src/modules/auth/manager/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/modules/auth/manager/guards/roles.guard';
 
-import { CreatePaymentDto } from '../dto/create-payment.dto';
-import { ListPaymentsDto } from '../dto/list-payments.dto';
+import { AddPaymentItemsDto } from '../dto/add-payment-item.dto';
+import { OpenPaymentDto } from '../dto/open-payment.dto';
+import { OpenBookingPaymentDto } from '../dto/open-booking-payment.dto';
 
-import { CreatePaymentUseCase } from '../../core/use-cases/create-payment.use-case';
+import { OpenPaymentUseCase } from '../../core/use-cases/open-payment.use-case';
+import { OpenBookingPaymentUseCase } from '../../core/use-cases/open-booking-payment.use-case';
 import { AddPaymentItemUseCase } from '../../core/use-cases/add-payment-item.use-case';
-import { MarkPaymentPaidUseCase } from '../../core/use-cases/mark-payment-paid.use-case';
+import { RemovePaymentItemUseCase } from '../../core/use-cases/remove-payment-item.use-case';
+import { FinalizePaymentUseCase } from '../../core/use-cases/finalize-payment.use-case';
+import { CancelPaymentUseCase } from '../../core/use-cases/cancel-payment.use-case';
+import { GetPaymentUseCase } from '../../core/use-cases/get-payment.use-case';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('payments')
 export class PaymentsController {
   constructor(
-    private readonly createPayment: CreatePaymentUseCase,
+    private readonly openPayment: OpenPaymentUseCase,
+    private readonly openBookingPayment: OpenBookingPaymentUseCase,
     private readonly addItems: AddPaymentItemUseCase,
-    private readonly markPaid: MarkPaymentPaidUseCase,
+    private readonly removeItem: RemovePaymentItemUseCase,
+    private readonly finalizePayment: FinalizePaymentUseCase,
+    private readonly cancelPayment: CancelPaymentUseCase,
+    private readonly getPayment: GetPaymentUseCase,
   ) {}
 
   /* =====================
-     CREATE PAYMENT
+     OPEN PAYMENT (POS)
   ===================== */
 
-  @Post()
-  create(@Body() dto: CreatePaymentDto) {
-    return this.createPayment.execute(dto);
+  @Post('open')
+  open(@Body() dto: OpenPaymentDto) {
+    return this.openPayment.execute(dto);
   }
 
   /* =====================
-     ADD ITEMS TO PAYMENT
+     OPEN BOOKING PAYMENT
+  ===================== */
+
+  @Post('open-booking')
+  openBooking(@Body() dto: OpenBookingPaymentDto) {
+    return this.openBookingPayment.execute(dto);
+  }
+
+  /* =====================
+     ADD ITEMS
   ===================== */
 
   @Post(':id/items')
-  addItemsToPayment(@Param('id') paymentId: string, @Body() items: any[]) {
-    return this.addItems.execute(paymentId, items);
+  addItemsToPayment(
+    @Param('id') paymentId: string,
+    @Body() dto: AddPaymentItemsDto,
+  ) {
+    return this.addItems.execute(paymentId, dto.items);
   }
 
   /* =====================
-     MARK PAYMENT AS PAID
+     REMOVE ITEM
   ===================== */
 
-  @Post(':id/pay')
-  pay(@Param('id') paymentId: string) {
-    return this.markPaid.execute(paymentId);
+  @Delete(':paymentId/items/:itemId')
+  removeItemFromPayment(
+    @Param('paymentId') paymentId: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.removeItem.execute(paymentId, itemId);
   }
 
   /* =====================
-     LIST PAYMENTS
+     FINALIZE PAYMENT
   ===================== */
 
-  @Get()
-  list(@Query() query: ListPaymentsDto) {
-    // este endpoint lo implementarás luego
-    return {
-      message: 'list payments not implemented yet',
-      query,
-    };
+  @Post(':id/finalize')
+  finalize(@Param('id') paymentId: string) {
+    return this.finalizePayment.execute(paymentId);
   }
 
   /* =====================
-     GET PAYMENT BY ID
+     CANCEL PAYMENT
+  ===================== */
+
+  @Post(':id/cancel')
+  cancel(@Param('id') paymentId: string) {
+    return this.cancelPayment.execute(paymentId);
+  }
+
+  /* =====================
+     GET PAYMENT
   ===================== */
 
   @Get(':id')
-  getById(@Param('id') id: string) {
-    return {
-      message: 'get payment by id not implemented yet',
-      id,
-    };
+  get(@Param('id') paymentId: string) {
+    return this.getPayment.execute(paymentId);
   }
 }
