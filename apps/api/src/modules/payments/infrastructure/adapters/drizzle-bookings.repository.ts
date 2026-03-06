@@ -72,4 +72,20 @@ export class DrizzleBookingsRepository implements BookingsRepositoryPort {
       avatarUrl: row.avatarUrl ?? null,
     };
   }
+
+  async findById(bookingId: string): Promise<{ id: string } | null> {
+    const [row] = await this.db
+      .select({
+        id: publicBookings.id,
+      })
+      .from(publicBookings)
+      .where(eq(publicBookings.id, bookingId))
+      .limit(1);
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+    };
+  }
 }

@@ -39,4 +39,6 @@ export interface PaymentsRepositoryPort {
   ): Promise<void>;
 
   assignClient(paymentId: string, clientId: string): Promise<void>;
+
+  findByClientId(clientId: string): Promise<Payment[]>;
 }

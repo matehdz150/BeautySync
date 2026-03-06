@@ -14,4 +14,8 @@ export interface BookingsRepositoryPort {
     phone?: string | null;
     avatarUrl?: string | null;
   } | null>;
+
+  findById(bookingId: string): Promise<{
+    id: string;
+  } | null>;
 }

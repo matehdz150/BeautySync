@@ -1,4 +1,5 @@
 import { PaymentMethod } from '../ports/payment.repository';
+import { PaymentItem } from './payment-item.entity';
 
 export class Payment {
   constructor(
@@ -25,3 +26,9 @@ export class Payment {
     public notes?: string | null,
   ) {}
 }
+
+export type ClientPaymentDetails = {
+  payment: Payment;
+  items: PaymentItem[];
+  booking?: { id: string } | null;
+};
