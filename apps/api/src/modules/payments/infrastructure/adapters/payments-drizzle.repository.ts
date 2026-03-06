@@ -25,7 +25,25 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
       .values(payment as typeof payments.$inferInsert)
       .returning();
 
-    return result;
+    return new Payment(
+      result.id,
+      result.organizationId,
+      result.branchId,
+      result.bookingId,
+      result.clientId,
+      result.cashierStaffId,
+      result.status,
+      result.subtotalCents,
+      result.discountsCents,
+      result.taxCents,
+      result.totalCents,
+      result.createdAt,
+      result.paidAt,
+      result.paymentMethod,
+      result.paymentProvider,
+      result.externalReference,
+      result.notes,
+    );
   }
 
   async findById(paymentId: string): Promise<Payment | null> {
@@ -50,6 +68,10 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
       row.totalCents,
       row.createdAt,
       row.paidAt,
+      row.paymentMethod,
+      row.paymentProvider,
+      row.externalReference,
+      row.notes,
     );
   }
 
@@ -161,6 +183,10 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
       row.totalCents,
       row.createdAt,
       row.paidAt,
+      row.paymentMethod,
+      row.paymentProvider,
+      row.externalReference,
+      row.notes,
     );
   }
 

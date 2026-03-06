@@ -79,12 +79,16 @@ export type Payment = {
 
   clientId?: string | null;
 
-  // 👇 NUEVO
   client?: Client | null;
 
   cashierStaffId: string;
 
   status: PaymentStatus;
+
+  paymentMethod?: PaymentMethod | null;
+  paymentProvider?: string | null;
+  externalReference?: string | null;
+  notes?: string | null;
 
   subtotalCents: number;
   discountsCents: number;

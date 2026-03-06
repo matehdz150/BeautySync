@@ -46,11 +46,27 @@ export class OpenBookingPaymentUseCase {
       const subtotal = items.reduce((s, i) => s + i.amountCents, 0);
 
       return {
-        ...existingPayment,
-        client, // 👈 mismo cliente que en flujo nuevo
+        id: existingPayment.id,
+        organizationId: existingPayment.organizationId,
+        branchId: existingPayment.branchId,
+        bookingId: existingPayment.bookingId,
+        cashierStaffId: existingPayment.cashierStaffId,
+
+        status: existingPayment.status,
+        paymentMethod: existingPayment.paymentMethod ?? null,
+        paidAt: existingPayment.paidAt ?? null,
+
+        clientId: existingPayment.clientId,
+        client,
+
+        createdAt: existingPayment.createdAt,
+
         items,
+
         subtotalCents: subtotal,
-        totalCents: subtotal,
+        discountsCents: existingPayment.discountsCents ?? 0,
+        taxCents: existingPayment.taxCents ?? 0,
+        totalCents: existingPayment.totalCents ?? subtotal,
       };
     }
 

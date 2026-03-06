@@ -1,3 +1,5 @@
+import { PaymentMethod } from '../ports/payment.repository';
+
 export class Payment {
   constructor(
     public id: string,
@@ -6,12 +8,20 @@ export class Payment {
     public bookingId: string | null,
     public clientId: string | null,
     public cashierStaffId: string,
+
     public status: 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled',
+
     public subtotalCents: number,
     public discountsCents: number,
     public taxCents: number,
     public totalCents: number,
+
     public createdAt: Date,
     public paidAt?: Date | null,
+
+    public paymentMethod?: PaymentMethod | null,
+    public paymentProvider?: string | null,
+    public externalReference?: string | null,
+    public notes?: string | null,
   ) {}
 }

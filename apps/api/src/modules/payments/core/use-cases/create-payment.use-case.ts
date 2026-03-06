@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PAYMENTS_REPOSITORY } from '../ports/tokens';
 import * as paymentRepository from '../ports/payment.repository';
+import { PaymentMethod } from '../ports/payment.repository';
 
 @Injectable()
 export class CreatePaymentUseCase {
@@ -15,13 +16,14 @@ export class CreatePaymentUseCase {
     bookingId?: string;
     clientId?: string;
     cashierStaffId: string;
-    paymentMethod: string;
+    paymentMethod?: string;
     paymentProvider?: string;
     externalReference?: string;
     notes?: string;
   }) {
     const payment = await this.paymentsRepo.createPayment({
       ...data,
+      paymentMethod: data.paymentMethod as PaymentMethod,
       status: 'pending',
       subtotalCents: 0,
       discountsCents: 0,
