@@ -198,3 +198,32 @@ export async function cancelPayment(paymentId: string) {
 export async function getPayment(paymentId: string) {
   return api<Payment>(`/payments/${paymentId}`);
 }
+
+export type AssignPaymentClientResponse = {
+  success: boolean;
+};
+
+export async function assignClientToPayment(params: {
+  paymentId: string;
+  clientId: string;
+}): Promise<AssignPaymentClientResponse> {
+  const { paymentId, clientId } = params;
+
+  if (!paymentId) {
+    throw new Error("paymentId is required");
+  }
+
+  if (!clientId) {
+    throw new Error("clientId is required");
+  }
+
+  return api<AssignPaymentClientResponse>(
+    `/payments/${paymentId}/assign-client`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        clientId,
+      }),
+    }
+  );
+}

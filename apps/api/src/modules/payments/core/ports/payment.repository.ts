@@ -37,4 +37,6 @@ export interface PaymentsRepositoryPort {
       totalCents: number;
     },
   ): Promise<void>;
+
+  assignClient(paymentId: string, clientId: string): Promise<void>;
 }

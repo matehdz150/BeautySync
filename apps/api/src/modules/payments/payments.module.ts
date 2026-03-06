@@ -14,6 +14,7 @@ import { FinalizePaymentUseCase } from './core/use-cases/finalize-payment.use-ca
 import { CancelPaymentUseCase } from './core/use-cases/cancel-payment.use-case';
 import { GetPaymentUseCase } from './core/use-cases/get-payment.use-case';
 import { DrizzleBookingsRepository } from './infrastructure/adapters/drizzle-bookings.repository';
+import { AssignClientToPaymentUseCase } from './core/use-cases/assign-client-to-payment.use-case';
 
 @Module({
   imports: [AuthModule],
@@ -29,7 +30,7 @@ import { DrizzleBookingsRepository } from './infrastructure/adapters/drizzle-boo
     FinalizePaymentUseCase,
     CancelPaymentUseCase,
     GetPaymentUseCase,
-
+    AssignClientToPaymentUseCase,
     {
       provide: PAYMENTS_REPOSITORY,
       useClass: DrizzlePaymentsRepository,

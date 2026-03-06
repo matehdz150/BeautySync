@@ -33,6 +33,7 @@ export function ClientSelectDropdown({ onSelect }: Props) {
       setLoading(true);
       try {
         const res = await getClients(orgId);
+        console.log(res);
         setClients(res ?? []);
       } finally {
         setLoading(false);
@@ -48,7 +49,7 @@ export function ClientSelectDropdown({ onSelect }: Props) {
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.email?.toLowerCase().includes(q) ||
-        c.phone?.includes(q)
+        c.phone?.includes(q),
     );
   }, [clients, search]);
 
@@ -79,18 +80,6 @@ export function ClientSelectDropdown({ onSelect }: Props) {
 
         {/* LIST */}
         <div className="max-h-[260px] overflow-y-auto space-y-1">
-          {loading && (
-            <p className="text-sm text-muted-foreground px-2 py-2">
-              Cargando clientes…
-            </p>
-          )}
-
-          {!loading && filtered.length === 0 && (
-            <p className="text-sm text-muted-foreground px-2 py-2">
-              No se encontraron clientes
-            </p>
-          )}
-
           {!loading &&
             filtered.map((client) => (
               <button
@@ -101,17 +90,33 @@ export function ClientSelectDropdown({ onSelect }: Props) {
                   setSearch("");
                 }}
                 className={cn(
-                  "w-full text-left px-3 py-2 rounded-md transition",
-                  "hover:bg-indigo-50"
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-md transition",
+                  "hover:bg-indigo-50",
                 )}
               >
-                <p className="text-sm font-medium">{client.name}</p>
+                {/* AVATAR */}
+                <div className="h-8 w-8 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center text-xs font-medium">
+                  {client.avatarUrl ? (
+                    <img
+                      src={client.avatarUrl}
+                      alt={client.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    client.name?.charAt(0).toUpperCase()
+                  )}
+                </div>
 
-                {(client.email || client.phone) && (
-                  <p className="text-xs text-muted-foreground">
-                    {client.email ?? client.phone}
-                  </p>
-                )}
+                {/* INFO */}
+                <div className="text-left">
+                  <p className="text-sm font-medium">{client.name}</p>
+
+                  {(client.email || client.phone) && (
+                    <p className="text-xs text-muted-foreground">
+                      {client.email ?? client.phone}
+                    </p>
+                  )}
+                </div>
               </button>
             ))}
         </div>

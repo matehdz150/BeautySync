@@ -1,5 +1,6 @@
 "use client";
 
+import { assignClientToBooking } from "@/lib/services/appointments";
 import {
   openPayment,
   openBookingPayment as openBookingPaymentService,
@@ -10,6 +11,7 @@ import {
   getPayment,
   Payment as ApiPayment,
   PaymentItem as ApiPaymentItem,
+  assignClientToPayment,
 } from "@/lib/services/payments";
 
 import { createContext, ReactNode, useContext, useReducer } from "react";
@@ -67,6 +69,8 @@ export type PaymentState = {
 
   staff?: Staff;
   client?: Client;
+
+  bookingId?: string;
 
   items: PaymentItem[];
 
@@ -169,6 +173,8 @@ type Ctx = {
   setStaff: (staff: Staff) => void;
 
   setPaymentMethod: (method: PaymentMethod) => void;
+
+  assignClient: (client: Client) => Promise<void>;
 };
 
 const PaymentContext = createContext<Ctx | null>(null);
@@ -265,6 +271,7 @@ OPEN BOOKING PAYMENT
       type: "SET_PAYMENT",
       payload: {
         paymentId: payment.id,
+        bookingId: params.bookingId,
 
         // 👇 cliente que viene del backend
         client: payment.client
@@ -388,6 +395,37 @@ OPEN BOOKING PAYMENT
     dispatch({ type: "RESET_PAYMENT" });
   }
 
+  async function assignClient(client: Client) {
+    if (!state.paymentId) return;
+
+    /* ======================
+     CASE 1: BOOKING
+  ====================== */
+
+    if (state.bookingId) {
+      if (!state.client) {
+        await assignClientToBooking({
+          bookingId: state.bookingId,
+          clientId: client.id,
+        });
+      }
+    } else {
+
+    /* ======================
+     CASE 2: POS PAYMENT
+  ====================== */
+      await assignClientToPayment({
+        paymentId: state.paymentId,
+        clientId: client.id,
+      });
+    }
+
+    dispatch({
+      type: "SET_CLIENT",
+      payload: client,
+    });
+  }
+
   /* =====================================================
   SETTERS
   ===================================================== */
@@ -417,6 +455,7 @@ OPEN BOOKING PAYMENT
         setClient,
         setStaff,
         setPaymentMethod,
+        assignClient
       }}
     >
       {children}

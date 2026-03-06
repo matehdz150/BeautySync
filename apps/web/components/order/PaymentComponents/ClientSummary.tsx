@@ -18,7 +18,7 @@ export function ClientSummary({
   onActionsClick,
   className,
 }: ClientSummaryProps) {
-  const { setClient } = usePayment();
+  const { assignClient } = usePayment();
 
   /* =========================
      ❌ SIN CLIENTE
@@ -28,7 +28,7 @@ export function ClientSummary({
       <div
         className={cn(
           "flex items-center justify-between gap-4 border rounded-xl p-4 bg-white w-full",
-          className
+          className,
         )}
       >
         <div className="flex items-center gap-4">
@@ -46,7 +46,13 @@ export function ClientSummary({
 
         <ClientSelectDropdown
           onSelect={(client) => {
-            setClient(client);
+            assignClient({
+              id: client.id,
+              name: client.name ?? "Cliente",
+              email: client.email ?? undefined,
+              phone: client.phone ?? null,
+              avatarUrl: client.avatarUrl ?? null,
+            });
           }}
         />
       </div>
@@ -61,7 +67,7 @@ export function ClientSummary({
     <div
       className={cn(
         "flex items-center justify-between gap-4 border rounded-xl p-4 bg-white w-full",
-        className
+        className,
       )}
     >
       <div className="flex items-center gap-4">
@@ -78,9 +84,7 @@ export function ClientSummary({
         </Avatar>
 
         <div className="space-y-0.5">
-          <p className="text-base font-semibold leading-tight">
-            {client.name}
-          </p>
+          <p className="text-base font-semibold leading-tight">{client.name}</p>
 
           {client.email && (
             <p className="text-sm text-muted-foreground">{client.email}</p>
