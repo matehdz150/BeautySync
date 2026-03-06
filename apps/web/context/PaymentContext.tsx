@@ -272,6 +272,7 @@ OPEN BOOKING PAYMENT
       payload: {
         paymentId: payment.id,
         bookingId: params.bookingId,
+        paymentMethod: payment.paymentMethod ?? undefined,
 
         // 👇 cliente que viene del backend
         client: payment.client
