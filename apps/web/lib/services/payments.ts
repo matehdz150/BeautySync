@@ -231,3 +231,27 @@ export async function assignClientToPayment(params: {
     }
   );
 }
+
+/* =====================
+   CLIENT PAYMENT DETAILS
+===================== */
+
+export type ClientPaymentDetails = {
+  payment: Payment;
+  items: PaymentItem[];
+  booking?: {
+    id: string;
+  } | null;
+};
+
+/* =====================
+   GET CLIENT PAYMENTS
+===================== */
+
+export async function getClientPayments(clientId: string) {
+  if (!clientId) {
+    throw new Error("clientId is required");
+  }
+
+  return api<ClientPaymentDetails[]>(`/payments/client/${clientId}`);
+}

@@ -15,6 +15,7 @@ import { CancelPaymentUseCase } from './core/use-cases/cancel-payment.use-case';
 import { GetPaymentUseCase } from './core/use-cases/get-payment.use-case';
 import { DrizzleBookingsRepository } from './infrastructure/adapters/drizzle-bookings.repository';
 import { AssignClientToPaymentUseCase } from './core/use-cases/assign-client-to-payment.use-case';
+import { GetClientPaymentsUseCase } from './core/use-cases/get-client-payments.use-case';
 
 @Module({
   imports: [AuthModule],
@@ -31,6 +32,7 @@ import { AssignClientToPaymentUseCase } from './core/use-cases/assign-client-to-
     CancelPaymentUseCase,
     GetPaymentUseCase,
     AssignClientToPaymentUseCase,
+    GetClientPaymentsUseCase,
     {
       provide: PAYMENTS_REPOSITORY,
       useClass: DrizzlePaymentsRepository,

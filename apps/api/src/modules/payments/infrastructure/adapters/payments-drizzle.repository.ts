@@ -198,4 +198,35 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
       })
       .where(eq(payments.id, paymentId));
   }
+
+  async findByClientId(clientId: string): Promise<Payment[]> {
+    const rows = await this.db
+      .select()
+      .from(payments)
+      .where(eq(payments.clientId, clientId))
+      .orderBy(desc(payments.createdAt));
+
+    return rows.map(
+      (row) =>
+        new Payment(
+          row.id,
+          row.organizationId,
+          row.branchId,
+          row.bookingId,
+          row.clientId,
+          row.cashierStaffId,
+          row.status,
+          row.subtotalCents,
+          row.discountsCents,
+          row.taxCents,
+          row.totalCents,
+          row.createdAt,
+          row.paidAt,
+          row.paymentMethod,
+          row.paymentProvider,
+          row.externalReference,
+          row.notes,
+        ),
+    );
+  }
 }

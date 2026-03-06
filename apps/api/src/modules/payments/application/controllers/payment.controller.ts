@@ -24,6 +24,7 @@ import { CancelPaymentUseCase } from '../../core/use-cases/cancel-payment.use-ca
 import { GetPaymentUseCase } from '../../core/use-cases/get-payment.use-case';
 import { FinalizePaymentDto } from '../dto/finalize-payment.dto';
 import { AssignClientToPaymentUseCase } from '../../core/use-cases/assign-client-to-payment.use-case';
+import { GetClientPaymentsUseCase } from '../../core/use-cases/get-client-payments.use-case';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('payments')
@@ -37,6 +38,7 @@ export class PaymentsController {
     private readonly cancelPayment: CancelPaymentUseCase,
     private readonly getPayment: GetPaymentUseCase,
     private readonly assignClientToPayment: AssignClientToPaymentUseCase,
+    private readonly getClientPayments: GetClientPaymentsUseCase,
   ) {}
 
   /* =====================
@@ -105,6 +107,14 @@ export class PaymentsController {
   @Post(':id/cancel')
   cancel(@Param('id') paymentId: string) {
     return this.cancelPayment.execute(paymentId);
+  }
+
+  /* =====================
+     GET PAYMENT FROM A CLIENT
+  ===================== */
+  @Get('/client/:clientId')
+  getClientPaymentsHandler(@Param('clientId') clientId: string) {
+    return this.getClientPayments.execute(clientId);
   }
 
   /* =====================
