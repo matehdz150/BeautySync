@@ -25,6 +25,7 @@ import {
   branchSettings,
   branches,
   clients,
+  payments,
   publicBookings,
   publicUserClients,
   publicUsers,
@@ -1333,7 +1334,29 @@ export class BookingsCoreService {
         })
         .where(eq(appointments.publicBookingId, bookingId));
 
-      // 5) Schedule jobs (🔥 AQUÍ es el único lugar)
+      /* =========================
+       5️⃣ SINCRONIZAR PAYMENT
+    ========================= */
+
+      const payment = await tx.query.payments.findFirst({
+        where: and(
+          eq(payments.bookingId, bookingId),
+          eq(payments.status, 'pending'),
+        ),
+        columns: { id: true },
+      });
+
+      if (payment) {
+        await tx
+          .update(payments)
+          .set({ clientId })
+          .where(eq(payments.id, payment.id));
+      }
+
+      /* =========================
+       6️⃣ Schedule jobs
+    ========================= */
+
       await this.publicBookingJobsService.scheduleBookingLifecycle({
         bookingId,
         startsAtUtc: booking.startsAt,

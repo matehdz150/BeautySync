@@ -163,4 +163,13 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
       row.paidAt,
     );
   }
+
+  async assignClient(paymentId: string, clientId: string): Promise<void> {
+    await this.db
+      .update(payments)
+      .set({
+        clientId,
+      })
+      .where(eq(payments.id, paymentId));
+  }
 }

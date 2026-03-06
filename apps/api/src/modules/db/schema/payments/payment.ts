@@ -110,5 +110,9 @@ export const payments = pgTable(
     bookingIdx: index('payments_booking_idx').on(table.bookingId),
 
     statusIdx: index('payments_status_idx').on(table.status),
+    bookingStatusIdx: index('payments_booking_status_idx').on(
+      table.bookingId,
+      table.status,
+    ),
   }),
 );
