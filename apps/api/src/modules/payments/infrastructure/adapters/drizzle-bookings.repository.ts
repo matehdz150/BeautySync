@@ -8,6 +8,8 @@ import { BookingsRepositoryPort } from '../../core/ports/bookings.repository';
 import { publicUserClients } from 'src/modules/db/schema/public/public-user-clients';
 import { publicBookings } from 'src/modules/db/schema/public/public-bookings';
 import { clients } from 'src/modules/db/schema/clients/clients';
+import { staff } from 'src/modules/db/schema/staff/staff';
+import { FullBooking } from '../../core/entities/booking.entity';
 
 @Injectable()
 export class DrizzleBookingsRepository implements BookingsRepositoryPort {
@@ -87,5 +89,79 @@ export class DrizzleBookingsRepository implements BookingsRepositoryPort {
     return {
       id: row.id,
     };
+  }
+
+  async findFullBookingById(bookingId: string) {
+    const rows = await this.db
+      .select({
+        bookingId: publicBookings.id,
+        branchId: publicBookings.branchId,
+        startsAt: publicBookings.startsAt,
+        endsAt: publicBookings.endsAt,
+        status: publicBookings.status,
+        paymentMethod: publicBookings.paymentMethod,
+        totalCents: publicBookings.totalCents,
+        notes: publicBookings.notes,
+
+        appointmentId: appointments.id,
+        appointmentStart: appointments.start,
+        appointmentEnd: appointments.end,
+        priceCents: appointments.priceCents,
+
+        serviceId: services.id,
+        serviceName: services.name,
+        serviceDuration: services.durationMin,
+
+        staffId: staff.id,
+        staffName: staff.name,
+        staffAvatar: staff.avatarUrl,
+      })
+      .from(publicBookings)
+      .leftJoin(
+        appointments,
+        eq(appointments.publicBookingId, publicBookings.id),
+      )
+      .leftJoin(services, eq(services.id, appointments.serviceId))
+      .leftJoin(staff, eq(staff.id, appointments.staffId))
+      .where(eq(publicBookings.id, bookingId));
+
+    if (!rows.length) return null;
+
+    const booking: FullBooking = {
+      id: rows[0].bookingId,
+      branchId: rows[0].branchId,
+      startsAt: rows[0].startsAt,
+      endsAt: rows[0].endsAt,
+      status: rows[0].status,
+      paymentMethod: rows[0].paymentMethod,
+      totalCents: rows[0].totalCents,
+      notes: rows[0].notes ?? null,
+      appointments: [],
+    };
+
+    for (const row of rows) {
+      if (!row.appointmentId) continue;
+
+      booking.appointments.push({
+        id: row.appointmentId,
+        start: row.appointmentStart!,
+        end: row.appointmentEnd!,
+        priceCents: row.priceCents ?? 0,
+
+        service: {
+          id: row.serviceId!,
+          name: row.serviceName ?? '',
+          durationMin: row.serviceDuration ?? 0,
+        },
+
+        staff: {
+          id: row.staffId!,
+          name: row.staffName ?? '',
+          avatarUrl: row.staffAvatar ?? null,
+        },
+      });
+    }
+
+    return booking;
   }
 }

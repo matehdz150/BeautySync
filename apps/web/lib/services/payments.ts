@@ -236,12 +236,49 @@ export async function assignClientToPayment(params: {
    CLIENT PAYMENT DETAILS
 ===================== */
 
+export type BookingAppointment = {
+  id: string;
+  start: string;
+  end: string;
+  priceCents: number;
+
+  service: {
+    id: string;
+    name: string;
+    durationMin: number;
+  };
+
+  staff: {
+    id: string;
+    name: string;
+    avatarUrl?: string | null;
+  };
+};
+
+export type Booking = {
+  id: string;
+
+  branchId: string;
+
+  startsAt: string;
+  endsAt: string;
+
+  status: string;
+
+  paymentMethod: string;
+
+  totalCents: number;
+
+  notes?: string | null;
+
+  appointments: BookingAppointment[];
+};
+
 export type ClientPaymentDetails = {
   payment: Payment;
   items: PaymentItem[];
-  booking?: {
-    id: string;
-  } | null;
+
+  booking?: Booking | null;
 };
 
 /* =====================

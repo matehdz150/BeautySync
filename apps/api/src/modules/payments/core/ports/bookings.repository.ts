@@ -1,3 +1,5 @@
+import { FullBooking } from '../entities/booking.entity';
+
 export interface BookingsRepositoryPort {
   findBookingServices(bookingId: string): Promise<
     {
@@ -18,4 +20,6 @@ export interface BookingsRepositoryPort {
   findById(bookingId: string): Promise<{
     id: string;
   } | null>;
+
+  findFullBookingById(bookingId: string): Promise<FullBooking | null>;
 }
