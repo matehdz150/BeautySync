@@ -24,25 +24,15 @@ export default function ClientDetailView({ data }: Props) {
       <ClientTabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-10">
-        {activeTab === "overview" && (
-          <BookingsSection bookings={bookings} />
-        )}
+        {activeTab === "overview" && <BookingsSection bookings={bookings} />}
 
-        {activeTab === "reviews" && (
-          <ReviewsSection reviews={reviews} />
-        )}
+        {activeTab === "reviews" && <ReviewsSection reviews={reviews} />}
 
-        {activeTab === "bookings" && (
-          <BookingsSection bookings={bookings} />
-        )}
+        {activeTab === "bookings" && <BookingsSection bookings={bookings} />}
 
-        {activeTab === "sales" && (
-          <SalesSection bookings={bookings} />
-        )}
+        {activeTab === "sales" && <SalesSection clientId={client.id} />}
 
-        {activeTab === "rewards" && (
-          <RewardsSection client={client} />
-        )}
+        {activeTab === "rewards" && <RewardsSection client={client} />}
       </div>
     </div>
   );

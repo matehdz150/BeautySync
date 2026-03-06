@@ -7,6 +7,7 @@ import * as paymentRepository from '../ports/payment.repository';
 import * as bookingsRepository from '../ports/bookings.repository';
 
 import { ClientPaymentDetails } from '../entities/payment.entity';
+import { FullBooking } from '../entities/booking.entity';
 
 @Injectable()
 export class GetClientPaymentsUseCase {
@@ -19,33 +20,23 @@ export class GetClientPaymentsUseCase {
   ) {}
 
   async execute(clientId: string): Promise<ClientPaymentDetails[]> {
-    /* =========================
-       1️⃣ Obtener payments del cliente
-    ========================= */
-
     const payments = await this.paymentsRepo.findByClientId(clientId);
 
     if (!payments.length) {
       return [];
     }
 
-    /* =========================
-       2️⃣ Construir respuesta
-    ========================= */
-
     const results: ClientPaymentDetails[] = [];
 
     for (const payment of payments) {
       const items = await this.paymentsRepo.getItems(payment.id);
 
-      let booking: { id: string } | null = null;
+      let booking: FullBooking | null = null;
 
       if (payment.bookingId) {
-        const bookingData = await this.bookingsRepo.findById(payment.bookingId);
-
-        if (bookingData) {
-          booking = { id: bookingData.id };
-        }
+        booking = await this.bookingsRepo.findFullBookingById(
+          payment.bookingId,
+        );
       }
 
       results.push({
