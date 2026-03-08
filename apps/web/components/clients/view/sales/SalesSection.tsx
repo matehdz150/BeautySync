@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
 import {
   getClientPayments,
   ClientPaymentDetails,
@@ -11,6 +13,8 @@ interface Props {
 }
 
 export default function SalesSection({ clientId }: Props) {
+  const router = useRouter();
+
   const [payments, setPayments] = useState<ClientPaymentDetails[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -57,21 +61,19 @@ export default function SalesSection({ clientId }: Props) {
           const booking = p.booking;
           const items = p.items;
 
-          const date =
-            booking?.startsAt ?? payment.createdAt;
+          const date = booking?.startsAt ?? payment.createdAt;
 
           return (
             <div
               key={payment.id}
-              className="border rounded-xl p-4 bg-white flex flex-col gap-3"
+              onClick={() => router.push(`/dashboard/order/${payment.id}`)}
+              className="border rounded-xl p-4 bg-white flex flex-col gap-3 cursor-pointer hover:bg-muted/40 transition"
             >
               {/* HEADER */}
               <div className="flex justify-between items-start">
                 <div>
                   <p className="font-medium">
-                    {booking
-                      ? "Reserva"
-                      : "Venta POS"}
+                    {booking ? "Reserva" : "Venta POS"}
                   </p>
 
                   <p className="text-xs text-muted-foreground">
@@ -89,9 +91,7 @@ export default function SalesSection({ clientId }: Props) {
                 <div className="space-y-1">
                   {booking.appointments.map((a) => (
                     <div key={a.id}>
-                      <p className="font-medium">
-                        {a.service.name}
-                      </p>
+                      <p className="font-medium">{a.service.name}</p>
 
                       <p className="text-xs text-muted-foreground">
                         {a.staff?.name ?? "—"}
@@ -103,9 +103,7 @@ export default function SalesSection({ clientId }: Props) {
                 <div className="space-y-1">
                   {items.map((i) => (
                     <div key={i.id}>
-                      <p className="font-medium">
-                        {i.label}
-                      </p>
+                      <p className="font-medium">{i.label}</p>
 
                       <p className="text-xs text-muted-foreground">
                         ${(i.amountCents / 100).toLocaleString()}
