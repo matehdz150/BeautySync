@@ -1,12 +1,16 @@
 import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+
 import { RankingsService } from './rankings.service';
-import { PublicAuthGuard } from '../auth/public/public-auth.guard';
-import * as publicUserDecorator from '../auth/public/public-user.decorator';
+
+import { PublicAuthGuard } from '../auth/application/guards/public-auth.guard';
+import { PublicUser } from '../auth/application/decorators/public-user.decorator';
+import * as publicUserDecorator from '../auth/application/decorators/public-user.decorator';
 
 @Controller('rankings')
 @UseGuards(PublicAuthGuard)
 export class RankingsController {
   constructor(private readonly rankingsService: RankingsService) {}
+
   @Post(':bookingId/rating')
   async rateBooking(
     @Param('bookingId') bookingId: string,
@@ -15,8 +19,7 @@ export class RankingsController {
       rating: number;
       comment?: string;
     },
-    @publicUserDecorator.PublicUser()
-    user: publicUserDecorator.PublicUserSession,
+    @PublicUser() user: publicUserDecorator.PublicSession,
   ) {
     return this.rankingsService.createBookingRating({
       bookingId,

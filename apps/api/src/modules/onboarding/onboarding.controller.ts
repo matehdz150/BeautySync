@@ -1,7 +1,7 @@
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/manager/guards/jwt-auth.guard';
-import { Roles } from '../auth/manager/roles.decorator';
-import { RolesGuard } from '../auth/manager/guards/roles.guard';
+import { JwtAuthGuard } from '../auth/application/guards/jwt-auth.guard';
+import { Roles } from '../auth/application/decorators/roles.decorator';
+import { RolesGuard } from '../auth/application/guards/roles.guard';
 import { OnboardOwnerDto } from './dto/onboard-owner.dto';
 import { OnboardingService } from './onboarding.service';
 

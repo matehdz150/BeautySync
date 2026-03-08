@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { StaffService } from './staff.service';
 import { StaffController } from './staff.controller';
-import { AuthModule } from 'src/modules/auth/manager/auth.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   controllers: [StaffController],

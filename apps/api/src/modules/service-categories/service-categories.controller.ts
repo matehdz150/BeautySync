@@ -11,9 +11,9 @@ import {
 
 import { ServiceCategoriesService } from './service-categories.service';
 
-import { JwtAuthGuard } from 'src/modules/auth/manager/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/modules/auth/manager/guards/roles.guard';
-import { Roles } from 'src/modules/auth/manager/roles.decorator';
+import { JwtAuthGuard } from '../auth/application/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/application/guards/roles.guard';
+import { Roles } from '../auth/application/decorators/roles.decorator';
 
 import { CreateServiceCategoryDto } from './dto/create-service-category.dto';
 import { UpdateServiceCategoryDto } from './dto/update-service-category.dto';

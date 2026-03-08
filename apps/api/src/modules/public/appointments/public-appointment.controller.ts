@@ -1,8 +1,8 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { PublicAppointmentsService } from './public-appointments.service';
 import { GetMyPublicAppointmentsQueryDto } from '../dto/get-my-appointments.dto';
-import { PublicUser } from 'src/modules/auth/public/public-user.decorator';
-import { PublicAuthGuard } from 'src/modules/auth/public/public-auth.guard';
+import { PublicUser } from 'src/modules/auth/application/decorators/public-user.decorator';
+import { PublicAuthGuard } from 'src/modules/auth/application/guards/public-auth.guard';
 
 @Controller('public/appointments')
 export class PublicAppointmentController {

@@ -9,8 +9,8 @@ import {
   Get,
 } from '@nestjs/common';
 
-import { PublicAuthGuard } from '../../auth/public/public-auth.guard';
-import { PublicUser } from '../../auth/public/public-user.decorator';
+import { PublicAuthGuard } from 'src/modules/auth/application/guards/public-auth.guard';
+import { PublicUser } from 'src/modules/auth/application/decorators/public-user.decorator';
 
 import { ChatService } from '../core/chat.service';
 import { SendMessageDto } from '../manager/dto/send-message.dto';

@@ -12,10 +12,10 @@ import {
 import { ServicesService } from './services.service';
 import { CreateServiceDto } from '../dto/create-service.dto';
 import { UpdateServiceDto } from '../dto/update-service.dto';
-import { Roles } from 'src/modules/auth/manager/roles.decorator';
+import { Roles } from 'src/modules/auth/application/decorators/roles.decorator';
 import { AssignServiceDto } from '../dto/asign-service.dto';
-import { JwtAuthGuard } from 'src/modules/auth/manager/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/modules/auth/manager/guards/roles.guard';
+import { JwtAuthGuard } from 'src/modules/auth/application/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/modules/auth/application/guards/roles.guard';
 import { AddNoteDto, AddRuleDto } from '../dto/notes.dto';
 
 @Controller('services')

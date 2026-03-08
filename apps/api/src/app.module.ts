@@ -14,7 +14,7 @@ import { ClientsModule } from './modules/clients/clients.module';
 import { ServiceCategoriesModule } from './modules/service-categories/service-categories.module';
 import { ServicesModule } from './modules/services/services.module';
 import { StaffServicesModule } from './modules/staff-services/staff-services.module';
-import { AuthModule } from './modules/auth/manager/auth.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { UploadsModule } from './modules/uploads/uploads.module';

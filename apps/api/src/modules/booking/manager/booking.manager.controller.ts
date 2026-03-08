@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 
-import { JwtAuthGuard } from 'src/modules/auth/manager/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/modules/auth/manager/guards/roles.guard';
+import { JwtAuthGuard } from 'src/modules/auth/application/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/modules/auth/application/guards/roles.guard';
 import { BookingsManagerService } from './booking.manager.service';
 import { CreateManagerBookingDto } from '../dto/create-booking-manager.dto';
 import * as managerChainDto from '../dto/manager-chain.dto';

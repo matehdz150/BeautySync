@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PublicPresenceService } from './public-presence.service';
 import { PublicPresenceController } from './public-presence.controller';
-import { AuthModule } from '../auth/manager/auth.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [AuthModule],

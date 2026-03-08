@@ -5,7 +5,7 @@ import { AddPaymentItemUseCase } from './core/use-cases/add-payment-item.use-cas
 import { CreatePaymentUseCase } from './core/use-cases/create-payment.use-case';
 import { MarkPaymentPaidUseCase } from './core/use-cases/mark-payment-paid.use-case';
 import { DrizzlePaymentsRepository } from './infrastructure/adapters/payments-drizzle.repository';
-import { AuthModule } from '../auth/manager/auth.module';
+import { AuthModule } from '../auth/auth.module';
 import { OpenBookingPaymentUseCase } from './core/use-cases/open-booking-payment.use-case';
 import { OpenPaymentUseCase } from './core/use-cases/open-payment.use-case';
 import { RecalculatePaymentTotalsUseCase } from './core/use-cases/recalculate-payment-totals.use-case';

@@ -13,9 +13,9 @@ import {
 import { StaffService } from './staff.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
-import { RolesGuard } from 'src/modules/auth/manager/guards/roles.guard';
-import { JwtAuthGuard } from 'src/modules/auth/manager/guards/jwt-auth.guard';
-import { Roles } from 'src/modules/auth/manager/roles.decorator';
+import { RolesGuard } from '../auth/application/guards/roles.guard';
+import { JwtAuthGuard } from '../auth/application/guards/jwt-auth.guard';
+import { Roles } from '../auth/application/decorators/roles.decorator';
 import { InviteStaffDto } from './dto/invites-staff.dto';
 
 @Controller('staff')
