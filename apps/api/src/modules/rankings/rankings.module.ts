@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { RankingsService } from './rankings.service';
 import { RankingsController } from './rankings.controller';
-import { PublicAuthModule } from '../auth/public/public-auth.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PublicAuthModule],
+  imports: [AuthModule],
   controllers: [RankingsController],
   providers: [RankingsService],
 })

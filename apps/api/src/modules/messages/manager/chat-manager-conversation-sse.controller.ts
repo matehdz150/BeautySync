@@ -13,7 +13,7 @@ import {
 import express from 'express';
 import { eq } from 'drizzle-orm';
 
-import { JwtAuthGuard } from '../../auth/manager/guards/jwt-auth.guard';
+import { JwtAuthGuard } from 'src/modules/auth/application/guards/jwt-auth.guard';
 import { ChatSseService } from '../core/ChatSse.service';
 
 import * as client from 'src/modules/db/client';

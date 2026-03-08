@@ -11,8 +11,8 @@ import {
 } from '@nestjs/common';
 import { BranchSettingsService } from './branch-settings.service';
 import { UpdateBranchSettingsDto } from '../dto/update-branch-settings.dto';
-import { JwtAuthGuard } from 'src/modules/auth/manager/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/modules/auth/manager/guards/roles.guard';
+import { JwtAuthGuard } from 'src/modules/auth/application/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/modules/auth/application/guards/roles.guard';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('branches/:branchId/settings')

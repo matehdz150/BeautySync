@@ -9,8 +9,8 @@ import {
 } from '@nestjs/common';
 import type express from 'express';
 
-import { PublicAuthGuard } from '../../auth/public/public-auth.guard';
-import { PublicUser } from '../../auth/public/public-user.decorator';
+import { PublicAuthGuard } from 'src/modules/auth/application/guards/public-auth.guard';
+import { PublicUser } from 'src/modules/auth/application/decorators/public-user.decorator';
 
 import { ChatSseService } from '../core/ChatSse.service';
 import { ChatService } from '../core/chat.service';

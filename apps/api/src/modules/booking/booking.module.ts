@@ -3,14 +3,14 @@ import { BookingsPublicService } from './public/booking.public.service';
 import { BookingsPublicController } from './public/booking.public.controller';
 import { BookingsCoreService } from './booking.core.service';
 import { PublicBookingJobsService } from '../queues/booking/public-booking-job.service';
-import { PublicAuthModule } from '../auth/public/public-auth.module';
 import { DbModule } from '../db/db.module';
 import { BookingsManagerController } from './manager/booking.manager.controller';
 import { BookingsManagerService } from './manager/booking.manager.service';
 import { NotificationsJobsService } from '../queues/notifications/notifications-job.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PublicAuthModule, DbModule],
+  imports: [AuthModule, DbModule],
   controllers: [BookingsPublicController, BookingsManagerController],
   providers: [
     BookingsPublicService,

@@ -1,12 +1,11 @@
 import { Module } from '@nestjs/common';
 import { OnboardingService } from './onboarding.service';
 import { OnboardingController } from './onboarding.controller';
-import { AuthModule } from 'src/modules/auth/manager/auth.module';
+import { AuthModule } from '../auth/auth.module';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
-  imports: [
-    AuthModule, // 👈 AHORA SÍ LLEGA JwtService
-  ],
+  imports: [AuthModule, JwtModule],
   controllers: [OnboardingController],
   providers: [OnboardingService],
 })

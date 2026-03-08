@@ -10,13 +10,13 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/manager/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/manager/guards/roles.guard';
-import { Roles } from '../../auth/manager/roles.decorator';
+import { JwtAuthGuard } from 'src/modules/auth/application/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/modules/auth/application/guards/roles.guard';
+import { Roles } from 'src/modules/auth/application/decorators/roles.decorator';
 
 import { ChatService } from '../core/chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
-import { CurrentUser } from 'src/modules/auth/manager/user.decorator';
+import { CurrentUser } from 'src/modules/auth/application/decorators/current-user.decorator';
 import { GetMessagesQueryDto } from './dto/get-messages.query';
 import type express from 'express';
 import { ChatSseService } from '../core/ChatSse.service';

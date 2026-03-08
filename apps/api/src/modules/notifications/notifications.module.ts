@@ -3,9 +3,10 @@ import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsSseService } from './notifications-sse.service';
 import { NotificationsRealtimeBridge } from './notifications.realtime';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [],
+  imports: [AuthModule],
   controllers: [NotificationsController],
   providers: [
     NotificationsService,

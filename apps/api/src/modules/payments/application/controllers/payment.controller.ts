@@ -8,8 +8,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { JwtAuthGuard } from 'src/modules/auth/manager/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/modules/auth/manager/guards/roles.guard';
+import { JwtAuthGuard } from 'src/modules/auth/application/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/modules/auth/application/guards/roles.guard';
 
 import { AddPaymentItemsDto } from '../dto/add-payment-item.dto';
 import { OpenPaymentDto } from '../dto/open-payment.dto';

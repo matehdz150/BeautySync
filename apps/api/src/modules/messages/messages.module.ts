@@ -18,13 +18,12 @@ import { ChatConversationSseController } from './manager/chat-manager-conversati
 import { ChatPublicController } from './public/chat-public.controller';
 import { ChatPublicSseController } from './public/chat-public-sse.controller';
 import { DrizzleChatRepository } from './infrastructure/drizzle/chat.drizzle.repository';
-import { AuthModule } from '../auth/manager/auth.module';
-import { PublicAuthModule } from '../auth/public/public-auth.module';
+import { AuthModule } from '../auth/auth.module';
 import { CHAT_REPOSITORY } from './core/chat.repository';
 import { NotificationsJobsService } from '../queues/notifications/notifications-job.service';
 
 @Module({
-  imports: [DbModule, RedisModule, AuthModule, PublicAuthModule],
+  imports: [DbModule, RedisModule, AuthModule],
 
   controllers: [
     // manager

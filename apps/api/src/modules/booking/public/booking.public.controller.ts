@@ -11,8 +11,8 @@ import {
 import { BookingsPublicService } from './booking.public.service';
 import { CreatePublicBookingDto } from '../dto/create-booking-public.dto';
 
-import { PublicAuthGuard } from 'src/modules/auth/public/public-auth.guard';
-import { PublicUser } from 'src/modules/auth/public/public-user.decorator';
+import { PublicAuthGuard } from 'src/modules/auth/application/guards/public-auth.guard';
+import { PublicUser } from 'src/modules/auth/application/decorators/public-user.decorator';
 
 @Controller('public/booking')
 export class BookingsPublicController {

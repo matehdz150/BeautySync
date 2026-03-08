@@ -4,10 +4,10 @@ import { CreateBranchDto } from '../dto/create-branch.dto';
 import { UpdateBranchLocationDto } from '../dto/branch-location.dto';
 import { UpdateBranchDto } from '../dto/update-branch.dto';
 import { UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/manager/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/manager/guards/roles.guard';
-import { OrgParamGuard } from '../../auth/manager/guards/orgParam.guard';
-import { BranchOwnerGuard } from '../../auth/manager/guards/branch-owner.guard';
+import { JwtAuthGuard } from 'src/modules/auth/application/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/modules/auth/application/guards/roles.guard';
+import { BranchAccessGuard } from 'src/modules/auth/application/guards/branch-access.guard';
+import { OrganizationAccessGuard } from 'src/modules/auth/application/guards/organization-access.guard';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('branches')
@@ -21,7 +21,7 @@ export class BranchesController {
   }
 
   //ruta para modificar la ubicacion del local, se usa en el dashboard, en la parte de configuracion del negocio
-  @UseGuards(BranchOwnerGuard)
+  @UseGuards(BranchAccessGuard)
   @Patch(':id/location')
   async updateLocation(
     @Param('id') id: string,
@@ -30,18 +30,18 @@ export class BranchesController {
     return this.service.updateLocation(id, dto);
   }
 
-  @UseGuards(BranchOwnerGuard)
+  @UseGuards(BranchAccessGuard)
   @Get(':id/basic')
   getBasic(@Param('id') id: string) {
     return this.service.getBasic(id);
   }
 
-  @UseGuards(BranchOwnerGuard)
+  @UseGuards(BranchAccessGuard)
   @Patch(':id')
   async updateBranch(@Param('id') id: string, @Body() dto: UpdateBranchDto) {
     return this.service.updateBranch(id, dto);
   }
-  @UseGuards(OrgParamGuard)
+  @UseGuards(OrganizationAccessGuard)
   @Get('/organization/:orgId')
   findByOrg(@Param('orgId') orgId: string) {
     return this.service.findByOrg(orgId);

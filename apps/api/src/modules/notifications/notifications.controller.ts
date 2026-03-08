@@ -18,9 +18,9 @@ import express from 'express';
 import { NotificationsService } from './notifications.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 
-import { JwtAuthGuard } from '../auth/manager/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/manager/guards/roles.guard';
-import { Roles } from '../auth/manager/roles.decorator';
+import { JwtAuthGuard } from '../auth/application/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/application/guards/roles.guard';
+import { Roles } from '../auth/application/decorators/roles.decorator';
 import { NotificationsSseService } from './notifications-sse.service';
 import { and, eq } from 'drizzle-orm';
 import { branches } from '../db/schema';

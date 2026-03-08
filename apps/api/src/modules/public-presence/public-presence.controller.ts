@@ -1,10 +1,10 @@
 import { Controller, Get, Body, Patch, Param, UseGuards } from '@nestjs/common';
 import { PublicPresenceService } from './public-presence.service';
-import { JwtAuthGuard } from '../auth/manager/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/manager/guards/roles.guard';
-import { BranchOwnerGuard } from '../auth/manager/guards/branch-owner.guard';
+import { JwtAuthGuard } from '../auth/application/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/application/guards/roles.guard';
+import { BranchAccessGuard } from '../auth/application/guards/branch-access.guard';
 
-@UseGuards(JwtAuthGuard, RolesGuard, BranchOwnerGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, BranchAccessGuard)
 @Controller('public-presence/:branchId')
 export class PublicPresenceController {
   constructor(private readonly publicPresenceService: PublicPresenceService) {}
