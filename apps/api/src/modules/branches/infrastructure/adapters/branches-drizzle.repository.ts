@@ -7,12 +7,17 @@ import {
 import * as client from 'src/modules/db/client';
 import { branches, services, staff } from 'src/modules/db/schema';
 import { and, eq } from 'drizzle-orm';
-import { CreateBranchDto } from '../dto/create-branch.dto';
-import { UpdateBranchLocationDto } from '../dto/branch-location.dto';
-import { UpdateBranchDto } from '../dto/update-branch.dto';
+import {
+  BranchesRepository,
+  CreateBranchInput,
+  UpdateBranchLocationInput,
+  UpdateBranchInput,
+} from '../../core/ports/branches.repository';
+import { BranchMapper } from '../mappers/branch.mapper';
+import { Branch } from '../../core/entities/branch.entity';
 
 @Injectable()
-export class BranchesService {
+export class BranchesDrizzleRepository implements BranchesRepository {
   constructor(@Inject('DB') private db: client.DB) {}
 
   findAll() {
@@ -25,7 +30,7 @@ export class BranchesService {
     });
   }
 
-  async create(data: CreateBranchDto) {
+  async create(data: CreateBranchInput) {
     const lat = data.lat;
     const lng = data.lng;
 
@@ -55,7 +60,6 @@ export class BranchesService {
   }
 
   async findBranchByUser(userId: string) {
-    // buscar si es staff
     const staffMember = await this.db.query.staff.findFirst({
       where: eq(staff.userId, userId),
     });
@@ -67,17 +71,20 @@ export class BranchesService {
       };
     }
 
-    // buscar branch
-    const branchResult = await this.db.query.branches.findFirst({
+    const branchRow = await this.db.query.branches.findFirst({
       where: eq(branches.id, staffMember.branchId),
     });
 
+    if (!branchRow) {
+      return { branch: null };
+    }
+
     return {
-      branch: branchResult,
+      branch: BranchMapper.toDomain(branchRow),
     };
   }
 
-  async updateLocation(branchId: string, dto: UpdateBranchLocationDto) {
+  async updateLocation(branchId: string, dto: UpdateBranchLocationInput) {
     const [updated] = await this.db
       .update(branches)
       .set({
@@ -96,29 +103,7 @@ export class BranchesService {
     return updated;
   }
 
-  async getBranchForAi(branchId: string) {
-    if (!branchId) throw new BadRequestException('branchId requerido');
-
-    const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.id, branchId),
-    });
-
-    if (!branch) throw new NotFoundException('Sucursal no encontrada');
-
-    const branchServices = await this.db.query.services.findMany({
-      where: and(eq(services.branchId, branch.id), eq(services.isActive, true)),
-      orderBy: (services, { asc }) => asc(services.name),
-    });
-
-    return {
-      branch,
-      services: branchServices,
-    };
-  }
-
-  async updateBranch(branchId: string, dto: UpdateBranchDto) {
-    if (!branchId) throw new BadRequestException('branchId requerido');
-
+  async updateBranch(branchId: string, dto: UpdateBranchInput) {
     const hasSomethingToUpdate =
       typeof dto.name === 'string' ||
       typeof dto.address === 'string' ||
@@ -131,10 +116,9 @@ export class BranchesService {
     const [updated] = await this.db
       .update(branches)
       .set({
-        name: typeof dto.name === 'string' ? dto.name : undefined,
-        address: typeof dto.address === 'string' ? dto.address : undefined,
-        description:
-          typeof dto.description === 'string' ? dto.description : undefined,
+        name: dto.name,
+        address: dto.address,
+        description: dto.description,
         updatedAt: new Date(),
       })
       .where(eq(branches.id, branchId))
@@ -146,8 +130,6 @@ export class BranchesService {
   }
 
   async getBasic(branchId: string) {
-    if (!branchId) throw new BadRequestException('branchId requerido');
-
     const branch = await this.db.query.branches.findFirst({
       where: eq(branches.id, branchId),
       columns: {
@@ -161,5 +143,38 @@ export class BranchesService {
     if (!branch) throw new NotFoundException('Sucursal no encontrada');
 
     return branch;
+  }
+
+  async getBranchForAi(branchId: string): Promise<{
+    branch: Branch;
+    services: { name: string }[];
+  }> {
+    if (!branchId) {
+      throw new BadRequestException('branchId requerido');
+    }
+
+    const branchRow = await this.db.query.branches.findFirst({
+      where: eq(branches.id, branchId),
+    });
+
+    if (!branchRow) {
+      throw new NotFoundException('Sucursal no encontrada');
+    }
+
+    const branchServices = await this.db.query.services.findMany({
+      where: and(
+        eq(services.branchId, branchRow.id),
+        eq(services.isActive, true),
+      ),
+      orderBy: (services, { asc }) => asc(services.name),
+      columns: {
+        name: true,
+      },
+    });
+
+    return {
+      branch: BranchMapper.toDomain(branchRow),
+      services: branchServices,
+    };
   }
 }

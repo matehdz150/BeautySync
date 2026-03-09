@@ -1,25 +1,22 @@
-// src/modules/branch/branch-settings.service.ts
-
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { branchSettings } from 'src/modules/db/schema';
 import { eq } from 'drizzle-orm';
 import * as client from 'src/modules/db/client';
-
-type UpdateBranchSettingsInput = {
-  timezone?: string;
-  minBookingNoticeMin?: number;
-  maxBookingAheadDays?: number;
-  cancelationWindowMin?: number;
-  rescheduleWindowMin?: number;
-  bufferBeforeMin?: number;
-  bufferAfterMin?: number;
-};
+import {
+  BranchSettingsRepository,
+  UpdateBranchSettingsInput,
+} from '../../core/ports/branch-settings.repository';
+import { BranchSettingsMapper } from '../mappers/branch-settings.mapper';
+import { BranchSettings } from '../../core/entities/branch-settings.entity';
 
 @Injectable()
-export class BranchSettingsService {
+export class BranchSettingsDrizzleRepository implements BranchSettingsRepository {
   constructor(@Inject('DB') private readonly db: client.DB) {}
 
-  async update(branchId: string, input: UpdateBranchSettingsInput) {
+  async update(
+    branchId: string,
+    input: UpdateBranchSettingsInput,
+  ): Promise<BranchSettings> {
     const existing = await this.db.query.branchSettings.findFirst({
       where: eq(branchSettings.branchId, branchId),
     });
@@ -43,7 +40,7 @@ export class BranchSettingsService {
         })
         .returning();
 
-      return created;
+      return BranchSettingsMapper.toDomain(created);
     }
 
     const [updated] = await this.db
@@ -52,7 +49,7 @@ export class BranchSettingsService {
       .where(eq(branchSettings.branchId, branchId))
       .returning();
 
-    return updated;
+    return BranchSettingsMapper.toDomain(updated);
   }
 
   async getByBranch(branchId: string) {

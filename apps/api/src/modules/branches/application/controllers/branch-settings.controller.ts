@@ -1,5 +1,3 @@
-// src/modules/branch/branch-settings.controller.ts
-
 import {
   Body,
   Controller,
@@ -9,22 +7,29 @@ import {
   ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
-import { BranchSettingsService } from './branch-settings.service';
+
 import { UpdateBranchSettingsDto } from '../dto/update-branch-settings.dto';
+
 import { JwtAuthGuard } from 'src/modules/auth/application/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/modules/auth/application/guards/roles.guard';
+
+import { GetBranchSettingsUseCase } from '../../core/use-cases/manager/get-branch-settings.use-case';
+import { UpdateBranchSettingsUseCase } from '../../core/use-cases/manager/update-branch-settings.use-case';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('branches/:branchId/settings')
 export class BranchSettingsController {
-  constructor(private readonly branchSettingsService: BranchSettingsService) {}
+  constructor(
+    private readonly getSettingsUseCase: GetBranchSettingsUseCase,
+    private readonly updateSettingsUseCase: UpdateBranchSettingsUseCase,
+  ) {}
 
   /**
    * Obtener settings de una branch
    */
   @Get()
   async getByBranch(@Param('branchId', new ParseUUIDPipe()) branchId: string) {
-    const settings = await this.branchSettingsService.getByBranch(branchId);
+    const settings = await this.getSettingsUseCase.execute(branchId);
 
     return {
       ok: true,
@@ -40,7 +45,7 @@ export class BranchSettingsController {
     @Param('branchId', new ParseUUIDPipe()) branchId: string,
     @Body() dto: UpdateBranchSettingsDto,
   ) {
-    const settings = await this.branchSettingsService.update(branchId, {
+    const settings = await this.updateSettingsUseCase.execute(branchId, {
       timezone: dto.timezone,
       minBookingNoticeMin: dto.minBookingNoticeMin,
       maxBookingAheadDays: dto.maxBookingAheadDays,
