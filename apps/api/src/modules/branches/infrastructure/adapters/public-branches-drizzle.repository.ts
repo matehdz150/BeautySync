@@ -1,33 +1,29 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
-  Inject,
 } from '@nestjs/common';
-import { desc } from 'drizzle-orm';
-
-import { and, eq, sql } from 'drizzle-orm';
-import type * as client from 'src/modules/db/client';
+import * as client from 'src/modules/db/client';
+import { PublicBranchesRepository } from '../../core/ports/public-branches.repository';
+import { PublicBranch } from '../../core/entities/public-branch.entity';
+import { and, eq, sql, desc } from 'drizzle-orm';
+import { branches } from 'src/modules/db/schema/branches/branches';
 import {
-  branches,
   publicBookingRatings,
   publicBookings,
   services,
 } from 'src/modules/db/schema';
 
 @Injectable()
-export class BranchesPublicService {
+export class PublicBranchesDrizzleRepository implements PublicBranchesRepository {
   constructor(@Inject('DB') private readonly db: client.DB) {}
 
-  async getBySlug(slug: string) {
+  async getBySlug(slug: string): Promise<PublicBranch> {
     if (!slug) {
       throw new BadRequestException('Slug requerido');
     }
-
-    /* =====================
-     1️⃣ BRANCH
-  ===================== */
 
     const branch = await this.db.query.branches.findFirst({
       where: eq(branches.publicSlug, slug),
@@ -44,9 +40,7 @@ export class BranchesPublicService {
       throw new ForbiddenException('Sucursal no pública');
     }
 
-    /* =====================
-     2️⃣ SERVICIOS ACTIVOS
-  ===================== */
+    /* SERVICIOS */
 
     const branchServices = await this.db.query.services.findMany({
       where: and(eq(services.branchId, branch.id), eq(services.isActive, true)),
@@ -56,9 +50,7 @@ export class BranchesPublicService {
       orderBy: (services, { asc }) => asc(services.name),
     });
 
-    /* =====================
-     3️⃣ RATING PROMEDIO + CONTEO
-  ===================== */
+    /* RATING */
 
     const ratingAgg = await this.db
       .select({
@@ -79,9 +71,7 @@ export class BranchesPublicService {
         ? Number(Number(ratingAgg[0].average).toFixed(1))
         : null;
 
-    /* =====================
-     4️⃣ ÚLTIMAS 6 RESEÑAS
-  ===================== */
+    /* REVIEWS */
 
     const latestReviews = await this.db
       .select({
@@ -99,10 +89,6 @@ export class BranchesPublicService {
       .orderBy(desc(publicBookingRatings.createdAt))
       .limit(6);
 
-    /* =====================
-     5️⃣ RESPONSE PÚBLICO
-  ===================== */
-
     return {
       id: branch.id,
       name: branch.name,
@@ -113,13 +99,13 @@ export class BranchesPublicService {
       description: branch.description,
 
       rating: {
-        average: ratingAverage, // number | null
-        count: ratingCount, // number
+        average: ratingAverage,
+        count: ratingCount,
         reviews: latestReviews.map((r) => ({
           id: r.id,
           rating: r.rating,
           comment: r.comment ?? null,
-          createdAt: r.createdAt ? r.createdAt.toISOString() : null, // ✅ FIX TS18047
+          createdAt: r.createdAt ? r.createdAt.toISOString() : null,
         })),
       },
 

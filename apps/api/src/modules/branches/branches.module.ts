@@ -41,8 +41,12 @@ import {
   BRANCHES_REPOSITORY,
   BRANCH_SETTINGS_REPOSITORY,
   BRANCH_IMAGES_REPOSITORY,
+  PUBLIC_BRANCHES_REPOSITORY,
 } from './core/ports/tokens';
 import { AuthModule } from '../auth/auth.module';
+import { PublicBranchesDrizzleRepository } from './infrastructure/adapters/public-branches-drizzle.repository';
+import { GetPublicBranchUseCase } from './core/use-cases/public/get-public-branch.use-case';
+import { BranchesPublicController } from './application/controllers/branches.public.controller';
 
 @Module({
   imports: [AuthModule],
@@ -50,6 +54,7 @@ import { AuthModule } from '../auth/auth.module';
     BranchesController,
     BranchImagesController,
     BranchSettingsController,
+    BranchesPublicController,
   ],
 
   providers: [
@@ -62,6 +67,7 @@ import { AuthModule } from '../auth/auth.module';
     UpdateBranchLocationUseCase,
     FindBranchByUserUseCase,
     FindBranchesByOrgUseCase,
+    GetPublicBranchUseCase,
 
     /* BRANCH SETTINGS USE CASES */
 
@@ -91,6 +97,10 @@ import { AuthModule } from '../auth/auth.module';
     {
       provide: BRANCH_IMAGES_REPOSITORY,
       useClass: BranchImagesDrizzleRepository,
+    },
+    {
+      provide: PUBLIC_BRANCHES_REPOSITORY,
+      useClass: PublicBranchesDrizzleRepository,
     },
   ],
   exports: [GetBranchForAiUseCase],
