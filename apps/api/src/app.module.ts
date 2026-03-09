@@ -4,7 +4,7 @@ import { AppService } from './app.service';
 import { DbModule } from './modules/db/db.module';
 import { UsersModule } from './modules/users/users.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
-import { BranchesModule } from './modules/branches/manager/branches.module';
+import { BranchesModule } from './modules/branches/branches.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { StaffSchedulesModule } from './modules/staff-schedules/staff-schedules.module';
 import { StaffTimeOffModule } from './modules/staff-time-off/staff-time-off.module';
