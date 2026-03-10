@@ -8,8 +8,8 @@ import {
 import * as client from 'src/modules/db/client';
 import { branches, staff, staffServices, users } from 'src/modules/db/schema';
 import { and, desc, eq } from 'drizzle-orm';
-import { CreateStaffDto } from './dto/create-staff.dto';
-import { UpdateStaffDto } from './dto/update-staff.dto';
+import { CreateStaffDto } from './application/dto/create-staff.dto';
+import { UpdateStaffDto } from './application/dto/update-staff.dto';
 import { staffInvites } from 'src/modules/db/schema/staff/staffInvites';
 import { mailQueue } from 'src/modules/queues/mail/mail.queue';
 import { randomUUID } from 'crypto';
