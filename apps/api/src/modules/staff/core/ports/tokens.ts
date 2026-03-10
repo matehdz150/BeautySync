@@ -1,0 +1,1 @@
+export const STAFF_REPOSITORY = Symbol('STAFF_REPOSITORY');
