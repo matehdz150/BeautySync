@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AvailabilityController } from './manager/availability.controller';
-import { AvailabilityService } from './availability.service';
+import { AvailabilityController } from './application/controllers/availability.controller';
+import { AvailabilityService } from './infrastructure/adapters/availability.service';
 
 describe('AvailabilityController', () => {
   let controller: AvailabilityController;

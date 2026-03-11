@@ -1,18 +1,25 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { AvailabilityPublicService } from './availability.public.service';
+
+import { GetPublicAvailableDatesUseCase } from '../../core/use-cases/public/get-public-available-days.use-case';
+import { GetPublicAvailableTimesUseCase } from '../../core/use-cases/public/get-public-available-times.use-case';
+import { GetPublicAvailableTimesChainUseCase } from '../../core/use-cases/public/get-public-available-times-chain.use-case';
 
 @Controller('public')
 export class AvailabilityPublicController {
-  constructor(private readonly publicService: AvailabilityPublicService) {}
+  constructor(
+    private readonly getAvailableDates: GetPublicAvailableDatesUseCase,
+    private readonly getAvailableTimes: GetPublicAvailableTimesUseCase,
+    private readonly getAvailableTimesChain: GetPublicAvailableTimesChainUseCase,
+  ) {}
 
   @Get(':slug/availability/dates')
-  getAvailableDates(
+  getAvailableDatesEndpoint(
     @Param('slug') slug: string,
     @Query('requiredDurationMin') requiredDurationMin: string,
     @Query('staffId') staffId?: string,
     @Query('month') month?: string,
   ) {
-    return this.publicService.getAvailableDates({
+    return this.getAvailableDates.execute({
       slug,
       requiredDurationMin: Number(requiredDurationMin),
       staffId,
@@ -21,7 +28,7 @@ export class AvailabilityPublicController {
   }
 
   @Get(':slug/availability/times')
-  getAvailableTimes(
+  getAvailableTimesEndpoint(
     @Param('slug') slug: string,
     @Query('date') date: string,
 
@@ -33,7 +40,7 @@ export class AvailabilityPublicController {
 
     @Query('staffId') staffId?: string,
   ) {
-    return this.publicService.getAvailableTimes({
+    return this.getAvailableTimes.execute({
       slug,
       date,
       staffId,
@@ -48,7 +55,7 @@ export class AvailabilityPublicController {
   }
 
   @Post(':slug/availability/chain')
-  getAvailableTimesChain(
+  getAvailableTimesChainEndpoint(
     @Param('slug') slug: string,
     @Body()
     body: {
@@ -56,7 +63,7 @@ export class AvailabilityPublicController {
       chain: { serviceId: string; staffId: string }[];
     },
   ) {
-    return this.publicService.getAvailableTimesChain({
+    return this.getAvailableTimesChain.execute({
       slug,
       date: body.date,
       chain: body.chain,

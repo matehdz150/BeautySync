@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   ForbiddenException,
   Injectable,
@@ -14,8 +11,8 @@ import { DateTime } from 'luxon';
 import * as client from 'src/modules/db/client';
 import { branches } from 'src/modules/db/schema';
 
-import { AvailabilityService } from '../availability.service';
-import { AvailabilityCoreService } from '../availability-chain.service';
+import { AvailabilityService } from './availability.service';
+import { AvailabilityCoreService } from './availability-chain.service';
 
 @Injectable()
 export class AvailabilityPublicService {
