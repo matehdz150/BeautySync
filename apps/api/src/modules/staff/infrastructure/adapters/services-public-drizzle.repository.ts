@@ -1,25 +1,23 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
-  Inject,
 } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
-
-import * as client from '../../db/client';
-import { branches, serviceCategories, services, staff } from '../../db/schema';
-
-import { staffServices } from 'src/modules/db/schema';
+import { ServicePublicRepository } from 'src/modules/services/core/ports/service-public.repository';
+import * as client from 'src/modules/db/client';
+import { services } from 'src/modules/db/schema/services/service';
+import { serviceCategories } from 'src/modules/db/schema/services/serviceCategories';
+import { eq, and } from 'drizzle-orm';
+import { branches } from 'src/modules/db/schema/branches/branches';
+import { staff } from 'src/modules/db/schema/staff/staff';
+import { staffServices } from 'src/modules/db/schema/services/staffServices';
 
 @Injectable()
-export class ServicesPublicService {
+export class ServicesPublicDrizzleRepository implements ServicePublicRepository {
   constructor(@Inject('DB') private db: client.DB) {}
-
   async getServicesByBranchSlug(slug: string) {
-    if (!slug) throw new NotFoundException('Branch not found');
-
-    // 1️⃣ Buscar branch
     const branch = await this.db.query.branches.findFirst({
       where: eq(branches.publicSlug, slug),
     });
@@ -32,7 +30,6 @@ export class ServicesPublicService {
       throw new ForbiddenException('Branch is not public');
     }
 
-    // 2️⃣ Servicios públicos activos
     const rows = await this.db
       .select({
         id: services.id,
@@ -55,7 +52,6 @@ export class ServicesPublicService {
       .where(and(eq(services.branchId, branch.id), eq(services.isActive, true)))
       .orderBy(services.name);
 
-    // 3️⃣ Normalizar categoría null
     return rows.map((s) => ({
       id: s.id,
       name: s.name,
@@ -72,7 +68,6 @@ export class ServicesPublicService {
     slug: string;
     serviceId: string;
   }) {
-    // 1️⃣ Branch
     const branch = await this.db.query.branches.findFirst({
       where: eq(branches.publicSlug, slug),
     });
@@ -85,7 +80,6 @@ export class ServicesPublicService {
       throw new ForbiddenException('Branch is not public');
     }
 
-    // 2️⃣ Service belongs to branch
     const service = await this.db.query.services.findFirst({
       where: and(
         eq(services.id, serviceId),
@@ -98,7 +92,6 @@ export class ServicesPublicService {
       throw new BadRequestException('Invalid service for this branch');
     }
 
-    // 3️⃣ Staff elegible
     const rows = await this.db
       .select({
         id: staff.id,

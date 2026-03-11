@@ -5,5 +5,5 @@ export interface CachePort {
 
   del(key: string): Promise<void>;
 
-  delPattern?(pattern: string): Promise<void>;
+  delPattern(pattern: string): Promise<void>;
 }
