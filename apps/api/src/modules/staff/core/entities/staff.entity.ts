@@ -27,3 +27,18 @@ export interface StaffDetails {
 
   services: string[];
 }
+
+export interface StaffListItem {
+  id: string;
+  name: string;
+  email: string | null;
+  avatarUrl: string | null;
+  jobRole: string | null;
+
+  services: {
+    id: string;
+    name: string;
+    durationMin: number;
+    priceCents?: number | null;
+  }[];
+}

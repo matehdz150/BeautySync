@@ -105,8 +105,27 @@ export class StaffDrizzleRepository implements StaffRepository {
     );
   }
 
-  async delete(id: string) {
-    await this.db.delete(staff).where(eq(staff.id, id));
+  async delete(id: string): Promise<Staff> {
+    const [deleted] = await this.db
+      .delete(staff)
+      .where(eq(staff.id, id))
+      .returning();
+
+    if (!deleted) {
+      throw new NotFoundException('Staff not found');
+    }
+
+    return new Staff(
+      deleted.id,
+      deleted.branchId,
+      deleted.userId,
+      deleted.name,
+      deleted.email,
+      deleted.avatarUrl,
+      deleted.jobRole,
+      deleted.status,
+      deleted.isActive,
+    );
   }
 
   async findByBranch(branchId: string, user: AuthenticatedUser) {
@@ -144,6 +163,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       email: s.email,
       avatarUrl: s.avatarUrl,
       status: s.status,
+      jobRole: s.jobRole,
       schedule: resumirHorario(s.schedules),
 
       services: s.services.map((ss) => ({

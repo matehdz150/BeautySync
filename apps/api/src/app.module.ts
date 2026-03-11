@@ -27,6 +27,7 @@ import { BookingModule } from './modules/booking/booking.module';
 import { RankingsModule } from './modules/rankings/rankings.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { MessagesModule } from './modules/messages/messages.module';
+import { CacheModule } from './modules/cache/cache.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { MessagesModule } from './modules/messages/messages.module';
     RankingsModule,
     NotificationsModule,
     MessagesModule,
+    CacheModule,
   ],
   controllers: [AppController],
   providers: [AppService],

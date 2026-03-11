@@ -1,5 +1,5 @@
 import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
-import { Staff, StaffDetails } from '../entities/staff.entity';
+import { Staff, StaffDetails, StaffListItem } from '../entities/staff.entity';
 
 export interface CreateStaffInput {
   branchId: string;
@@ -20,7 +20,10 @@ export interface StaffRepository {
   findAll(): Promise<Staff[]>;
 
   findById(id: string, user: AuthenticatedUser): Promise<StaffDetails | null>;
-  findByBranch(branchId: string, user: AuthenticatedUser): Promise<any>;
+  findByBranch(
+    branchId: string,
+    user: AuthenticatedUser,
+  ): Promise<StaffListItem[]>;
 
   create(data: CreateStaffInput): Promise<Staff>;
 
@@ -30,7 +33,7 @@ export interface StaffRepository {
     user: AuthenticatedUser,
   ): Promise<Staff>;
 
-  delete(id: string): Promise<void>;
+  delete(id: string): Promise<Staff>;
 
   findFiltered(params: {
     branchId: string;
