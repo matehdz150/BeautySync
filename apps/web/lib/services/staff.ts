@@ -123,3 +123,9 @@ export async function updateStaff(
     body: JSON.stringify(input),
   });
 }
+
+export async function deleteStaff(staffId: string) {
+  return api<{ ok: true }>(`/staff/${staffId}`, {
+    method: "DELETE",
+  });
+}

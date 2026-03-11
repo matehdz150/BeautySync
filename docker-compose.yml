@@ -24,6 +24,17 @@ services:
     volumes:
       - redis_data:/data
 
+  redis-cache:
+    image: redis:7
+    container_name: beauty_redis_cache
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_cache_data:/data
+
 volumes:
   postgres_data:
   redis_data:
+  redis_cache_data:

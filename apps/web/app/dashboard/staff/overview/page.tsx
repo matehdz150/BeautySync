@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import { useRouter } from "next/navigation";
 import { EmptyStaffState } from "./EmptyStaffState";
+import { StaffActionsDropdown } from "@/components/staff/StaffActionsDropdown";
 
 export type StaffRow = {
   id: string;
@@ -211,13 +212,7 @@ export default function StaffSchedulesPage() {
 
                       {/* ACTIONS */}
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          className="rounded-2xl shadow-none"
-                        >
-                          Acciones
-                          <ChevronDown />
-                        </Button>
+                        <StaffActionsDropdown staffId={s.id} />
                       </TableCell>
                     </TableRow>
                   ))}
