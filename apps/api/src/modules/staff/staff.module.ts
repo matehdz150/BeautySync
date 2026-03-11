@@ -18,9 +18,10 @@ import { DeleteStaffUseCase } from './core/use-cases/delete-staff.use-case';
 
 import { InviteStaffUseCase } from './core/use-cases/invite-staff.use-case';
 import { ReinviteStaffUseCase } from './core/use-cases/reinvite-staff.use-case';
+import { CacheModule } from '../cache/cache.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, CacheModule],
 
   controllers: [StaffController],
 
