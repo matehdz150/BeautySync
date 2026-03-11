@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { RedisCacheProvider } from './infrastructure/providers/redis.provider';
 import { RedisCacheAdapter } from './infrastructure/adapters/redis-cache.adapter';
-import { CACHE_PORT } from './core/ports/tokens';
+import { CACHE_PORT, SLOT_LOCK_PORT } from './core/ports/tokens';
+import { RedisSlotLockAdapter } from './infrastructure/adapters/redis-slot-lock.adapter';
 
 @Module({
   providers: [
@@ -10,7 +11,12 @@ import { CACHE_PORT } from './core/ports/tokens';
       provide: CACHE_PORT,
       useClass: RedisCacheAdapter,
     },
+    RedisSlotLockAdapter,
+    {
+      provide: SLOT_LOCK_PORT,
+      useExisting: RedisSlotLockAdapter,
+    },
   ],
-  exports: [CACHE_PORT],
+  exports: [CACHE_PORT, SLOT_LOCK_PORT],
 })
 export class CacheModule {}

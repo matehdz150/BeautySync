@@ -53,4 +53,7 @@ export class CreatePublicBookingDto {
   @ValidateNested({ each: true })
   @Type(() => PublicAppointmentDraftDto)
   appointments!: PublicAppointmentDraftDto[];
+
+  @IsString()
+  ownerToken!: string;
 }

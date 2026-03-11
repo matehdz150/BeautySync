@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { IsDateString, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateAppointmentDto {
@@ -14,6 +13,9 @@ export class CreateAppointmentDto {
   @IsUUID()
   @IsOptional()
   clientId?: string;
+
+  @IsString()
+  ownerToken!: string;
 
   @IsDateString()
   start!: string; // UTC ISO — ejemplo: "2025-02-10T15:00:00Z"

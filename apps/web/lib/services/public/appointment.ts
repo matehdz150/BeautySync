@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { publicFetch } from "./apiPublic";
+import { getOwnerToken } from "@/hooks/use-getOwnerToken";
 
 /* =====================
    TYPES
@@ -9,19 +10,23 @@ export type PublicPaymentMethod = "ONSITE" | "ONLINE";
 
 export type PublicAppointmentDraft = {
   serviceId: string;
-  staffId: string; // puede ser staffId real (ya asignado en chain)
-  startIso: string; // ISO local (-06:00)
-  endIso: string; // ISO local (-06:00)
+  staffId: string;
+  startIso: string;
+  endIso: string;
   durationMin: number;
 };
 
 export type CreatePublicBookingPayload = {
   branchSlug: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   paymentMethod: PublicPaymentMethod;
   discountCode?: string | null;
   notes?: string | null;
   appointments: PublicAppointmentDraft[];
+};
+
+export type CreatePublicBookingRequest = CreatePublicBookingPayload & {
+  ownerToken: string;
 };
 
 export type CreatePublicBookingResponse = {
@@ -36,9 +41,15 @@ export type CreatePublicBookingResponse = {
 export async function createPublicBooking(
   payload: CreatePublicBookingPayload
 ): Promise<CreatePublicBookingResponse> {
+
+  const ownerToken = getOwnerToken();
+
   return publicFetch<CreatePublicBookingResponse>(`/public/booking/appointments`, {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      ownerToken,
+    }),
   });
 }
 

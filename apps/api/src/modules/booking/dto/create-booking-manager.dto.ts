@@ -19,6 +19,9 @@ export class CreateManagerBookingDto {
   @IsDateString()
   date!: string; // YYYY-MM-DD
 
+  @IsString()
+  ownerToken!: string;
+
   @IsOptional()
   @IsString()
   notes?: string | null;

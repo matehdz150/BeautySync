@@ -26,8 +26,12 @@ import { GetAvailableTimesChainUseCase } from './core/use-cases/get-available-ti
 import { GetPublicAvailableDatesUseCase } from './core/use-cases/public/get-public-available-days.use-case';
 import { GetPublicAvailableTimesUseCase } from './core/use-cases/public/get-public-available-times.use-case';
 import { GetPublicAvailableTimesChainUseCase } from './core/use-cases/public/get-public-available-times-chain.use-case';
+import { CacheModule } from '../cache/cache.module';
+import { LockSlotUseCase } from './core/use-cases/lock-slot.use-case';
+import { UnlockSlotUseCase } from './core/use-cases/unlock-slot.use-case';
 
 @Module({
+  imports: [CacheModule],
   controllers: [AvailabilityController, AvailabilityPublicController],
 
   providers: [
@@ -59,6 +63,8 @@ import { GetPublicAvailableTimesChainUseCase } from './core/use-cases/public/get
     GetAvailableServicesForSlotUseCase,
     GetAvailableServicesAtUseCase,
     GetAvailableTimesChainUseCase,
+    LockSlotUseCase,
+    UnlockSlotUseCase,
 
     // public use cases
     GetPublicAvailableDatesUseCase,

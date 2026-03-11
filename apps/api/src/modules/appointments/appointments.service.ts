@@ -24,6 +24,8 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { DateTime } from 'luxon';
 import { and, eq, lt, gte, ne, sql, gt } from 'drizzle-orm';
 import { GetAppointmentsDto } from './dto/get-appointments.dto';
+import { SLOT_LOCK_PORT } from '../cache/core/ports/tokens';
+import { SlotLockPort } from '../cache/core/ports/slot-lock.port';
 
 const VALID_STATUSES: AppointmentStatus[] = [
   'PENDING',
@@ -38,6 +40,8 @@ export class AppointmentsService {
   constructor(
     @Inject('DB') private db: client.DB,
     private readonly availability: AvailabilityService,
+    @Inject(SLOT_LOCK_PORT)
+    private readonly slotLock: SlotLockPort,
   ) {}
 
   async create(dto: CreateAppointmentDto) {
@@ -81,6 +85,24 @@ export class AppointmentsService {
       millisecond: 0,
       second: 0,
     });
+
+    const startIso = startUtc.toISO()!;
+    const endIso = endUtc.toISO()!;
+
+    const owners = await this.slotLock.getRangeOwners({
+      branchId,
+      staffId,
+      startIso,
+      endIso,
+    });
+
+    if (!owners.length) {
+      throw new BadRequestException('Slot lock not found or expired');
+    }
+
+    if (!owners.every((o) => o === dto.ownerToken)) {
+      throw new BadRequestException('Slot locked by another user');
+    }
 
     // 7️⃣ Obtener fecha local para availability
     const dateLocal = startUtc.setZone(tz).toISODate();
@@ -148,6 +170,14 @@ export class AppointmentsService {
         appointmentId: created.id,
         newStatus: 'CONFIRMED',
         reason: 'Initial booking',
+      });
+
+      await this.slotLock.releaseRange({
+        branchId,
+        staffId,
+        startIso,
+        endIso,
+        ownerToken: dto.ownerToken,
       });
 
       return created;
@@ -294,6 +324,7 @@ export class AppointmentsService {
       staffId?: string;
       reason?: string;
       changedByUserId?: string;
+      ownerToken: string;
     },
   ) {
     return this.db.transaction(async (tx) => {
@@ -333,6 +364,9 @@ export class AppointmentsService {
 
       const endUtc = startUtc.plus({ minutes: rounded });
 
+      const startIso = startUtc.toISO()!;
+      const endIso = endUtc.toISO()!;
+
       const startLocal = startUtc.setZone(tz);
       const date = startLocal.toISODate();
 
@@ -352,6 +386,21 @@ export class AppointmentsService {
 
       if (!staffSlots?.slots.includes(startUtc.toISO())) {
         throw new BadRequestException('Selected slot is not available');
+      }
+
+      const owners = await this.slotLock.getRangeOwners({
+        branchId: existing.branchId,
+        staffId: targetStaff,
+        startIso,
+        endIso,
+      });
+
+      if (!owners.length) {
+        throw new BadRequestException('Slot lock not found');
+      }
+
+      if (!owners.every((o) => o === dto.ownerToken)) {
+        throw new BadRequestException('Slot locked by another user');
       }
 
       // 2️⃣ asegura que no haya overlaps (última línea de defensa)
@@ -390,6 +439,14 @@ export class AppointmentsService {
         newStatus: existing.status, // sólo cambio de horario
         reason: dto.reason ?? 'Rescheduled',
         changedByUserId: dto.changedByUserId,
+      });
+
+      await this.slotLock.releaseRange({
+        branchId: existing.branchId,
+        staffId: targetStaff,
+        startIso,
+        endIso,
+        ownerToken: dto.ownerToken,
       });
 
       return updated;

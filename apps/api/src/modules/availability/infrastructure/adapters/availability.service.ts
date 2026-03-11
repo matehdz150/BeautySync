@@ -27,6 +27,8 @@ import {
   AvailabilityResult,
   StaffAvailability,
 } from '../../core/entities/availability.entity';
+import { SlotLockPort } from 'src/modules/cache/core/ports/slot-lock.port';
+import { SLOT_LOCK_PORT } from 'src/modules/cache/core/ports/tokens';
 
 type StaffSchedule = InferSelectModel<typeof staffSchedules>;
 type StaffTimeOff = InferSelectModel<typeof staffTimeOff>;
@@ -45,7 +47,11 @@ type TimeBlock = {
 
 @Injectable()
 export class AvailabilityService {
-  constructor(@Inject('DB') private db: client.DB) {}
+  constructor(
+    @Inject('DB') private db: client.DB,
+    @Inject(SLOT_LOCK_PORT)
+    private readonly slotLock: SlotLockPort,
+  ) {}
 
   async getAvailability(
     query: GetAvailabilityDto,
@@ -209,6 +215,12 @@ export class AvailabilityService {
         ),
       );
 
+    const lockedByStaff = await this.slotLock.listLockedStarts({
+      branchId,
+      staffIds,
+      date,
+    });
+
     const staffAvailability: StaffAvailability[] = [];
 
     for (const sId of staffIds) {
@@ -293,7 +305,11 @@ export class AvailabilityService {
         (m) => dayStartLocal.plus({ minutes: m }).toUTC().toISO()!,
       );
 
-      staffAvailability.push(new StaffAvailability(sId, slotsIso));
+      const lockedStarts = lockedByStaff.get(sId) ?? new Set<string>();
+
+      const visibleSlots = slotsIso.filter((slot) => !lockedStarts.has(slot));
+
+      staffAvailability.push(new StaffAvailability(sId, visibleSlots));
     }
 
     return new AvailabilityResult(branchId, date, staffAvailability);
@@ -318,8 +334,6 @@ export class AvailabilityService {
   > {
     const { branchId, staffId, datetime } = params;
 
-    // SETTINGS
-
     const settings = await this.db.query.branchSettings.findFirst({
       where: eq(branchSettings.branchId, branchId),
     });
@@ -332,8 +346,6 @@ export class AvailabilityService {
     const dayStart = start.startOf('day');
     const dayEnd = start.endOf('day');
 
-    // STAFF VALIDATION
-
     const staffRow = await this.db.query.staff.findFirst({
       where: and(
         eq(staff.id, staffId),
@@ -343,8 +355,6 @@ export class AvailabilityService {
     });
 
     if (!staffRow) throw new BadRequestException('Invalid staff');
-
-    // SERVICES STAFF CAN PERFORM
 
     const srvList = await this.db
       .select({
@@ -368,30 +378,22 @@ export class AvailabilityService {
 
     if (srvList.length === 0) return [];
 
-    // SCHEDULES
-
-    const dayOfWeek = start.weekday % 7;
-
     const schedules: StaffSchedule[] = await this.db
       .select()
       .from(staffSchedules)
       .where(
         and(
           eq(staffSchedules.staffId, staffId),
-          eq(staffSchedules.dayOfWeek, dayOfWeek),
+          eq(staffSchedules.dayOfWeek, start.weekday % 7),
         ),
       );
 
     if (schedules.length === 0) return [];
 
-    // BASE FREE BLOCKS
-
     let freeBlocks: TimeBlock[] = schedules.map((s) => ({
       startMin: parseTimeToMinutes(s.startTime),
       endMin: parseTimeToMinutes(s.endTime),
     }));
-
-    // TIME OFF
 
     const timeOff: StaffTimeOff[] = await this.db
       .select()
@@ -416,8 +418,6 @@ export class AvailabilityService {
     }));
 
     freeBlocks = subtractBusy(freeBlocks, busyOff);
-
-    // APPOINTMENTS
 
     const appointmentsToday: Appointment[] = await this.db
       .select()
@@ -445,18 +445,46 @@ export class AvailabilityService {
 
     freeBlocks = subtractBusy(freeBlocks, busyApps);
 
-    // SLOT CHECK
-
     const startMin = dtToMinutesSinceDayStart(start, dayStart);
 
-    return srvList.filter((s) => {
+    const availableServices: {
+      id: string;
+      name: string;
+      durationMin: number;
+      priceCents: number | null;
+      category: {
+        id: string | null;
+        name: string | null;
+        colorHex: string | null;
+      } | null;
+    }[] = [];
+
+    for (const s of srvList) {
       const total = s.durationMin + bufferBefore + bufferAfter;
       const endMin = startMin + total;
 
-      return freeBlocks.some(
+      const fits = freeBlocks.some(
         (b) => startMin >= b.startMin && endMin <= b.endMin,
       );
-    });
+
+      if (!fits) continue;
+
+      const startIso = start.toUTC().toISO()!;
+      const endIso = start.plus({ minutes: total }).toUTC().toISO()!;
+
+      const isLocked = await this.slotLock.isRangeLocked({
+        branchId,
+        staffId,
+        startIso,
+        endIso,
+      });
+
+      if (isLocked) continue;
+
+      availableServices.push(s);
+    }
+
+    return availableServices;
   }
 
   async getAvailableServicesAt(params: { branchId: string; datetime: string }) {
