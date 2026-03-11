@@ -1,30 +1,38 @@
 export interface SlotLockPort {
-  acquire(params: {
+  acquireRange(params: {
     branchId: string;
     staffId: string;
     startIso: string;
-    ttlSeconds?: number;
+    endIso: string;
     ownerToken: string;
+    ttlSeconds?: number;
+    stepMin?: number;
   }): Promise<boolean>;
 
-  release(params: {
+  releaseRange(params: {
     branchId: string;
     staffId: string;
     startIso: string;
+    endIso: string;
     ownerToken: string;
+    stepMin?: number;
   }): Promise<void>;
 
-  isLocked(params: {
+  isRangeLocked(params: {
     branchId: string;
     staffId: string;
     startIso: string;
+    endIso: string;
+    stepMin?: number;
   }): Promise<boolean>;
 
-  getOwner(params: {
+  getRangeOwners(params: {
     branchId: string;
     staffId: string;
     startIso: string;
-  }): Promise<string | null>;
+    endIso: string;
+    stepMin?: number;
+  }): Promise<string[]>;
 
   listLockedStarts(params: {
     branchId: string;

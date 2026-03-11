@@ -34,12 +34,17 @@ import {
   users,
 } from 'src/modules/db/schema';
 
-import { CreatePublicBookingDto } from './dto/create-booking-public.dto';
+import {
+  CreatePublicBookingDto,
+  PublicPaymentMethodEnum,
+} from './dto/create-booking-public.dto';
 import { PublicBookingJobsService } from '../queues/booking/public-booking-job.service';
 
 import { buildAppointmentOverlapWhere } from '../lib/booking/booking.overlap';
 import { publicBookingRatings } from '../db/schema/rankings/public_booking_ratings';
 import { NotificationsJobsService } from '../queues/notifications/notifications-job.service';
+import { SLOT_LOCK_PORT } from '../cache/core/ports/tokens';
+import { SlotLockPort } from '../cache/core/ports/slot-lock.port';
 
 @Injectable()
 export class BookingsCoreService {
@@ -47,6 +52,8 @@ export class BookingsCoreService {
     private readonly publicBookingJobsService: PublicBookingJobsService,
     private readonly notificationsJobService: NotificationsJobsService,
     @Inject('DB') private readonly db: client.DB,
+    @Inject(SLOT_LOCK_PORT)
+    private readonly slotLock: SlotLockPort,
   ) {}
 
   async createPublicBooking(dto: CreatePublicBookingDto, publicUserId: string) {
@@ -164,6 +171,7 @@ export class BookingsCoreService {
         }
 
         const totalMinutes = service.durationMin + bufferBefore + bufferAfter;
+
         const roundedMinutes =
           Math.ceil(totalMinutes / BLOCK_MINUTES) * BLOCK_MINUTES;
 
@@ -190,6 +198,28 @@ export class BookingsCoreService {
       x.startUtc.toISO()!.localeCompare(y.startUtc.toISO()),
     );
 
+    // 🔒 VALIDATE LOCKS
+    for (const a of normalized) {
+      const startIso = a.startUtc.toISO()!;
+      const endIso = a.endUtc.toISO()!;
+
+      const owners = await this.slotLock.getRangeOwners({
+        branchId: a.branchId,
+        staffId: a.staffId,
+        startIso,
+        endIso,
+      });
+
+      if (!owners.length) {
+        throw new BadRequestException('Slot lock not found or expired');
+      }
+
+      if (!owners.every((o) => o === dto.ownerToken)) {
+        throw new BadRequestException('Slot locked by another user');
+      }
+    }
+
+    // validate chain continuity
     for (let i = 1; i < normalized.length; i++) {
       const prev = normalized[i - 1];
       const curr = normalized[i];
@@ -204,14 +234,16 @@ export class BookingsCoreService {
     const bookingStartsAtUtc = normalized[0].startUtc.toJSDate();
     const bookingEndsAtUtc =
       normalized[normalized.length - 1].endUtc.toJSDate();
+
     const bookingTotalCents = normalized.reduce(
       (acc, a) => acc + (a.priceCents ?? 0),
       0,
     );
 
     // =========================
-    // ✅ TRANSACTION (DB ONLY)
+    // TRANSACTION
     // =========================
+
     const result = await this.db.transaction(async (tx) => {
       const clientId = await getOrCreateClientForPublicUser({
         tx,
@@ -219,6 +251,7 @@ export class BookingsCoreService {
         branch,
       });
 
+      // overlap protection
       for (const a of normalized) {
         const overlapping = await tx
           .select()
@@ -263,8 +296,10 @@ export class BookingsCoreService {
               start: a.startUtc.toJSDate(),
               end: a.endUtc.toJSDate(),
               status: 'CONFIRMED',
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
-              paymentStatus: dto.paymentMethod === 'ONLINE' ? 'PAID' : 'UNPAID',
+              paymentStatus:
+                dto.paymentMethod === PublicPaymentMethodEnum.ONLINE
+                  ? 'PAID'
+                  : 'UNPAID',
               notes: a.notes,
               priceCents: a.priceCents,
             })
@@ -280,6 +315,17 @@ export class BookingsCoreService {
         }),
       );
 
+      // 🔓 RELEASE LOCKS ONCE
+      for (const a of normalized) {
+        await this.slotLock.releaseRange({
+          branchId: a.branchId,
+          staffId: a.staffId,
+          startIso: a.startUtc.toISO()!,
+          endIso: a.endUtc.toISO()!,
+          ownerToken: dto.ownerToken,
+        });
+      }
+
       return {
         ok: true,
         bookingId,
@@ -294,8 +340,9 @@ export class BookingsCoreService {
     });
 
     // =========================
-    // ✅ OUTSIDE TRANSACTION
+    // JOBS OUTSIDE TRANSACTION
     // =========================
+
     await this.publicBookingJobsService.scheduleBookingLifecycle({
       bookingId,
       startsAtUtc: bookingStartsAtUtc,

@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { GetAvailabilityDto } from '../dto/create-availability.dto';
 import {
   AvailableServicesAtDto,
@@ -9,6 +17,9 @@ import { GetAvailableServicesForSlotUseCase } from '../../core/use-cases/get-ava
 import { GetAvailableServicesAtUseCase } from '../../core/use-cases/get-available-services-at.use-case';
 import { GetAvailableTimesChainUseCase } from '../../core/use-cases/get-available-times-chain.use-case';
 import { ChainStep } from '../../core/entities/availability-chain.entity';
+import { LockSlotDto } from '../dto/lock-slot.dto';
+import { LockSlotUseCase } from '../../core/use-cases/lock-slot.use-case';
+import { UnlockSlotUseCase } from '../../core/use-cases/unlock-slot.use-case';
 
 @Controller('availability')
 export class AvailabilityController {
@@ -17,6 +28,8 @@ export class AvailabilityController {
     private readonly getAvailableServicesForSlot: GetAvailableServicesForSlotUseCase,
     private readonly getAvailableServicesAt: GetAvailableServicesAtUseCase,
     private readonly getAvailableTimesChain: GetAvailableTimesChainUseCase,
+    private readonly lockSlot: LockSlotUseCase,
+    private readonly unlockSlot: UnlockSlotUseCase,
   ) {}
 
   @Get()
@@ -61,5 +74,15 @@ export class AvailabilityController {
       ok: true,
       services,
     };
+  }
+
+  @Post('lock')
+  lock(@Body() dto: LockSlotDto) {
+    return this.lockSlot.execute(dto);
+  }
+
+  @Delete('lock')
+  unlock(@Body() dto: LockSlotDto) {
+    return this.unlockSlot.execute(dto);
   }
 }

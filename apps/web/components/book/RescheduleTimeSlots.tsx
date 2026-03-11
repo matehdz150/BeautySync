@@ -10,6 +10,8 @@ import {
 } from "@/lib/services/public/availability";
 
 import type { PublicBooking } from "@/lib/services/public/appointment";
+import { API_URL } from "@/lib/services/api";
+import { getOwnerToken } from "@/hooks/use-getOwnerToken";
 
 /* =====================
    ANIMATIONS
@@ -171,13 +173,66 @@ export function RescheduleTimeSlots({
                 layout
                 whileHover={{ y: -1 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => onSelectPlan?.(plan)}
+                onClick={async () => {
+                  try {
+                    const ownerToken = getOwnerToken();
+
+                    const first = plan.assignments[0];
+                    const last = plan.assignments[plan.assignments.length - 1];
+
+                    // liberar lock anterior
+                    if (selectedPlan) {
+                      const prevFirst = selectedPlan.assignments[0];
+                      const prevLast =
+                        selectedPlan.assignments[
+                          selectedPlan.assignments.length - 1
+                        ];
+
+                      await fetch(`${API_URL}/availability/lock`, {
+                        method: "DELETE",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          branchId: booking.branch.id,
+                          staffId: prevFirst.staffId,
+                          startIso: prevFirst.startLocalIso,
+                          endIso: prevLast.endLocalIso,
+                          ownerToken,
+                        }),
+                      });
+                    }
+
+                    // lock nuevo
+                    const res = await fetch(`${API_URL}/availability/lock`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        branchId: booking.branch.id,
+                        staffId: first.staffId,
+                        startIso: first.startLocalIso,
+                        endIso: last.endLocalIso,
+                        ownerToken,
+                      }),
+                    });
+
+                    if (!res.ok) {
+                      throw new Error("slot locked");
+                    }
+
+                    onSelectPlan?.(plan);
+                  } catch {
+                    alert("Este horario acaba de ser tomado");
+                  }
+                }}
                 className={cn(
                   "relative rounded-xl border px-3 py-4 text-sm font-medium transition",
                   "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/10",
                   selected
                     ? "bg-indigo-400 text-white border-indigo-400"
-                    : "bg-white hover:bg-black/[0.02] border-black/10"
+                    : "bg-white hover:bg-black/[0.02] border-black/10",
                 )}
               >
                 {selected && (

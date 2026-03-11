@@ -17,6 +17,6 @@ import { RedisSlotLockAdapter } from './infrastructure/adapters/redis-slot-lock.
       useExisting: RedisSlotLockAdapter,
     },
   ],
-  exports: [CACHE_PORT],
+  exports: [CACHE_PORT, SLOT_LOCK_PORT],
 })
 export class CacheModule {}

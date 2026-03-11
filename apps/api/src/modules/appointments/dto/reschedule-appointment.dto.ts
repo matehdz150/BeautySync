@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
-import { IsISO8601, IsOptional, IsUUID } from 'class-validator';
+import { IsISO8601, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class RescheduleAppointmentDto {
   @IsISO8601()
@@ -15,4 +15,7 @@ export class RescheduleAppointmentDto {
   @IsOptional()
   @IsUUID()
   changedByUserId?: string;
+
+  @IsString()
+  ownerToken!: string;
 }

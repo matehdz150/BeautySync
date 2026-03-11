@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { useAvailability } from "@/context/AvailabilityContext";
 import { usePublicBooking } from "@/context/PublicBookingContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { getOwnerToken } from "@/hooks/use-getOwnerToken";
+import { API_URL } from "@/lib/services/api";
 
 const container = {
   hidden: { opacity: 0 },
@@ -96,30 +98,85 @@ export function TimeSlots() {
                 layout
                 whileHover={{ y: -1 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => {
-                  booking.dispatch({ type: "SET_TIME", payload: plan.startIso });
-                  booking.dispatch({
-                    type: "SET_SELECTED_PLAN",
-                    payload: plan,
-                  });
+                onClick={async () => {
+                  try {
+                    const ownerToken = getOwnerToken();
 
-                  booking.dispatch({
-                    type: "SET_APPOINTMENTS_DRAFT",
-                    payload: plan.assignments.map((a) => ({
-                      serviceId: a.serviceId,
-                      staffId: a.staffId,
-                      startIso: a.startLocalIso,
-                      endIso: a.endLocalIso,
-                      durationMin: a.durationMin,
-                    })),
-                  });
+                    const first = plan.assignments[0];
+                    const last = plan.assignments[plan.assignments.length - 1];
+
+                    // liberar lock anterior
+                    if (booking.selectedPlan) {
+                      const prevFirst = booking.selectedPlan.assignments[0];
+                      const prevLast =
+                        booking.selectedPlan.assignments[
+                          booking.selectedPlan.assignments.length - 1
+                        ];
+
+                      await fetch(`${API_URL}/availability/lock`, {
+                        method: "DELETE",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          branchId: booking.branch!.id,
+                          staffId: prevFirst.staffId,
+                          startIso: prevFirst.startLocalIso,
+                          endIso: prevLast.endLocalIso,
+                          ownerToken,
+                        }),
+                      });
+                    }
+
+                    const res = await fetch(`${API_URL}/availability/lock`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        branchId: booking.branch!.id,
+                        staffId: first.staffId,
+                        startIso: first.startLocalIso,
+                        endIso: last.endLocalIso,
+                        ownerToken,
+                      }),
+                    });
+                    console.log(res)
+
+                    if (!res.ok) {
+                      throw new Error("slot locked");
+                    }
+
+                    booking.dispatch({
+                      type: "SET_TIME",
+                      payload: plan.startIso,
+                    });
+
+                    booking.dispatch({
+                      type: "SET_SELECTED_PLAN",
+                      payload: plan,
+                    });
+
+                    booking.dispatch({
+                      type: "SET_APPOINTMENTS_DRAFT",
+                      payload: plan.assignments.map((a) => ({
+                        serviceId: a.serviceId,
+                        staffId: a.staffId,
+                        startIso: a.startLocalIso,
+                        endIso: a.endLocalIso,
+                        durationMin: a.durationMin,
+                      })),
+                    });
+                  } catch {
+                    alert("Este horario acaba de ser tomado");
+                  }
                 }}
                 className={cn(
                   "relative rounded-xl border px-3 py-4 text-sm font-medium transition",
                   "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/10",
                   selected
                     ? "bg-indigo-400 text-white border-indigo-400"
-                    : "bg-white hover:bg-black/[0.02] border-black/10"
+                    : "bg-white hover:bg-black/[0.02] border-black/10",
                 )}
               >
                 {/* Selected glow (muy sutil) */}

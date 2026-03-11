@@ -8,9 +8,10 @@ import { BookingsManagerController } from './manager/booking.manager.controller'
 import { BookingsManagerService } from './manager/booking.manager.service';
 import { NotificationsJobsService } from '../queues/notifications/notifications-job.service';
 import { AuthModule } from '../auth/auth.module';
+import { CacheModule } from '../cache/cache.module';
 
 @Module({
-  imports: [AuthModule, DbModule],
+  imports: [AuthModule, DbModule, CacheModule],
   controllers: [BookingsPublicController, BookingsManagerController],
   providers: [
     BookingsPublicService,
