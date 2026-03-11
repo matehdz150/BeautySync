@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { getClients } from "@/lib/services/clients";
 import { EmptyClientsState } from "./EmptyClientState";
+import ClientActionsDropdown from "@/components/clients/ClientsActionsDropdown";
 
 /* =====================
    TYPES
@@ -121,7 +122,7 @@ export default function ClientsPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
 
-          <Button onClick={() => router.push("/dashboard/clients/actions/new")}>
+          <Button onClick={() => router.push("/dashboard/clients/actions/clientActions/new")}>
             Agregar cliente
             <Plus />
           </Button>
@@ -210,13 +211,7 @@ export default function ClientsPage() {
 
                       {/* ACTIONS */}
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          className="rounded-2xl shadow-none"
-                        >
-                          Acciones
-                          <ChevronDown />
-                        </Button>
+                        <ClientActionsDropdown clientId={c.id} />
                       </TableCell>
                     </TableRow>
                   ))}

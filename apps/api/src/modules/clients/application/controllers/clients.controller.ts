@@ -21,6 +21,7 @@ import { GetClientsByOrganizationUseCase } from '../../core/use-cases/get-client
 import { CreateClientUseCase } from '../../core/use-cases/create-client.use-case';
 import { UpdateClientUseCase } from '../../core/use-cases/update-client.use-case';
 import { DeleteClientUseCase } from '../../core/use-cases/delete-client.use-case';
+import { GetClientEditUseCase } from '../../core/use-cases/get-client-edit.use-case';
 
 @Controller('clients')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -29,11 +30,19 @@ export class ClientsController {
   constructor(
     private readonly getClients: GetClientsUseCase,
     private readonly getClient: GetClientUseCase,
+    private readonly getClientEdit: GetClientEditUseCase,
     private readonly getClientsByOrg: GetClientsByOrganizationUseCase,
     private readonly createClient: CreateClientUseCase,
     private readonly updateClient: UpdateClientUseCase,
     private readonly deleteClient: DeleteClientUseCase,
   ) {}
+
+  @UseGuards(OrganizationAccessGuard)
+  @Get('edit/:id')
+  findEditData(@Param('id') id: string) {
+    return this.getClientEdit.execute(id);
+  }
+
   @UseGuards(OrganizationAccessGuard)
   @Get()
   findAll() {
@@ -57,7 +66,6 @@ export class ClientsController {
     return this.createClient.execute(dto);
   }
 
-  @UseGuards(OrganizationAccessGuard)
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateClientDto) {
     return this.updateClient.execute(id, dto);

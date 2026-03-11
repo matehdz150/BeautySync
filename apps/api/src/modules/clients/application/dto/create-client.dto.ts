@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 import {
   IsEmail,
   IsOptional,
@@ -6,7 +5,10 @@ import {
   IsUUID,
   MinLength,
   IsDateString,
+  ValidateNested,
 } from 'class-validator';
+import { ClientProfileDto } from './client-profile.dto';
+import { Type } from 'class-transformer';
 
 export class CreateClientDto {
   @IsUUID()
@@ -32,4 +34,9 @@ export class CreateClientDto {
   @IsOptional()
   @IsDateString()
   birthdate?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ClientProfileDto)
+  profile?: ClientProfileDto;
 }

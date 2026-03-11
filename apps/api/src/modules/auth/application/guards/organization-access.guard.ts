@@ -7,6 +7,11 @@ import {
 
 import { Request } from 'express';
 
+type OrgRequestBody = {
+  organizationId?: string;
+  organization_id?: string;
+};
+
 @Injectable()
 export class OrganizationAccessGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
@@ -17,11 +22,14 @@ export class OrganizationAccessGuard implements CanActivate {
     if (!user) {
       throw new ForbiddenException('Missing user');
     }
-
+    const body = req.body as OrgRequestBody;
     const orgId =
       req.params?.orgId ??
       req.params?.organizationId ??
-      req.params?.organization_id;
+      req.params?.organization_id ??
+      body?.organizationId ??
+      body?.organization_id ??
+      req.query?.organizationId;
 
     if (!orgId) {
       throw new ForbiddenException('Missing organization param');

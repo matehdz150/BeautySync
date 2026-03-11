@@ -1,13 +1,23 @@
+export type ClientProfile = {
+  gender?: string | null;
+  occupation?: string | null;
+  city?: string | null;
+  ageRange?: string | null;
+  preferredStaffId?: string | null;
+  marketingOptIn?: boolean | null;
+};
+
 export class Client {
   constructor(
-    public readonly id: string,
-    public readonly organizationId: string,
-    public readonly name: string | null,
-    public readonly email: string | null,
-    public readonly phone: string | null,
-    public readonly avatarUrl: string | null,
-    public readonly birthdate: string | null,
-    public readonly createdAt: Date | null,
+    public id: string,
+    public organizationId: string,
+    public name: string | null,
+    public email: string | null,
+    public phone: string | null,
+    public avatarUrl: string | null,
+    public birthdate: string | null,
+    public createdAt: Date | null,
+    public profile?: ClientProfile | null,
   ) {}
 }
 
@@ -89,3 +99,29 @@ export interface OrganizationClientListItem extends Record<string, unknown> {
   averageRating: number | null;
   ratingCount: number;
 }
+
+export type ClientEditData = {
+  id: string;
+
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  avatarUrl?: string | null;
+
+  birthdate?: string | null;
+
+  profile?: {
+    gender?: string | null;
+    occupation?: string | null;
+    city?: string | null;
+    ageRange?: string | null;
+    preferredStaffId?: string | null;
+    marketingOptIn?: boolean | null;
+  };
+
+  editable: {
+    name: boolean;
+    email: boolean;
+    phone: boolean;
+  };
+};

@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import * as client from 'src/modules/db/client';
-import { clients } from 'src/modules/db/schema';
+import { clientProfiles, clients } from 'src/modules/db/schema';
 import { eq, sql } from 'drizzle-orm';
 
 import {
@@ -11,6 +11,7 @@ import {
 import {
   Client,
   ClientDetails,
+  ClientEditData,
   OrganizationClientListItem,
 } from '../../core/entities/client.entity';
 import { ClientMapper } from '../mappers/client.mapper';
@@ -319,33 +320,67 @@ export class ClientsDrizzleRepository implements ClientsRepository {
   }
 
   async create(dto: CreateClientInput): Promise<Client> {
-    const [c] = await this.db.insert(clients).values(dto).returning();
+    const { profile, ...clientData } = dto;
+
+    const [c] = await this.db.insert(clients).values(clientData).returning();
+
+    await this.db.insert(clientProfiles).values({
+      clientId: c.id,
+
+      gender: profile?.gender ?? null,
+      occupation: profile?.occupation ?? null,
+      city: profile?.city ?? null,
+      ageRange: profile?.ageRange ?? null,
+      preferredStaffId: profile?.preferredStaffId ?? null,
+      marketingOptIn: profile?.marketingOptIn ?? false,
+    });
+
     return ClientMapper.toDomain(c);
   }
 
   async update(id: string, dto: UpdateClientInput): Promise<Client> {
-    const [c] = await this.db
-      .update(clients)
-      .set(dto)
-      .where(eq(clients.id, id))
-      .returning();
+    const { profile, ...clientData } = dto;
 
-    if (!c) throw new BadRequestException('Client not found');
+    await this.db.transaction(async (tx) => {
+      const cleanClientData = Object.fromEntries(
+        Object.entries(clientData).filter(([, v]) => v != null),
+      );
 
-    return ClientMapper.toDomain(c);
-  }
+      if (Object.keys(cleanClientData).length > 0) {
+        await tx.update(clients).set(cleanClientData).where(eq(clients.id, id));
+      }
 
-  async delete(id: string): Promise<{ ok: true }> {
-    const res = await this.db
-      .delete(clients)
-      .where(eq(clients.id, id))
-      .returning();
+      if (profile) {
+        const cleanProfile = Object.fromEntries(
+          Object.entries(profile).filter(([, v]) => v != null),
+        );
 
-    if (res.length === 0) {
-      throw new BadRequestException('Client not found');
-    }
+        if (Object.keys(cleanProfile).length > 0) {
+          await tx
+            .insert(clientProfiles)
+            .values({
+              clientId: id,
+              ...cleanProfile,
+            })
+            .onConflictDoUpdate({
+              target: clientProfiles.clientId,
+              set: cleanProfile,
+            });
+        }
+      }
+    });
 
-    return { ok: true };
+    const updated = await this.db.query.clients.findFirst({
+      where: eq(clients.id, id),
+      with: {
+        profile: true,
+      },
+    });
+
+    return {
+      ...ClientMapper.toDomain(updated!),
+      profile: updated?.profile ?? null,
+    };
   }
 
   async findByOrganization(
@@ -384,5 +419,68 @@ export class ClientsDrizzleRepository implements ClientsRepository {
     `);
 
     return rows ?? [];
+  }
+
+  async findEditData(id: string): Promise<ClientEditData> {
+    const client = await this.db.query.clients.findFirst({
+      where: eq(clients.id, id),
+      with: {
+        publicUsers: true,
+      },
+    });
+
+    const profile = await this.db.query.clientProfiles.findFirst({
+      where: eq(clientProfiles.clientId, id),
+    });
+
+    const linkedToPublicUser = (client?.publicUsers?.length ?? 0) > 0;
+
+    return {
+      id: client!.id,
+
+      name: client!.name,
+      email: client!.email,
+      phone: client!.phone,
+      avatarUrl: client!.avatarUrl,
+      birthdate: client!.birthdate,
+
+      profile: profile
+        ? {
+            gender: profile.gender,
+            occupation: profile.occupation,
+            city: profile.city,
+            ageRange: profile.ageRange,
+            preferredStaffId: profile.preferredStaffId,
+            marketingOptIn: profile.marketingOptIn,
+          }
+        : undefined,
+
+      editable: {
+        name: !linkedToPublicUser,
+        email: !linkedToPublicUser,
+        phone: !linkedToPublicUser,
+      },
+    };
+  }
+
+  async delete(id: string): Promise<{ ok: true }> {
+    const res = await this.db.transaction(async (tx) => {
+      // borrar profile si existe
+      await tx.delete(clientProfiles).where(eq(clientProfiles.clientId, id));
+
+      // borrar cliente
+      const deleted = await tx
+        .delete(clients)
+        .where(eq(clients.id, id))
+        .returning();
+
+      return deleted;
+    });
+
+    if (!res || res.length === 0) {
+      throw new BadRequestException('Client not found');
+    }
+
+    return { ok: true };
   }
 }

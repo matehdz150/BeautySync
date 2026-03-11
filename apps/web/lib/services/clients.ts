@@ -1,5 +1,8 @@
-// apps/web/lib/services/clients.ts
 import { api } from "./api";
+
+/* =============================
+   CLIENT LIST
+============================= */
 
 export type Client = {
   id: string;
@@ -9,32 +12,86 @@ export type Client = {
   avatarUrl: string | null;
   createdAt?: string;
 
-  // 🔥 Nuevos campos analytics
   totalBookings: number;
   averageRating: number | null;
   ratingCount: number;
 };
 
-
 export async function getClients(orgId: string) {
   return api<Client[]>(`/clients/organization/${orgId}`);
 }
 
-export async function createClient(input: { name: string; email?: string }) {
+/* =============================
+   CLIENT PROFILE
+============================= */
+
+export type ClientProfile = {
+  gender?: string | null;
+  occupation?: string | null;
+  city?: string | null;
+  ageRange?: string | null;
+  preferredStaffId?: string | null;
+  marketingOptIn?: boolean | null;
+};
+
+/* =============================
+   CREATE CLIENT
+============================= */
+
+export type CreateClientInput = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  avatarUrl?: string;
+  birthdate?: string;
+
+  profile?: ClientProfile;
+};
+
+export async function createClient(input: CreateClientInput) {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
-  return api("/clients", {
+  return api<Client>("/clients", {
     method: "POST",
     body: JSON.stringify({
       ...input,
-      organizationId: user.orgId,   // 👈 MÁNDALO
+      organizationId: user.orgId,
     }),
   });
 }
 
-// =============================
-// 📊 Client Detail Types
-// =============================
+/* =============================
+   UPDATE CLIENT
+============================= */
+
+export type UpdateClientInput = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  avatarUrl?: string;
+  birthdate?: string;
+
+  profile?: ClientProfile;
+};
+
+export async function updateClient(
+  id: string,
+  input: UpdateClientInput
+) {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+  return api<Client>(`/clients/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      ...input,
+      organizationId: user.orgId,
+    }),
+  });
+}
+
+/* =============================
+   CLIENT DETAIL TYPES
+============================= */
 
 export type ClientStats = {
   totalAppointments: number;
@@ -54,7 +111,7 @@ export type ClientBooking = {
   createdAt: string;
   branchId: string;
   branchName: string;
-  appointments: ClientAppointment[]
+  appointments: ClientAppointment[];
 };
 
 export type ClientAppointment = {
@@ -103,6 +160,10 @@ export type ClientReview = {
   }[];
 };
 
+/* =============================
+   CLIENT DETAIL
+============================= */
+
 export type ClientDetail = {
   client: {
     id: string;
@@ -113,15 +174,62 @@ export type ClientDetail = {
     createdAt?: string;
   };
 
+  profile?: ClientProfile | null;
+
   stats: ClientStats;
-
   bookings: ClientBooking[];
-
-  reviews: ClientReview[]
+  reviews: ClientReview[];
 };
 
 export async function getClientDetail(
-  id: string,
+  id: string
 ): Promise<ClientDetail> {
   return api<ClientDetail>(`/clients/${id}`);
+}
+
+/* =============================
+   CLIENT EDIT DATA
+============================= */
+
+export type ClientEditable = {
+  name: boolean
+  email: boolean
+  phone: boolean
+}
+
+export type ClientEditData = {
+  id: string
+
+  name?: string | null
+  email?: string | null
+  phone?: string | null
+  avatarUrl?: string | null
+
+  birthdate?: string | null
+
+  profile?: {
+    gender?: string | null
+    occupation?: string | null
+    city?: string | null
+    ageRange?: string | null
+    preferredStaffId?: string | null
+    marketingOptIn?: boolean | null
+  }
+  editable?: ClientEditable
+}
+
+export async function getClientEdit(id: string) {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+  return api<ClientEditData>(
+    `/clients/edit/${id}?organizationId=${user.orgId}`
+  );
+}
+
+export async function deleteClient(id: string) {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+  return api(`/clients/${id}?organizationId=${user.orgId}`, {
+    method: "DELETE",
+  });
 }
