@@ -19,7 +19,7 @@ import {
   services,
   staff,
 } from '../db/schema';
-import { AvailabilityService } from 'src/modules/availability/availability.service';
+import { AvailabilityService } from 'src/modules/availability/infrastructure/adapters/availability.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { DateTime } from 'luxon';
 import { and, eq, lt, gte, ne, sql, gt } from 'drizzle-orm';
@@ -89,7 +89,7 @@ export class AppointmentsService {
     const availability = await this.availability.getAvailability({
       branchId,
       serviceId,
-      date: dateLocal,
+      date: dateLocal!,
       staffId,
     });
 
@@ -342,7 +342,7 @@ export class AppointmentsService {
       const availability = await this.availability.getAvailability({
         branchId: existing.branchId,
         serviceId: existing.serviceId,
-        date,
+        date: date!,
         staffId: targetStaff,
       });
 

@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
@@ -15,27 +15,43 @@ import {
   staffServices,
   serviceCategories,
 } from 'src/modules/db/schema';
-import { and, eq, inArray, lt, gte } from 'drizzle-orm';
-import { GetAvailabilityDto } from './dto/create-availability.dto';
+import { and, eq, inArray, lt, gte, InferSelectModel } from 'drizzle-orm';
+import { GetAvailabilityDto } from '../../application/dto/create-availability.dto';
 import {
   dtToMinutesSinceDayStart,
   parseTimeToMinutes,
   subtractBusy,
 } from './time-helpers';
 import { DateTime } from 'luxon';
-import { BLOCKING_APPOINTMENT_STATUSES } from '../lib/booking/booking.constants';
+import {
+  AvailabilityResult,
+  StaffAvailability,
+} from '../../core/entities/availability.entity';
 
-type StaffAvailability = {
-  staffId: string;
-  slots: string[];
+type StaffSchedule = InferSelectModel<typeof staffSchedules>;
+type StaffTimeOff = InferSelectModel<typeof staffTimeOff>;
+type Appointment = InferSelectModel<typeof appointments>;
+
+export const BLOCKING_APPOINTMENT_STATUSES: Appointment['status'][] = [
+  'PENDING',
+  'CONFIRMED',
+  'COMPLETED',
+];
+
+type TimeBlock = {
+  startMin: number;
+  endMin: number;
 };
 
 @Injectable()
 export class AvailabilityService {
   constructor(@Inject('DB') private db: client.DB) {}
 
-  async getAvailability(query: GetAvailabilityDto) {
+  async getAvailability(
+    query: GetAvailabilityDto,
+  ): Promise<AvailabilityResult> {
     const { branchId, serviceId, date, staffId, requiredDurationMin } = query;
+
     const isByService = typeof serviceId === 'string';
     const SLOT_MIN = 15;
 
@@ -61,7 +77,8 @@ export class AvailabilityService {
       );
     }
 
-    // 2️⃣ Settings
+    // SETTINGS
+
     const settings = await this.db.query.branchSettings.findFirst({
       where: eq(branchSettings.branchId, branchId),
     });
@@ -72,12 +89,12 @@ export class AvailabilityService {
     const bufferBefore = settings?.bufferBeforeMin ?? 0;
     const bufferAfter = settings?.bufferAfterMin ?? 0;
 
-    // 👉 número de slots necesarios
     const slotsNeeded = Math.ceil(
       (durationMin + bufferBefore + bufferAfter) / SLOT_MIN,
     );
 
     const nowLocal = DateTime.now().setZone(tz);
+
     const dayStartLocal = DateTime.fromISO(date, { zone: tz }).startOf('day');
     const dayEndLocal = dayStartLocal.endOf('day');
 
@@ -88,7 +105,8 @@ export class AvailabilityService {
     if (diffDays > maxBookingAheadDays)
       throw new BadRequestException('Date is beyond max booking ahead window');
 
-    // 3️⃣ Staff elegible…
+    // STAFF ELEGIBLE
+
     let staffIds: string[] = [];
 
     if (staffId) {
@@ -112,9 +130,8 @@ export class AvailabilityService {
         ),
       });
 
-      if (!staffRow) {
+      if (!staffRow)
         throw new BadRequestException('Staff is not active in this branch');
-      }
 
       staffIds = [staffId];
     } else {
@@ -130,12 +147,10 @@ export class AvailabilityService {
               eq(staff.isActive, true),
             ),
           )
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-          .where(eq(staffServices.serviceId, serviceId!));
+          .where(eq(staffServices.serviceId, serviceId));
 
         staffIds = [...new Set(staffWithService.map((s) => s.staffId))];
       } else {
-        // 🔥 modo por duración: cualquier staff activo
         const activeStaff = await this.db
           .select({ staffId: staff.id })
           .from(staff)
@@ -145,13 +160,15 @@ export class AvailabilityService {
       }
     }
 
-    if (staffIds.length === 0) return { date, branchId, serviceId, staff: [] };
+    if (staffIds.length === 0) {
+      return new AvailabilityResult(branchId, date, []);
+    }
 
-    // 4️⃣ horarios del día
-    const luxonWeekday = dayStartLocal.weekday; // 1=Mon … 7=Sun
-    const dayOfWeek = luxonWeekday % 7;
+    // SCHEDULES
 
-    const schedules = await this.db
+    const dayOfWeek = dayStartLocal.weekday % 7;
+
+    const schedules: StaffSchedule[] = await this.db
       .select()
       .from(staffSchedules)
       .where(
@@ -161,11 +178,12 @@ export class AvailabilityService {
         ),
       );
 
-    // 5️⃣ time off
+    // TIME OFF
+
     const dayStartUtc = dayStartLocal.toUTC().toJSDate();
     const dayEndUtc = dayEndLocal.toUTC().toJSDate();
 
-    const timeOff = await this.db
+    const timeOff: StaffTimeOff[] = await this.db
       .select()
       .from(staffTimeOff)
       .where(
@@ -176,8 +194,9 @@ export class AvailabilityService {
         ),
       );
 
-    // 6️⃣ citas existentes
-    const existingAppointments = await this.db
+    // APPOINTMENTS
+
+    const existingAppointments: Appointment[] = await this.db
       .select()
       .from(appointments)
       .where(
@@ -186,29 +205,28 @@ export class AvailabilityService {
           inArray(appointments.staffId, staffIds),
           lt(appointments.start, dayEndUtc),
           gte(appointments.end, dayStartUtc),
-          inArray(appointments.status, BLOCKING_APPOINTMENT_STATUSES as any),
+          inArray(appointments.status, BLOCKING_APPOINTMENT_STATUSES),
         ),
       );
 
-    // 7️⃣ DISPONIBILIDAD FINAL
     const staffAvailability: StaffAvailability[] = [];
 
     for (const sId of staffIds) {
       const staffSched = schedules.filter((s) => s.staffId === sId);
 
       if (staffSched.length === 0) {
-        staffAvailability.push({ staffId: sId, slots: [] });
+        staffAvailability.push(new StaffAvailability(sId, []));
         continue;
       }
 
-      // libre base
-      let freeBlocks = staffSched.map((s) => ({
-        startMin: parseTimeToMinutes(s.startTime as any),
-        endMin: parseTimeToMinutes(s.endTime as any),
+      let freeBlocks: TimeBlock[] = staffSched.map((s) => ({
+        startMin: parseTimeToMinutes(s.startTime),
+        endMin: parseTimeToMinutes(s.endTime),
       }));
 
-      // restar ausencias
-      const busyFromTimeOff = timeOff
+      // TIME OFF
+
+      const busyFromTimeOff: TimeBlock[] = timeOff
         .filter((t) => t.staffId === sId)
         .map((t) => {
           const start = DateTime.fromJSDate(t.start).setZone(tz);
@@ -228,8 +246,9 @@ export class AvailabilityService {
 
       freeBlocks = subtractBusy(freeBlocks, busyFromTimeOff);
 
-      // restar citas
-      const busyFromAppointments = existingAppointments
+      // APPOINTMENTS
+
+      const busyFromAppointments: TimeBlock[] = existingAppointments
         .filter((a) => a.staffId === sId)
         .map((a) => {
           const start = DateTime.fromJSDate(a.start).setZone(tz);
@@ -243,7 +262,6 @@ export class AvailabilityService {
 
       freeBlocks = subtractBusy(freeBlocks, busyFromAppointments);
 
-      // 🎯 generar grid cada 30m
       let slotStarts: number[] = [];
 
       for (const block of freeBlocks) {
@@ -255,7 +273,6 @@ export class AvailabilityService {
         }
       }
 
-      // 🎯 filtrar solo los que CABEN COMPLETOS
       slotStarts = slotStarts.filter((startMin) =>
         freeBlocks.some(
           (b) =>
@@ -264,35 +281,45 @@ export class AvailabilityService {
         ),
       );
 
-      // ⏰ min booking notice hoy
       if (dayStartLocal.hasSame(nowLocal, 'day') && minBookingNoticeMin > 0) {
         const nowMin = dtToMinutesSinceDayStart(nowLocal, dayStartLocal);
+
         slotStarts = slotStarts.filter(
           (m) => m >= nowMin + minBookingNoticeMin,
         );
       }
 
-      // 🌎 pasar a ISO UTC
-      const slotsIso = slotStarts.map((m) =>
-        dayStartLocal.plus({ minutes: m }).toUTC().toISO(),
+      const slotsIso: string[] = slotStarts.map(
+        (m) => dayStartLocal.plus({ minutes: m }).toUTC().toISO()!,
       );
 
-      staffAvailability.push({ staffId: sId, slots: slotsIso });
+      staffAvailability.push(new StaffAvailability(sId, slotsIso));
     }
 
-    return { date, branchId, serviceId, staff: staffAvailability };
+    return new AvailabilityResult(branchId, date, staffAvailability);
   }
 
-  async getAvailableServicesForSlot({
-    branchId,
-    staffId,
-    datetime,
-  }: {
+  async getAvailableServicesForSlot(params: {
     branchId: string;
     staffId: string;
     datetime: string;
-  }) {
-    // 1️⃣ Settings
+  }): Promise<
+    {
+      id: string;
+      name: string;
+      durationMin: number;
+      priceCents: number | null;
+      category: {
+        id: string | null;
+        name: string | null;
+        colorHex: string | null;
+      } | null;
+    }[]
+  > {
+    const { branchId, staffId, datetime } = params;
+
+    // SETTINGS
+
     const settings = await this.db.query.branchSettings.findFirst({
       where: eq(branchSettings.branchId, branchId),
     });
@@ -305,7 +332,8 @@ export class AvailabilityService {
     const dayStart = start.startOf('day');
     const dayEnd = start.endOf('day');
 
-    // 2️⃣ Staff must belong to branch
+    // STAFF VALIDATION
+
     const staffRow = await this.db.query.staff.findFirst({
       where: and(
         eq(staff.id, staffId),
@@ -316,14 +344,14 @@ export class AvailabilityService {
 
     if (!staffRow) throw new BadRequestException('Invalid staff');
 
-    // 3️⃣ Get services staff can perform
+    // SERVICES STAFF CAN PERFORM
+
     const srvList = await this.db
       .select({
         id: services.id,
         name: services.name,
         durationMin: services.durationMin,
         priceCents: services.priceCents,
-
         category: {
           id: serviceCategories.id,
           name: serviceCategories.name,
@@ -340,10 +368,11 @@ export class AvailabilityService {
 
     if (srvList.length === 0) return [];
 
-    // 4️⃣ Get schedules
+    // SCHEDULES
+
     const dayOfWeek = start.weekday % 7;
 
-    const schedules = await this.db
+    const schedules: StaffSchedule[] = await this.db
       .select()
       .from(staffSchedules)
       .where(
@@ -355,14 +384,16 @@ export class AvailabilityService {
 
     if (schedules.length === 0) return [];
 
-    // Build base free blocks
-    let freeBlocks = schedules.map((s) => ({
-      startMin: parseTimeToMinutes(s.startTime as any),
-      endMin: parseTimeToMinutes(s.endTime as any),
+    // BASE FREE BLOCKS
+
+    let freeBlocks: TimeBlock[] = schedules.map((s) => ({
+      startMin: parseTimeToMinutes(s.startTime),
+      endMin: parseTimeToMinutes(s.endTime),
     }));
 
-    // 5️⃣ Get time-off
-    const timeOff = await this.db
+    // TIME OFF
+
+    const timeOff: StaffTimeOff[] = await this.db
       .select()
       .from(staffTimeOff)
       .where(
@@ -373,7 +404,7 @@ export class AvailabilityService {
         ),
       );
 
-    const busyOff = timeOff.map((t) => ({
+    const busyOff: TimeBlock[] = timeOff.map((t) => ({
       startMin: dtToMinutesSinceDayStart(
         DateTime.fromJSDate(t.start).setZone(tz),
         dayStart,
@@ -386,8 +417,9 @@ export class AvailabilityService {
 
     freeBlocks = subtractBusy(freeBlocks, busyOff);
 
-    // 6️⃣ Get existing appointments
-    const appointmentsToday = await this.db
+    // APPOINTMENTS
+
+    const appointmentsToday: Appointment[] = await this.db
       .select()
       .from(appointments)
       .where(
@@ -396,15 +428,11 @@ export class AvailabilityService {
           eq(appointments.branchId, branchId),
           lt(appointments.start, dayEnd.toUTC().toJSDate()),
           gte(appointments.end, dayStart.toUTC().toJSDate()),
-          inArray(appointments.status, [
-            'PENDING',
-            'CONFIRMED',
-            'COMPLETED',
-          ] as any),
+          inArray(appointments.status, BLOCKING_APPOINTMENT_STATUSES),
         ),
       );
 
-    const busyApps = appointmentsToday.map((a) => ({
+    const busyApps: TimeBlock[] = appointmentsToday.map((a) => ({
       startMin: dtToMinutesSinceDayStart(
         DateTime.fromJSDate(a.start).setZone(tz),
         dayStart,
@@ -417,7 +445,8 @@ export class AvailabilityService {
 
     freeBlocks = subtractBusy(freeBlocks, busyApps);
 
-    // 7️⃣ Check each service fits in the selected slot
+    // SLOT CHECK
+
     const startMin = dtToMinutesSinceDayStart(start, dayStart);
 
     return srvList.filter((s) => {
