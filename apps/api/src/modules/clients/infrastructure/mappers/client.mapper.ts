@@ -1,10 +1,10 @@
 import { clients } from 'src/modules/db/schema';
-import { Client } from '../../core/entities/client.entity';
+import { Client, ClientProfile } from '../../core/entities/client.entity';
 
 type ClientRow = typeof clients.$inferSelect;
 
 export class ClientMapper {
-  static toDomain(row: ClientRow): Client {
+  static toDomain(row: ClientRow, profile?: ClientProfile | null): Client {
     return new Client(
       row.id,
       row.organizationId,
@@ -14,6 +14,7 @@ export class ClientMapper {
       row.avatarUrl,
       row.birthdate,
       row.createdAt,
+      profile ?? null,
     );
   }
 }

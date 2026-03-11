@@ -17,7 +17,8 @@ export const clientProfiles = pgTable(
 
     clientId: uuid("client_id")
       .notNull()
-      .references(() => clients.id, { onDelete: "cascade" }),
+      .references(() => clients.id, { onDelete: "cascade" })
+      .unique(),   // ← ESTA ES LA CLAVE
 
     gender: text("gender"),
     occupation: text("occupation"),
@@ -33,15 +34,10 @@ export const clientProfiles = pgTable(
   },
 
   (table) => ({
-    // 🔥 lookup directo del perfil del cliente
-    profileClientIdx: index("client_profile_client_idx").on(table.clientId),
-
-    // ❤️ campañas de marketing
     marketingIdx: index("client_profile_marketing_idx").on(
       table.marketingOptIn
     ),
 
-    // 📊 analytics comunes
     genderIdx: index("client_profile_gender_idx").on(table.gender),
     cityIdx: index("client_profile_city_idx").on(table.city),
   })
