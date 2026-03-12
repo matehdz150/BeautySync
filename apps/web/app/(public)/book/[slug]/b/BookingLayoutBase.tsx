@@ -41,8 +41,43 @@ export function BookingLayoutBase({
   } = usePublicBooking();
 
   /* =====================
+     REDIRECT IF CONTEXT LOST
+  ===================== */
+
+  const parts = pathname.split("/").filter(Boolean);
+  const branchSlug = parts[1]; // /book/{slug}/...
+
+  useEffect(() => {
+    if (!branch && branchSlug && pathname !== `/book/${branchSlug}`) {
+      router.replace(`/book/${branchSlug}`);
+    }
+  }, [branch, branchSlug, pathname, router]);
+
+  /* =====================
+   WARN BEFORE REFRESH
+===================== */
+
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      // solo si hay datos en la reserva
+      if (!selectedServices.length) return;
+
+      e.preventDefault();
+      e.returnValue =
+        "Si actualizas la página se perderán los datos de tu reservación.";
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [selectedServices.length]);
+
+  /* =====================
      BASE PATH
   ===================== */
+
   const basePath = useMemo(() => {
     const parts = pathname.split("/").filter(Boolean);
     const last = parts[parts.length - 1];
@@ -57,8 +92,10 @@ export function BookingLayoutBase({
   /* =====================
      CURRENT STEP KEY
   ===================== */
+
   const currentStepKey = useMemo(() => {
     const last = pathname.split("/").filter(Boolean).pop();
+
     return STEP_ROUTES.includes(last as any)
       ? (last as (typeof STEP_ROUTES)[number])
       : null;
@@ -67,6 +104,7 @@ export function BookingLayoutBase({
   /* =====================
      SYNC STEP WITH ROUTE
   ===================== */
+
   useEffect(() => {
     const idx = STEP_ROUTES.findIndex((r) => pathname.endsWith("/" + r));
     if (idx === -1) return;
@@ -81,6 +119,7 @@ export function BookingLayoutBase({
   /* =====================
      LOAD CATALOG ONCE
   ===================== */
+
   useEffect(() => {
     if (!branch?.slug) return;
     if (catalog.length > 0) return;
@@ -95,6 +134,7 @@ export function BookingLayoutBase({
   /* =====================
      SUMMARY DATA
   ===================== */
+
   const selectedRows = useMemo(() => {
     if (!catalog.length) return [];
 
@@ -113,10 +153,10 @@ export function BookingLayoutBase({
   /* =====================
      STAFF VALIDATION
   ===================== */
+
   const isStaffSelectionComplete = useMemo(() => {
     if (!selectedServices.length) return false;
 
-    // para cada servicio seleccionado, debe existir staffByService[serviceId]
     return selectedServices.every((serviceId) => {
       const staffId = staffByService?.[serviceId];
       return typeof staffId === "string" && staffId.length > 0;
@@ -124,10 +164,8 @@ export function BookingLayoutBase({
   }, [selectedServices, staffByService]);
 
   const isContinueDisabled = useMemo(() => {
-    // regla base
     if (!canContinue) return true;
 
-    // regla extra SOLO en /staff
     if (currentStepKey === "staff") {
       return !isStaffSelectionComplete;
     }
@@ -138,11 +176,9 @@ export function BookingLayoutBase({
   /* =====================
      NAVIGATION
   ===================== */
-  function handleContinue() {
-    // 🔥 regla base
-    if (!canContinue) return;
 
-    // 🔥 regla extra SOLO en /staff
+  function handleContinue() {
+    if (!canContinue) return;
     if (isContinueDisabled) return;
 
     const nextStep = step + 1;
