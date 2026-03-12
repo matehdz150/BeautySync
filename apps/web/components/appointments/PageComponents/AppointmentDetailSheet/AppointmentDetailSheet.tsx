@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
 import { DateTime } from "luxon";
@@ -33,7 +29,7 @@ export default function AppointmentDetailSheet() {
   const { showAlert } = useUIAlerts();
 
   const appointment = state.appointments.find(
-    (a: any) => a.id === state.selectedAppointmentId
+    (a: any) => a.id === state.selectedAppointmentId,
   );
 
   const bookingId: string | null = appointment?.bookingId ?? null;
@@ -68,7 +64,7 @@ export default function AppointmentDetailSheet() {
 
       try {
         const res = await getManagerBookingById(bookingId);
-        console.log(res)
+        console.log(res);
         if (!cancelled) setBooking(res.booking);
       } catch {
         if (!cancelled) {
@@ -152,7 +148,7 @@ export default function AppointmentDetailSheet() {
                   buildBookingClientAssignedAlert({
                     clientName: res.booking.client?.name,
                     startIso: res.booking.startsAtISO,
-                  })
+                  }),
                 );
               }}
             />
@@ -162,7 +158,7 @@ export default function AppointmentDetailSheet() {
                 <span
                   className={cn(
                     "px-4 py-2 text-sm rounded-full",
-                    statusUI?.className
+                    statusUI?.className,
                   )}
                 >
                   {statusUI?.label}
@@ -190,7 +186,12 @@ export default function AppointmentDetailSheet() {
                   );
                 })}
               </div>
-              <BookingChatPreview bookingId={bookingId} onStartChat={()=>console.log("start chat")}/>
+              {booking.client?.hasPublicUser && (
+                <BookingChatPreview
+                  bookingId={bookingId}
+                  onStartChat={() => console.log("start chat")}
+                />
+              )}
               <div className="flex-1" />
 
               <div className="border-t pt-4 space-y-3">
@@ -214,7 +215,12 @@ export default function AppointmentDetailSheet() {
                     </>
                   )}
 
-                  <Button className="flex-1 py-6" onClick={()=> router.push('/dashboard/order/'+bookingId)}>Pagar</Button>
+                  <Button
+                    className="flex-1 py-6"
+                    onClick={() => router.push("/dashboard/order/" + bookingId)}
+                  >
+                    Pagar
+                  </Button>
                 </div>
               </div>
             </div>

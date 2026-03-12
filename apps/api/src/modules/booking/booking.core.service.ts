@@ -1213,6 +1213,8 @@ export class BookingsCoreService {
         })
       : null;
 
+    const hasPublicUser = !!clientRow?.publicUsers?.length;
+
     // 🔑 resolver avatar del cliente
     const publicUserAvatar =
       clientRow?.publicUsers?.[0]?.publicUser?.avatarUrl ?? null;
@@ -1316,7 +1318,8 @@ export class BookingsCoreService {
               name: clientRow.name,
               phone: clientRow.phone,
               email: clientRow.email,
-              avatarUrl: clientAvatar, // 🔥 AQUÍ
+              avatarUrl: clientAvatar,
+              hasPublicUser,
             }
           : null,
 

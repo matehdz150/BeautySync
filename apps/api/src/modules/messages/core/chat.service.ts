@@ -12,6 +12,16 @@ export class ChatService {
     private readonly events: ChatEventBus,
   ) {}
 
+  private async assertClientHasPublicUser(clientId: string) {
+    const publicUserId = await this.repo.getPublicUserIdByClient(clientId);
+
+    if (!publicUserId) {
+      throw new Error('CLIENT_HAS_NO_PUBLIC_USER');
+    }
+
+    return publicUserId;
+  }
+
   // =============================
   // SEND MESSAGE
   // =============================
@@ -26,6 +36,9 @@ export class ChatService {
       if (participants.clientId !== input.actor.clientId) {
         throw new Error('FORBIDDEN');
       }
+
+      // 🔒 validar que tenga public user
+      await this.assertClientHasPublicUser(input.actor.clientId);
     }
 
     if (input.actor.type === 'USER') {
@@ -130,6 +143,11 @@ export class ChatService {
     // permiso
     const branchId = await this.repo.getConversationBranch(conversationId);
     if (!branchId) throw new Error('NOT_FOUND');
+
+    const clientId = await this.repo.getConversationClient(conversationId);
+    if (clientId) {
+      await this.assertClientHasPublicUser(clientId);
+    }
 
     // obtener mensajes
     const page = await this.repo.getMessages({
@@ -301,10 +319,16 @@ export class ChatService {
       params.bookingId,
     );
 
-    if (!participants) throw new Error('BOOKING_NOT_FOUND');
+    if (!participants) {
+      throw new Error('BOOKING_NOT_FOUND');
+    }
 
-    if (participants.organizationId !== params.organizationId) {
-      throw new Error('FORBIDDEN');
+    const publicUserId = await this.repo.getPublicUserIdByClient(
+      participants.clientId,
+    );
+
+    if (!publicUserId) {
+      throw new Error('CLIENT_HAS_NO_PUBLIC_USER');
     }
 
     return this.repo.getConversationPreviewByBooking(

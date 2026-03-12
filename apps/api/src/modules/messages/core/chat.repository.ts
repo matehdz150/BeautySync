@@ -61,6 +61,8 @@ export abstract class ChatRepository {
     organizationId: string;
   } | null>;
 
+  abstract getPublicUserIdByClient(clientId: string): Promise<string | null>;
+
   abstract getClientIdByPublicUser(publicUserId: string): Promise<string[]>;
   abstract getConversationClient(
     conversationId: string,
