@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { SegmentToggle } from "@/components/services/SegmentToggle";
 import { useRouter } from "next/navigation";
 import { EmptyServicesState } from "./EmptyServicesState";
+import { CategoriesList } from "@/components/services/CategoriesList";
 
 export type Service = {
   id: string;
@@ -37,6 +38,9 @@ export default function ServicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [segment, setSegment] = useState<"Servicios" | "Categorias">(
+    "Servicios",
+  );
 
   async function loadServices() {
     if (!branch) return;
@@ -87,7 +91,7 @@ export default function ServicesPage() {
   });
 
   return (
-    <main className="p-6 space-y-6 mx-auto h-full">
+    <main className="p-6 space-y-6 mx-auto h-dvh flex flex-col overflow-hidden">
       {/* HEADER */}
       <div className="flex justify-between items-center">
         <div>
@@ -97,7 +101,7 @@ export default function ServicesPage() {
 
       {/* SEARCH */}
       <div className="flex justify-between bg-gray-50 py-5 px-3">
-        <SegmentToggle />
+        <SegmentToggle value={segment} onChange={setSegment} />
 
         <div className="flex gap-2">
           <div className="relative w-70 shadow-none">
@@ -125,12 +129,17 @@ export default function ServicesPage() {
         </div>
       </div>
 
-      {/* CONTENT */}
-      {!loading && services.length === 0 ? (
-        <EmptyServicesState />
-      ) : (
-        <ServicesTable services={filtered} loading={loading} />
-      )}
+      <div className="flex-1 min-h-0">
+        {segment === "Servicios" ? (
+          !loading && services.length === 0 ? (
+            <EmptyServicesState />
+          ) : (
+            <ServicesTable services={filtered} loading={loading} />
+          )
+        ) : (
+          <CategoriesList />
+        )}
+      </div>
     </main>
   );
 }
