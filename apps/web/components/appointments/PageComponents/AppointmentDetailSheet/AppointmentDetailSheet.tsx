@@ -186,7 +186,7 @@ export default function AppointmentDetailSheet() {
                   );
                 })}
               </div>
-              {booking.client?.hasPublicUser && (
+              {booking.client?.hasPublicUser === true && (
                 <BookingChatPreview
                   bookingId={bookingId}
                   onStartChat={() => console.log("start chat")}

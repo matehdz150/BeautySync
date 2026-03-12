@@ -1340,7 +1340,10 @@ export class BookingsCoreService {
     if (!clientId) throw new BadRequestException('clientId is required');
 
     return this.db.transaction(async (tx) => {
-      // 1) Booking
+      /* =========================
+       1️⃣ Booking
+    ========================= */
+
       const booking = await tx.query.publicBookings.findFirst({
         where: eq(publicBookings.id, bookingId),
       });
@@ -1355,32 +1358,37 @@ export class BookingsCoreService {
         );
       }
 
-      // 2) Resolver publicUserId desde clientId
+      /* =========================
+       2️⃣ Resolver publicUserId (opcional)
+    ========================= */
+
       const link = await tx.query.publicUserClients.findFirst({
         where: eq(publicUserClients.clientId, clientId),
         columns: { publicUserId: true },
       });
 
-      if (!link?.publicUserId) {
-        throw new BadRequestException(
-          'Client is not linked to any public user',
-        );
+      const publicUserId = link?.publicUserId ?? null;
+
+      /* =========================
+       3️⃣ Actualizar booking
+    ========================= */
+
+      if (publicUserId) {
+        await tx
+          .update(publicBookings)
+          .set({ publicUserId })
+          .where(eq(publicBookings.id, bookingId));
       }
 
-      const publicUserId = link.publicUserId;
+      /* =========================
+       4️⃣ Actualizar appointments
+    ========================= */
 
-      // 3) Actualizar booking
-      await tx
-        .update(publicBookings)
-        .set({ publicUserId })
-        .where(eq(publicBookings.id, bookingId));
-
-      // 4) Actualizar appointments
       await tx
         .update(appointments)
         .set({
-          publicUserId,
           clientId,
+          ...(publicUserId ? { publicUserId } : {}),
         })
         .where(eq(appointments.publicBookingId, bookingId));
 
@@ -1404,20 +1412,28 @@ export class BookingsCoreService {
       }
 
       /* =========================
-       6️⃣ Schedule jobs
+       6️⃣ Schedule lifecycle jobs
+       SOLO si existe public user
     ========================= */
 
-      await this.publicBookingJobsService.scheduleBookingLifecycle({
-        bookingId,
-        startsAtUtc: booking.startsAt,
-        endsAtUtc: booking.endsAt,
-      });
+      if (publicUserId) {
+        await this.publicBookingJobsService.scheduleBookingLifecycle({
+          bookingId,
+          startsAtUtc: booking.startsAt,
+          endsAtUtc: booking.endsAt,
+        });
+      }
+
+      /* =========================
+       RESPONSE
+    ========================= */
 
       return {
         ok: true,
         bookingId,
-        publicUserId,
         clientId,
+        publicUserId,
+        hasPublicUser: !!publicUserId,
       };
     });
   }
