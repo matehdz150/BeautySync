@@ -120,11 +120,11 @@ export default function BranchSettingsPage() {
           <div className="space-y-2">
             <Label>Reservar hasta</Label>
             <HourSelect
-              value={form.maxBookingAheadDays * 60}
+              value={form.maxBookingAheadDays * 24 * 60}
               onChange={(v) =>
                 setForm({
                   ...form,
-                  maxBookingAheadDays: v / 60,
+                  maxBookingAheadDays: v / (24 * 60),
                 })
               }
             />
@@ -202,12 +202,14 @@ import { ArrowLeft } from "lucide-react";
 
 function hourOptions() {
   const options = [];
-  for (let h = 1; h <= 24; h += 2) {
+
+  for (let h = 1; h <= 24; h++) {
     options.push({
       label: `${h} ${h === 1 ? "hora" : "horas"}`,
       value: h * 60,
     });
   }
+
   return options;
 }
 
@@ -218,10 +220,25 @@ function HourSelect({
   value: number;
   onChange: (v: number) => void;
 }) {
-  const options = hourOptions();
+  const baseOptions = hourOptions();
+
+  const exists = baseOptions.some((o) => o.value === value);
+
+  const options = exists
+    ? baseOptions
+    : [
+        {
+          label: `${Math.round(value / 60)} horas`,
+          value,
+        },
+        ...baseOptions,
+      ];
 
   return (
-    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
+    <Select
+      value={String(value)}
+      onValueChange={(v) => onChange(Number(v))}
+    >
       <SelectTrigger className="w-full">
         <SelectValue />
       </SelectTrigger>
