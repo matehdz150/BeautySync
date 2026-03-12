@@ -14,6 +14,7 @@ import {
 
 export default function BranchSettingsPage() {
   const { branch } = useBranch();
+  const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,127 +71,110 @@ export default function BranchSettingsPage() {
   if (loading) return null;
 
   return (
-    <div className="space-y-6 overflow-y-scroll">
-      {/* 🔥 BOOKING RULES */}
-      <section className="bg-white rounded-2xl px-6 py-6">
-        <h2 className="text-2xl font-semibold mb-6">
-          Reglas de reservación
-        </h2>
+    <div className="space-y-6 overflow-y-scroll w-full">
+      <div className="flex items-center gap-4 mb-6 mt-10">
+        {/* Back button */}
+        <button
+          onClick={() => router.back()}
+          className="
+      flex items-center gap-2
+      px-4 py-2
+      border rounded-full
+      text-sm
+      hover:bg-gray-50
+      transition
+      bg-white
+    "
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Volver
+        </button>
 
-        <div className="grid grid-cols-2 gap-6">
-          {/* Min Notice */}
-          <div className="space-y-2">
-            <Label>Anticipación mínima (minutos)</Label>
-            <Input
-              type="number"
-              value={form.minBookingNoticeMin}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  minBookingNoticeMin: Number(e.target.value),
-                })
-              }
-            />
-            <p className="text-xs text-gray-500">
-              Tiempo mínimo antes de que un cliente pueda reservar.
+        {/* Breadcrumb */}
+        <div className="text-sm text-muted-foreground">
+          <span>Configuración del negocio</span>
+          <span className="mx-2">›</span>
+          <span className="text-foreground font-medium">Políticas</span>
+        </div>
+      </div>
+      {/* 🔥 BOOKING RULES */}
+      <section className="bg-white rounded-2xl border p-6 space-y-6 mr-10">
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-lg font-semibold">Reglas de reservación</h2>
+            <p className="text-sm text-muted-foreground">
+              Controla cuándo los clientes pueden reservar.
             </p>
           </div>
+        </div>
 
-          {/* Max Ahead */}
+        <div className="grid grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label>Reservar hasta (días)</Label>
-            <Input
-              type="number"
-              value={form.maxBookingAheadDays}
-              onChange={(e) =>
+            <Label>Anticipación mínima</Label>
+            <HourSelect
+              value={form.minBookingNoticeMin}
+              onChange={(v) => setForm({ ...form, minBookingNoticeMin: v })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Reservar hasta</Label>
+            <HourSelect
+              value={form.maxBookingAheadDays * 24 * 60}
+              onChange={(v) =>
                 setForm({
                   ...form,
-                  maxBookingAheadDays: Number(e.target.value),
+                  maxBookingAheadDays: v / (24 * 60),
                 })
               }
             />
-            <p className="text-xs text-gray-500">
-              Cuántos días hacia adelante pueden reservar.
-            </p>
           </div>
         </div>
       </section>
 
       {/* 🔥 CANCELLATION RULES */}
-      <section className="bg-white rounded-2xl px-6 py-6">
-        <h2 className="text-xl font-semibold mb-6">
+      <section className="bg-white rounded-2xl border p-6 space-y-6 mr-10">
+        <h2 className="text-lg font-semibold">
           Cancelaciones y reagendaciones
         </h2>
 
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label>Ventana de cancelación (minutos)</Label>
-            <Input
-              type="number"
+            <Label>Cancelación mínima</Label>
+            <HourSelect
               value={form.cancelationWindowMin}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  cancelationWindowMin: Number(e.target.value),
-                })
-              }
+              onChange={(v) => setForm({ ...form, cancelationWindowMin: v })}
             />
-            <p className="text-xs text-gray-500">
-              Tiempo mínimo antes de la cita para poder cancelar.
-            </p>
           </div>
 
           <div className="space-y-2">
-            <Label>Ventana de reagendación (minutos)</Label>
-            <Input
-              type="number"
+            <Label>Reagendar mínimo</Label>
+            <HourSelect
               value={form.rescheduleWindowMin}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  rescheduleWindowMin: Number(e.target.value),
-                })
-              }
+              onChange={(v) => setForm({ ...form, rescheduleWindowMin: v })}
             />
-            <p className="text-xs text-gray-500">
-              Tiempo mínimo antes de la cita para poder reagendar.
-            </p>
           </div>
         </div>
       </section>
 
       {/* 🔥 BUFFERS */}
-      <section className="bg-white rounded-2xl px-6 py-6">
-        <h2 className="text-xl font-semibold mb-6">
-          Buffers entre citas
-        </h2>
+      <section className="bg-white rounded-2xl border p-6 space-y-6 mr-10">
+        <h2 className="text-lg font-semibold">Buffers entre citas</h2>
 
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label>Buffer antes (minutos)</Label>
-            <Input
-              type="number"
+            <Label>Buffer antes</Label>
+            <HourSelect
               value={form.bufferBeforeMin}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  bufferBeforeMin: Number(e.target.value),
-                })
-              }
+              onChange={(v) => setForm({ ...form, bufferBeforeMin: v })}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Buffer después (minutos)</Label>
-            <Input
-              type="number"
+            <Label>Buffer después</Label>
+            <HourSelect
               value={form.bufferAfterMin}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  bufferAfterMin: Number(e.target.value),
-                })
-              }
+              onChange={(v) => setForm({ ...form, bufferAfterMin: v })}
             />
           </div>
         </div>
@@ -198,14 +182,74 @@ export default function BranchSettingsPage() {
 
       {/* SAVE BUTTON */}
       <div className="flex justify-end">
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-8"
-        >
+        <Button onClick={handleSave} disabled={saving} className="px-8">
           {saving ? "Guardando..." : "Guardar cambios"}
         </Button>
       </div>
     </div>
+  );
+}
+
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+
+function hourOptions() {
+  const options = [];
+
+  for (let h = 1; h <= 24; h++) {
+    options.push({
+      label: `${h} ${h === 1 ? "hora" : "horas"}`,
+      value: h * 60,
+    });
+  }
+
+  return options;
+}
+
+function HourSelect({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const baseOptions = hourOptions();
+
+  const exists = baseOptions.some((o) => o.value === value);
+
+  const options = exists
+    ? baseOptions
+    : [
+        {
+          label: `${Math.round(value / 60)} horas`,
+          value,
+        },
+        ...baseOptions,
+      ];
+
+  return (
+    <Select
+      value={String(value)}
+      onValueChange={(v) => onChange(Number(v))}
+    >
+      <SelectTrigger className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={String(o.value)}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

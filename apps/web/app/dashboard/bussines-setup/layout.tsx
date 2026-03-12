@@ -30,7 +30,7 @@ export default function StaffLayout({
   const [open, setOpen] = useState(true);
 
   return (
-    <div className="h-screen overflow-hidden">
+    <div className="h-screen overflow-hidden bg-gray-50">
       <div className="flex h-full gap-5">
         {/* SIDEBAR */}
         <aside
@@ -83,7 +83,7 @@ export default function StaffLayout({
         </aside>
 
         {/* MAIN (SCROLL AQUÍ) */}
-        <main className="flex-1 min-w-0 h-screen overflow-y-auto">
+        <main className="flex-1 min-w-0 h-screen overflow-y-auto bg-gray-50">
           <div className="min-h-full">{children}</div>
         </main>
       </div>
