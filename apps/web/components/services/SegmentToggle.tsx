@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-export function SegmentToggle() {
-  const [value, setValue] = useState<"Servicios" | "Categorias">("Servicios");
+type Props = {
+  value: "Servicios" | "Categorias";
+  onChange: (v: "Servicios" | "Categorias") => void;
+};
 
+export function SegmentToggle({ value, onChange }: Props) {
   return (
     <div className="inline-flex items-center border p-1 rounded-full bg-white">
       {[
@@ -14,7 +16,7 @@ export function SegmentToggle() {
       ].map((item) => (
         <button
           key={item.key}
-          onClick={() => setValue(item.key as any)}
+          onClick={() => onChange(item.key as any)}
           className={cn(
             "px-4 py-1.5 rounded-full text-sm transition-all",
             "focus:outline-none",
