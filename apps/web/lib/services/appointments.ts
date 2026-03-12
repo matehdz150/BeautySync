@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { api } from "./api";
+import { getOwnerToken } from "@/hooks/use-getOwnerToken";
 
 export async function createAppointment(input: {
   branchId: string;
@@ -106,9 +107,15 @@ export type CreateManagerBookingResponse = {
 export async function createManagerBooking(
   payload: CreateManagerBookingDto
 ): Promise<CreateManagerBookingResponse> {
+
+  const ownerToken = getOwnerToken();
+
   return api(`/manager/booking/appointments`, {
     method: "POST",
-    body: JSON.stringify(payload), // ✅ ACOPLADO a tu api()
+    body: JSON.stringify({
+      ...payload,
+      ownerToken,
+    }),
   });
 }
 

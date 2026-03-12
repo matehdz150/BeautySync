@@ -2,9 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { DateTime } from "luxon";
-import { Check, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -86,20 +85,33 @@ export function StepConfirmAddMore() {
               branchId,
               datetime: nextStartIso,
             }),
-          }
+          },
         );
 
-        if (!cancelled) setAvailableServices(res.services ?? []);
+        if (!cancelled) {
+          const services = Array.isArray(res?.services) ? res.services : [];
+          setAvailableServices(services);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
     load();
+
     return () => {
       cancelled = true;
     };
   }, [branchId, nextStartIso]);
+
+  /* ============================
+     Services map (faster lookups)
+  ============================ */
+
+  const servicesMap = useMemo(
+    () => new Map(availableServices.map((s) => [s.id, s])),
+    [availableServices],
+  );
 
   /* ============================
      Search
@@ -107,7 +119,9 @@ export function StepConfirmAddMore() {
 
   const filteredServices = useMemo(() => {
     if (!search.trim()) return availableServices;
+
     const q = search.toLowerCase();
+
     return availableServices.filter((s) => s.name.toLowerCase().includes(q));
   }, [availableServices, search]);
 
@@ -116,10 +130,23 @@ export function StepConfirmAddMore() {
   ============================ */
 
   function addService(service: AvailableService) {
+    const staffId = service.allowAny
+      ? "ANY"
+      : service.staff.length
+        ? service.staff[0].id
+        : "ANY";
+
+    const staffName = service.allowAny
+      ? "Staff automático"
+      : service.staff.length
+        ? service.staff[0].name
+        : "Staff";
+
     actions.addService({
       serviceId: service.id,
       serviceName: service.name,
-      staffId: "ANY",
+      staffId,
+      staffName,
       durationMin: service.durationMin,
     });
   }
@@ -131,6 +158,7 @@ export function StepConfirmAddMore() {
   return (
     <div className="space-y-8">
       {/* ================= CURRENT BOOKING ================= */}
+
       <div className="space-y-4">
         <h3 className="text-base font-semibold tracking-tight">
           Servicios seleccionados
@@ -140,9 +168,9 @@ export function StepConfirmAddMore() {
           {services.map((s, i) => {
             const start = DateTime.fromISO(s.startIso).toLocal();
 
-            const staffOptions =
-              availableServices.find((av) => av.id === s.serviceId)?.staff ??
-              [];
+            const service = servicesMap.get(s.serviceId);
+
+            const staffOptions = service?.staff ?? [];
 
             return (
               <div
@@ -154,6 +182,7 @@ export function StepConfirmAddMore() {
                     <p className="font-semibold">
                       {i + 1}. {s.serviceName}
                     </p>
+
                     <p className="text-xs text-muted-foreground">
                       {start.toFormat("HH:mm")} · {s.durationMin} min
                     </p>
@@ -165,13 +194,13 @@ export function StepConfirmAddMore() {
                 </div>
 
                 {/* STAFF SELECT */}
+
                 <div>
                   <label className="block text-xs font-medium mb-1">
                     Staff
                   </label>
 
                   {i === 0 ? (
-                    // 🔒 PRIMER SERVICIO → READ ONLY
                     <div className="w-full rounded-xl border px-3 py-2 text-sm bg-muted/40 text-muted-foreground flex items-center justify-between">
                       <span>
                         {s.staffId === "ANY"
@@ -184,7 +213,6 @@ export function StepConfirmAddMore() {
                       </Badge>
                     </div>
                   ) : (
-                    // ✏️ SERVICIOS ADICIONALES → EDITABLE
                     <StaffPicker
                       value={s.staffId}
                       staffOptions={staffOptions}
@@ -203,11 +231,13 @@ export function StepConfirmAddMore() {
       <Separator />
 
       {/* ================= ADD MORE ================= */}
+
       <div className="space-y-4">
         <div>
           <h3 className="text-base font-semibold tracking-tight">
             Agregar otro servicio
           </h3>
+
           <p className="text-sm text-muted-foreground">
             Opcional · Se agregará después del último servicio
           </p>
@@ -222,6 +252,7 @@ export function StepConfirmAddMore() {
       </div>
 
       {/* ================= LIST ================= */}
+
       {loading && (
         <div className="space-y-3">
           <Skeleton className="h-16 w-full rounded-2xl" />
@@ -244,11 +275,12 @@ export function StepConfirmAddMore() {
               "group w-full rounded-2xl border px-4 py-4 transition",
               "flex items-center justify-between gap-4",
               "bg-white hover:bg-black/[0.02] hover:border-black/20",
-              "active:scale-[0.99]"
+              "active:scale-[0.99]",
             )}
           >
             <div className="min-w-0 text-left">
               <p className="font-semibold truncate">{s.name}</p>
+
               <p className="text-xs text-muted-foreground">
                 {s.durationMin} min
                 {s.priceCents != null && (
