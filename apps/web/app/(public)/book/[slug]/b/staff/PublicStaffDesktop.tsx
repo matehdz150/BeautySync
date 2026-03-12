@@ -36,6 +36,7 @@ export default function PublicStaffDesktopPage() {
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+
   /* =====================
      NAV
   ===================== */
@@ -68,7 +69,7 @@ export default function PublicStaffDesktopPage() {
           serviceId,
         });
         return { serviceId, staff };
-      })
+      }),
     )
       .then((res) => {
         const map: Record<string, PublicStaff[]> = {};
@@ -105,8 +106,8 @@ export default function PublicStaffDesktopPage() {
 
     return staffMap[services[0]].filter((staff) =>
       services.every((serviceId) =>
-        staffMap[serviceId].some((s) => s.id === staff.id)
-      )
+        staffMap[serviceId].some((s) => s.id === staff.id),
+      ),
     );
   }, [services, staffMap]);
 
@@ -248,7 +249,7 @@ export default function PublicStaffDesktopPage() {
                   onClick={() => setActiveServiceId(id)}
                   className={cn(
                     "px-4 py-2 rounded-full border text-sm whitespace-nowrap",
-                    active ? "bg-black text-white" : "bg-white"
+                    active ? "bg-black text-white" : "bg-white",
                   )}
                 >
                   {service?.name}
@@ -310,7 +311,7 @@ function StaffCard({
       onClick={onClick}
       className={cn(
         "w-full flex items-center gap-4 rounded-xl border px-4 py-5 transition",
-        selected ? "border-indigo-500 bg-indigo-50" : "hover:bg-gray-50"
+        selected ? "border-indigo-500 bg-indigo-50" : "hover:bg-gray-50",
       )}
     >
       {/* AVATAR */}
@@ -319,7 +320,7 @@ function StaffCard({
           "w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden",
           isAny && "bg-indigo-400 text-white",
           isByService && "bg-gray-900 text-white",
-          !isAny && !isByService && "bg-gray-200 text-gray-700"
+          !isAny && !isByService && "bg-gray-200 text-gray-700",
         )}
       >
         {isAny ? (

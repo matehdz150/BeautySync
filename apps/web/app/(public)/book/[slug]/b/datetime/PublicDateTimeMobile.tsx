@@ -19,6 +19,8 @@ export default function PublicDateTimeMobilePage() {
   const availability = useAvailability();
   const booking = usePublicBooking();
 
+  if (!booking.branch) return null;
+
   const [selectedDate, setSelectedDate] = useState(() => {
     return new Date().toISOString().slice(0, 10);
   });

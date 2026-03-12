@@ -9,6 +9,7 @@ export default function PublicBranchLayout({
   children: ReactNode;
   params: { slug: string };
 }) {
+  
   return (
     <PublicBookingProvider>
       <div className="h-dvh flex flex-col bg-gray-50 w-full">
