@@ -203,10 +203,19 @@ import { ArrowLeft } from "lucide-react";
 function hourOptions() {
   const options = [];
 
+  // Horas (1 → 24)
   for (let h = 1; h <= 24; h++) {
     options.push({
       label: `${h} ${h === 1 ? "hora" : "horas"}`,
       value: h * 60,
+    });
+  }
+
+  // Días (1 → 30)
+  for (let d = 1; d <= 30; d++) {
+    options.push({
+      label: `${d} ${d === 1 ? "día" : "días"}`,
+      value: d * 24 * 60,
     });
   }
 
@@ -235,17 +244,14 @@ function HourSelect({
       ];
 
   return (
-    <Select
-      value={String(value)}
-      onValueChange={(v) => onChange(Number(v))}
-    >
+    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
       <SelectTrigger className="w-full">
         <SelectValue />
       </SelectTrigger>
 
       <SelectContent>
-        {options.map((o) => (
-          <SelectItem key={o.value} value={String(o.value)}>
+        {options.map((o, i) => (
+          <SelectItem key={`${o.value}-${i}`} value={String(o.value)}>
             {o.label}
           </SelectItem>
         ))}

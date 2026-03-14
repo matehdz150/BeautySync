@@ -244,17 +244,19 @@ export class AvailabilityService {
           const start = DateTime.fromJSDate(t.start).setZone(tz);
           const end = DateTime.fromJSDate(t.end).setZone(tz);
 
-          return {
-            startMin: dtToMinutesSinceDayStart(
-              start < dayStartLocal ? dayStartLocal : start,
-              dayStartLocal,
-            ),
-            endMin: dtToMinutesSinceDayStart(
-              end > dayEndLocal ? dayEndLocal : end,
-              dayStartLocal,
-            ),
-          };
-        });
+          // clamp al rango del día
+          const clampedStart = start < dayStartLocal ? dayStartLocal : start;
+          const clampedEnd = end > dayEndLocal ? dayEndLocal : end;
+
+          const startMin = dtToMinutesSinceDayStart(
+            clampedStart,
+            dayStartLocal,
+          );
+          const endMin = dtToMinutesSinceDayStart(clampedEnd, dayStartLocal);
+
+          return { startMin, endMin };
+        })
+        .filter((b) => b.startMin < b.endMin); // evita bloques inválidos
 
       freeBlocks = subtractBusy(freeBlocks, busyFromTimeOff);
 
