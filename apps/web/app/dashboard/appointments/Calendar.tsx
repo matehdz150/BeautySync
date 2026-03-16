@@ -17,6 +17,7 @@ import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
 import AppointmentDetailSheet from "@/components/appointments/PageComponents/AppointmentDetailSheet/AppointmentDetailSheet";
 import { EmptyStaffState } from "./EmptyState";
 import SlotBookingSheet from "@/components/appointments/PageComponents/SlootBookingSheet/SlotBookingSheet";
+import { StaffTimeOffSheet } from "@/components/appointments/PageComponents/StaffTimeOutSheet/StaffTimeOffSheet";
 
 const ROW_HEIGHT = 40;
 const MINUTES_PER_SLOT = 30;
@@ -114,6 +115,11 @@ export default function Calendar() {
             startISO={state.prefill.startISO}
             presetServices={state.prefill?.presetServices}
           />
+
+          <StaffTimeOffSheet
+          open={state.BlockDialogOpen}
+          onOpenChange={() => dispatch({ type: "CLOSE_BLOCK_SHEET" })}
+          ></StaffTimeOffSheet>
 
           <AppointmentDetailSheet />
 
