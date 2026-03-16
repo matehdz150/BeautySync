@@ -1,13 +1,15 @@
-// core/usecases/create-recurring-timeoff.usecase.ts
+// core/use-cases/create-recurring-timeoff.use-case.ts
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException } from '@nestjs/common';
 import { DateTime } from 'luxon';
+
 import { StaffTimeOffRepository } from '../ports/staff-timeoff.repository.port';
+import { STAFF_TIMEOFF_REPOSITORY } from '../ports/tokens';
 
 @Injectable()
 export class CreateRecurringTimeOffUseCase {
   constructor(
-    @Inject('STAFF_TIMEOFF_REPOSITORY')
+    @Inject(STAFF_TIMEOFF_REPOSITORY)
     private repo: StaffTimeOffRepository,
   ) {}
 
@@ -20,8 +22,16 @@ export class CreateRecurringTimeOffUseCase {
     endDate: string;
     reason?: string;
   }) {
-    const start = DateTime.fromISO(params.startDate);
-    const end = DateTime.fromISO(params.endDate);
+    const startDate = DateTime.fromISO(params.startDate);
+    const endDate = DateTime.fromISO(params.endDate);
+
+    if (!startDate.isValid || !endDate.isValid) {
+      throw new BadRequestException('Invalid dates');
+    }
+
+    if (endDate < startDate) {
+      throw new BadRequestException('endDate must be after startDate');
+    }
 
     const instances: {
       staffId: string;
@@ -30,10 +40,13 @@ export class CreateRecurringTimeOffUseCase {
       reason?: string;
     }[] = [];
 
-    let cursor = start;
+    let cursor = startDate.startOf('day');
 
-    while (cursor <= end) {
-      if (params.daysOfWeek.includes(cursor.weekday % 7)) {
+    while (cursor <= endDate) {
+      // Luxon weekday: 1=Mon ... 7=Sun
+      const day = cursor.weekday % 7;
+
+      if (params.daysOfWeek.includes(day)) {
         const startDt = DateTime.fromISO(
           `${cursor.toISODate()}T${params.startTime}`,
         );
@@ -41,6 +54,14 @@ export class CreateRecurringTimeOffUseCase {
         const endDt = DateTime.fromISO(
           `${cursor.toISODate()}T${params.endTime}`,
         );
+
+        if (!startDt.isValid || !endDt.isValid) {
+          throw new BadRequestException('Invalid time format');
+        }
+
+        if (endDt <= startDt) {
+          throw new BadRequestException('endTime must be after startTime');
+        }
 
         instances.push({
           staffId: params.staffId,
@@ -53,6 +74,14 @@ export class CreateRecurringTimeOffUseCase {
       cursor = cursor.plus({ days: 1 });
     }
 
+    if (!instances.length) {
+      return [];
+    }
+
     await this.repo.createMany(instances);
+
+    return {
+      created: instances.length,
+    };
   }
 }

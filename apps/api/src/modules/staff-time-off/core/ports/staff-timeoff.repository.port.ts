@@ -5,6 +5,8 @@ import { StaffTimeOff } from '../entities/staff-time-off-entity';
 export interface StaffTimeOffRepository {
   findForStaff(staffId: string): Promise<StaffTimeOff[]>;
 
+  findForBranch(branchId: string): Promise<StaffTimeOff[]>;
+
   create(data: {
     staffId: string;
     start: Date;

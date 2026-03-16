@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { StaffTimeOffController } from './staff-time-off.controller';
+import { StaffTimeOffController } from './application/staff-time-off.controller';
 import { StaffTimeOffService } from './staff-time-off.service';
 
 describe('StaffTimeOffController', () => {
