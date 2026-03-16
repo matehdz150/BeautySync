@@ -32,7 +32,7 @@ type Props = {
 export function AppointmentsHeader({
   date,
   onDateChange}: Props) {
-  const { openNewAppointment } = useCalendarActions();
+  const { openNewAppointment, openBlockTime } = useCalendarActions();
   const jsDate = DateTime.fromISO(date).toJSDate();
   return (
     <div className="flex items-center justify-between gap-3 py-5 px-3 sticky top-0 z-50 border-b bg-white ">
@@ -67,7 +67,7 @@ export function AppointmentsHeader({
         <AddMenu
           onAppointment={() => openNewAppointment()}
           onGroupAppointment={() => console.log("group")}
-          onBlockedTime={() => console.log("block")}
+          onBlockedTime={() => openBlockTime()}
           onSale={() => console.log("sale")}
           onQuickPayment={() => console.log("payment")}
         />

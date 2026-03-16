@@ -44,6 +44,7 @@ type CalendarState = {
   dailyCounts: Record<string, number>;
 
   dialogOpen: boolean;
+  BlockDialogOpen: boolean;
   prefill: Prefill;
 
   selectedAppointment?: any; // 👈 NEW
@@ -71,7 +72,9 @@ type Action =
   | { type: "SET_APPOINTMENTS"; payload: any[] }
   | { type: "SET_DAILY_COUNTS"; payload: Record<string, number> }
   | { type: "OPEN_SHEET"; payload?: Prefill }
+  | { type: "OPEN_BLOCK_SHEET"; payload?: Prefill }
   | { type: "CLOSE_SHEET" }
+  | { type: "CLOSE_BLOCK_SHEET"; payload?: Prefill }
   | { type: "SELECT_EVENT"; payload: { event: unknown; rect: DOMRect } }
   | { type: "CLEAR_EVENT" }
   | { type: "ADD_APPOINTMENTS"; payload: any[] }
@@ -94,6 +97,7 @@ const initialState: CalendarState = {
   dailyCounts: {},
 
   dialogOpen: false,
+  BlockDialogOpen: false,
   prefill: {},
 
   selectedAppointment: undefined,
@@ -131,9 +135,15 @@ function calendarReducer(state: CalendarState, action: Action): CalendarState {
 
     case "OPEN_SHEET":
       return { ...state, dialogOpen: true, prefill: action.payload ?? {} };
+    
+    case "OPEN_BLOCK_SHEET":
+      return { ...state, BlockDialogOpen: true, prefill: action.payload ?? {} };
 
     case "CLOSE_SHEET":
       return { ...state, dialogOpen: false, prefill: {} };
+
+    case "CLOSE_BLOCK_SHEET":
+      return { ...state, BlockDialogOpen: false, prefill: {} };
 
     case "SELECT_EVENT":
       return {
@@ -361,7 +371,13 @@ export function useCalendarActions() {
     openNewAppointment: (prefill?: Prefill) =>
       dispatch({ type: "OPEN_SHEET", payload: prefill }),
 
+    openBlockTime: (prefill?: Prefill) =>
+      dispatch({ type: "OPEN_BLOCK_SHEET", payload: prefill }),
+
     closeSheet: () => dispatch({ type: "CLOSE_SHEET" }),
+
+    closeBlockTime: (prefill?: Prefill) =>
+      dispatch({ type: "CLOSE_BLOCK_SHEET", payload: prefill }),
 
     selectEvent: (event: any, rect: DOMRect) =>
       dispatch({ type: "SELECT_EVENT", payload: { event, rect } }),

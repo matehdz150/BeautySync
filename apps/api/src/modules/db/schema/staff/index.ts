@@ -5,3 +5,4 @@ export * from './staffInvites';
 export * from './staff.relations';
 export * from './staffInvites.relations';
 export * from './staffServices.relations';
+export * from './staffTimeOffRules';
