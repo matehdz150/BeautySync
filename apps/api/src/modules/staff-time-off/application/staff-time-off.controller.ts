@@ -60,6 +60,7 @@ export class StaffTimeOffController {
   @Post()
   create(@Body() dto: CreateStaffTimeOffDto) {
     return this.createUseCase.execute({
+      branchId: dto.branchId,
       staffId: dto.staffId,
 
       start: dto.start ? new Date(dto.start) : undefined,

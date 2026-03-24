@@ -13,6 +13,8 @@ export const staffTimeOff = pgTable(
   {
     id: serial('id').primaryKey(),
 
+    branchId: uuid('branch_id').notNull(),
+
     staffId: uuid('staff_id')
       .notNull()
       .references(() => staff.id, { onDelete: 'cascade' }),
@@ -27,6 +29,11 @@ export const staffTimeOff = pgTable(
     // 🔥 más frecuente — time off por staff
     timeoffStaffIdx: index('staff_timeoff_staff_range_idx').on(
       table.staffId,
+      table.start,
+      table.end,
+    ),
+    timeOffCalendarIdx: index('staff_timeoff_branch_range_idx').on(
+      table.branchId,
       table.start,
       table.end,
     ),

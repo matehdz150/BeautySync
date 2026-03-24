@@ -9,6 +9,7 @@ export type RecurrenceType = "NONE" | "DAILY" | "WEEKLY";
 export interface StaffTimeOff {
   id: number;
   staffId: string;
+  branchId: string;
   start: string;
   end: string;
   reason?: string;

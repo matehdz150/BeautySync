@@ -1,12 +1,15 @@
 "use client";
 
-import { createContext, useContext, useReducer } from "react";
+import { createContext, useContext, useEffect, useReducer } from "react";
 import { DateTime } from "luxon";
+import { useBranch } from "./BranchContext";
 
 type RecurrenceType = "NONE" | "DAILY" | "WEEKLY";
 
 export type TimeOffDraft = {
   staffId: string;
+
+  branchId: string;
 
   mode: "SINGLE" | "RECURRING";
 
@@ -38,6 +41,7 @@ function createInitialState(): TimeOffDraft {
 
   return {
     staffId: "",
+    branchId: "",
 
     mode: "SINGLE",
 
@@ -116,11 +120,20 @@ export function TimeOffDraftProvider({
   children: React.ReactNode;
 }) {
   const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
+  const { branch } = useBranch();
+
+  useEffect(() => {
+    if (branch?.id) {
+      dispatch({
+        type: "SET_FIELD",
+        field: "branchId",
+        value: branch.id,
+      });
+    }
+  }, [branch?.id]);
 
   return (
-    <Context.Provider value={{ state, dispatch }}>
-      {children}
-    </Context.Provider>
+    <Context.Provider value={{ state, dispatch }}>{children}</Context.Provider>
   );
 }
 
@@ -142,17 +155,14 @@ export function useTimeOffActions() {
   const { dispatch } = useTimeOffDraft();
 
   return {
-    setStaff: (staffId: string) =>
-      dispatch({ type: "SET_STAFF", staffId }),
+    setStaff: (staffId: string) => dispatch({ type: "SET_STAFF", staffId }),
 
     setField: <K extends keyof TimeOffDraft>(
       field: K,
-      value: TimeOffDraft[K]
-    ) =>
-      dispatch({ type: "SET_FIELD", field, value }),
+      value: TimeOffDraft[K],
+    ) => dispatch({ type: "SET_FIELD", field, value }),
 
-    toggleDay: (day: number) =>
-      dispatch({ type: "TOGGLE_DAY", day }),
+    toggleDay: (day: number) => dispatch({ type: "TOGGLE_DAY", day }),
 
     setMode: (mode: "SINGLE" | "RECURRING") =>
       dispatch({ type: "SET_MODE", mode }),

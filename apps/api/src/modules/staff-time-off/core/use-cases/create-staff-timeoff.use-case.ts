@@ -18,6 +18,7 @@ export class CreateStaffTimeOffUseCase {
   ) {}
 
   async execute(params: {
+    branchId: string;
     staffId: string;
     start?: Date;
     end?: Date;
@@ -32,7 +33,7 @@ export class CreateStaffTimeOffUseCase {
       endDate?: Date;
     };
   }) {
-    const { staffId, start, end, reason, rule } = params;
+    const { staffId, start, end, reason, rule, branchId } = params;
 
     // =========================
     // CASE 1: SIMPLE TIME OFF
@@ -47,6 +48,7 @@ export class CreateStaffTimeOffUseCase {
       }
 
       return this.repo.create({
+        branchId,
         staffId,
         start,
         end,
@@ -80,6 +82,7 @@ export class CreateStaffTimeOffUseCase {
     // (esto es PRO, puedes quitarlo si quieres lazy evaluation)
 
     const instances: {
+      branchId: string;
       staffId: string;
       start: Date;
       end: Date;
@@ -109,6 +112,7 @@ export class CreateStaffTimeOffUseCase {
         const end = new Date(`${dateStr}T${rule.endTime}`);
 
         instances.push({
+          branchId,
           staffId,
           start,
           end,

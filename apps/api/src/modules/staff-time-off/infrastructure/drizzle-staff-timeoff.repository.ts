@@ -2,7 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { eq, InferSelectModel } from 'drizzle-orm';
 
 import * as client from 'src/modules/db/client';
-import { staff, staffTimeOff } from 'src/modules/db/schema';
+import { staffTimeOff } from 'src/modules/db/schema';
 
 import { StaffTimeOffRepository } from '../core/ports/staff-timeoff.repository.port';
 import { StaffTimeOff } from '../core/entities/staff-time-off-entity';
@@ -16,6 +16,7 @@ export class DrizzleStaffTimeOffRepository implements StaffTimeOffRepository {
   private map(row: StaffTimeOffRow): StaffTimeOff {
     return {
       id: row.id,
+      branchId: row.branchId,
       staffId: row.staffId,
       start: row.start,
       end: row.end,
@@ -33,6 +34,7 @@ export class DrizzleStaffTimeOffRepository implements StaffTimeOffRepository {
   }
 
   async create(data: {
+    branchId: string;
     staffId: string;
     start: Date;
     end: Date;
@@ -49,6 +51,7 @@ export class DrizzleStaffTimeOffRepository implements StaffTimeOffRepository {
   async createMany(
     data: {
       staffId: string;
+      branchId: string;
       start: Date;
       end: Date;
       reason?: string;
@@ -88,9 +91,8 @@ export class DrizzleStaffTimeOffRepository implements StaffTimeOffRepository {
     const rows = await this.db
       .select()
       .from(staffTimeOff)
-      .innerJoin(staff, eq(staff.id, staffTimeOff.staffId))
-      .where(eq(staff.branchId, branchId));
+      .where(eq(staffTimeOff.branchId, branchId));
 
-    return rows.map((r) => this.map(r.staff_time_off));
+    return rows.map((r) => this.map(r));
   }
 }

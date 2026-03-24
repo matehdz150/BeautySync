@@ -11,6 +11,7 @@ export interface StaffTimeOffRepository {
     staffId: string;
     start: Date;
     end: Date;
+    branchId: string;
     reason?: string;
   }): Promise<StaffTimeOff>;
 

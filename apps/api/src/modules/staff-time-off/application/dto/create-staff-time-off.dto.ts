@@ -44,6 +44,9 @@ export class CreateStaffTimeOffDto {
   @IsUUID()
   staffId!: string;
 
+  @IsUUID()
+  branchId!: string;
+
   // =========================
   // SIMPLE TIME OFF
   // =========================
