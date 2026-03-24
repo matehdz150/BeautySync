@@ -79,8 +79,16 @@ export function StaffTimeOffSheet({
 
     setLoading(true);
 
+    if (!branchId) {
+      alert("Sucursal inválida");
+      return;
+    }
+
     try {
-      const payload = buildTimeOffPayload(state);
+      const payload = {
+        ...buildTimeOffPayload(state),
+        branchId,
+      };
 
       await createStaffTimeOff(payload);
 
@@ -133,13 +141,9 @@ export function StaffTimeOffSheet({
           <div className="flex items-center gap-3 rounded-xl border px-4 py-3">
             <Checkbox
               checked={state.mode === "RECURRING"}
-              onCheckedChange={(v) =>
-                setMode(v ? "RECURRING" : "SINGLE")
-              }
+              onCheckedChange={(v) => setMode(v ? "RECURRING" : "SINGLE")}
             />
-            <Label className="cursor-pointer">
-              Repetir bloqueo
-            </Label>
+            <Label className="cursor-pointer">Repetir bloqueo</Label>
           </div>
 
           {/* SINGLE */}

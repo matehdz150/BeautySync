@@ -8,6 +8,7 @@ export interface AppointmentsPort {
     {
       id: string;
       staffId: string;
+      bookingId: string | null;
       start: Date;
       end: Date;
       clientName: string;

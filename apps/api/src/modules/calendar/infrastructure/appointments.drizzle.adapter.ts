@@ -30,6 +30,7 @@ export class AppointmentsDrizzleAdapter implements AppointmentsPort {
     const rows = await db
       .select({
         id: appointments.id,
+        bookingId: appointments.publicBookingId,
         staffId: appointments.staffId,
         start: appointments.start,
         end: appointments.end,
@@ -53,6 +54,7 @@ export class AppointmentsDrizzleAdapter implements AppointmentsPort {
       staffId: r.staffId,
       start: r.start,
       end: r.end,
+      bookingId: r.bookingId ?? null,
 
       clientName: r.clientName ?? 'Cliente',
       serviceName: r.serviceName ?? 'Servicio',

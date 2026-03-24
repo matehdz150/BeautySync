@@ -7,6 +7,7 @@ export type AppointmentEvent = {
 
   id: string;
   staffId: string;
+  bookingId?: string | null;
 
   start: Date;
   end: Date;

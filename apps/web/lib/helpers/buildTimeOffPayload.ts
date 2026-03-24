@@ -41,6 +41,7 @@ export function buildTimeOffPayload(state: TimeOffDraft) {
 
   return {
     staffId: state.staffId,
+    branchId: state.branchId,
     reason: state.reason || undefined,
     rule: {
       recurrenceType: state.recurrenceType,
