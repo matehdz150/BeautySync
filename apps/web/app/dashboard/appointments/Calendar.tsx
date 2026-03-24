@@ -34,7 +34,7 @@ const timeSlots = Array.from({ length: (24 - 6) * 4 + 1 }, (_, i) => {
 export default function Calendar() {
   const { state, dispatch, visibleStaff } = useCalendar();
   const { setDate, openNewAppointment, clearEvent } = useCalendarActions();
-  const {branch} = useBranch();
+  const { branch } = useBranch();
   const branchId = branch?.id;
 
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -92,6 +92,7 @@ export default function Calendar() {
                   schedules={state.schedules[s.id] ?? []}
                   appointments={state.appointments}
                   timeSlots={timeSlots}
+                  timeOffs={state.timeOffs}
                   date={state.date}
                   onSlotClick={(startISO: string, staffId: string) =>
                     openNewAppointment({ defaultStaffId: staffId, startISO })
@@ -101,16 +102,6 @@ export default function Calendar() {
             </div>
           </div>
 
-          <AnimatePresence>
-            {state.selectedEvent && (
-              <EventPopover
-                event={state.selectedEvent}
-                rect={state.anchorRect}
-                containerRef={calendarRef}
-                onClose={clearEvent}
-              />
-            )}
-          </AnimatePresence>
 
           <NewAppointmentSheet
             open={state.dialogOpen}
@@ -124,7 +115,7 @@ export default function Calendar() {
             <StaffTimeOffSheet
               open={state.BlockDialogOpen}
               onOpenChange={() => dispatch({ type: "CLOSE_BLOCK_SHEET" })}
-              branchId={branchId ?? ''}
+              branchId={branchId ?? ""}
               startISO={state.prefill?.startISO}
             />
           </TimeOffDraftProvider>

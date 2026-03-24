@@ -97,6 +97,8 @@ type Action =
   | { type: "CLOSE_BLOCK_SHEET" }
   | { type: "OPEN_APPOINTMENT"; payload: string }
   | { type: "CLOSE_APPOINTMENT" }
+  | { type: "OPEN_SLOT_SHEET"; payload: SlotPrefill }
+  | { type: "CLOSE_SLOT_SHEET" }
   | { type: "SET_ENABLED_STAFF"; payload: string[] };
 
 type CalendarContextType = {
@@ -169,6 +171,12 @@ function reducer(state: CalendarState, action: Action): CalendarState {
 
     case "CLOSE_BLOCK_SHEET":
       return { ...state, BlockDialogOpen: false, prefill: {} };
+
+    case "OPEN_SLOT_SHEET":
+      return { ...state, slotDialogOpen: true, slotPrefill: action.payload };
+
+    case "CLOSE_SLOT_SHEET":
+      return { ...state, slotDialogOpen: false, slotPrefill: null };
 
     case "OPEN_APPOINTMENT":
       return {
@@ -353,5 +361,9 @@ export function useCalendarActions() {
       dispatch({ type: "OPEN_APPOINTMENT", payload: id }),
 
     closeAppointment: () => dispatch({ type: "CLOSE_APPOINTMENT" }),
+    openSlotBooking: (payload: SlotPrefill) =>
+      dispatch({ type: "OPEN_SLOT_SHEET", payload }),
+
+    closeSlotBooking: () => dispatch({ type: "CLOSE_SLOT_SHEET" }),
   };
 }

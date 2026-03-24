@@ -18,6 +18,7 @@ export function StaffColumn({
   staff,
   appointments,
   timeSlots,
+  timeOffs,
   onSlotClick,
   date,
 }: any) {
@@ -142,6 +143,22 @@ export function StaffColumn({
             isPast={false}
             isOngoing={false}
             onClick={() => openAppointmentById(a.id)}
+          />
+        ))}
+
+      {/* 🔥 TIME OFFS */}
+      {timeOffs
+        ?.filter((t: any) => t.staffId === staff.id)
+        .map((t: any) => (
+          <AppointmentItem
+            key={t.id}
+            a={{
+              ...t,
+              client: "",
+              serviceName: t.reason ?? "Bloqueado",
+              type: "TIME_OFF", // 👈 🔥 CLAVE
+            }}
+            isPast={false}
           />
         ))}
 
