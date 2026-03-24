@@ -28,6 +28,7 @@ import { RankingsModule } from './modules/rankings/rankings.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { CacheModule } from './modules/cache/cache.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { CacheModule } from './modules/cache/cache.module';
     NotificationsModule,
     MessagesModule,
     CacheModule,
+    CalendarModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -18,6 +18,8 @@ import AppointmentDetailSheet from "@/components/appointments/PageComponents/App
 import { EmptyStaffState } from "./EmptyState";
 import SlotBookingSheet from "@/components/appointments/PageComponents/SlootBookingSheet/SlotBookingSheet";
 import { StaffTimeOffSheet } from "@/components/appointments/PageComponents/StaffTimeOutSheet/StaffTimeOffSheet";
+import { TimeOffDraftProvider } from "@/context/TimeOffDraftContext";
+import { useBranch } from "@/context/BranchContext";
 
 const ROW_HEIGHT = 40;
 const MINUTES_PER_SLOT = 30;
@@ -32,6 +34,8 @@ const timeSlots = Array.from({ length: (24 - 6) * 4 + 1 }, (_, i) => {
 export default function Calendar() {
   const { state, dispatch, visibleStaff } = useCalendar();
   const { setDate, openNewAppointment, clearEvent } = useCalendarActions();
+  const {branch} = useBranch();
+  const branchId = branch?.id;
 
   const calendarRef = useRef<HTMLDivElement>(null);
 
@@ -116,10 +120,14 @@ export default function Calendar() {
             presetServices={state.prefill?.presetServices}
           />
 
-          <StaffTimeOffSheet
-          open={state.BlockDialogOpen}
-          onOpenChange={() => dispatch({ type: "CLOSE_BLOCK_SHEET" })}
-          ></StaffTimeOffSheet>
+          <TimeOffDraftProvider>
+            <StaffTimeOffSheet
+              open={state.BlockDialogOpen}
+              onOpenChange={() => dispatch({ type: "CLOSE_BLOCK_SHEET" })}
+              branchId={branchId ?? ''}
+              startISO={state.prefill?.startISO}
+            />
+          </TimeOffDraftProvider>
 
           <AppointmentDetailSheet />
 

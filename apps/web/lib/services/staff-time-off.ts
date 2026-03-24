@@ -4,9 +4,12 @@ import { api } from "./api";
 // TYPES
 // ===============================
 
+export type RecurrenceType = "NONE" | "DAILY" | "WEEKLY";
+
 export interface StaffTimeOff {
   id: number;
   staffId: string;
+  branchId: string;
   start: string;
   end: string;
   reason?: string;
@@ -15,14 +18,44 @@ export interface StaffTimeOff {
 export interface StaffTimeOffRule {
   id: number;
   staffId: string;
-  recurrenceType: "NONE" | "DAILY" | "WEEKLY";
+  recurrenceType: RecurrenceType;
   daysOfWeek?: number[];
   startTime: string;
   endTime: string;
   startDate: string;
   endDate?: string;
   reason?: string;
+  createdAt?: string;
 }
+
+export interface CreateStaffTimeOffRuleInput {
+  recurrenceType: RecurrenceType;
+  daysOfWeek?: number[];
+  startTime: string;
+  endTime: string;
+  startDate: string;
+  endDate?: string;
+}
+
+export interface CreateStaffTimeOffInput {
+  staffId: string;
+
+  // simple time off
+  start?: string;
+  end?: string;
+
+  // recurring rule
+  rule?: CreateStaffTimeOffRuleInput;
+
+  reason?: string;
+}
+
+export type CreateStaffTimeOffResponse =
+  | StaffTimeOff
+  | {
+      rule: StaffTimeOffRule;
+      instancesCreated: number;
+    };
 
 // ===============================
 // GET
@@ -40,17 +73,13 @@ export async function getBranchTimeOff(branchId: string) {
 // CREATE SINGLE
 // ===============================
 
-export async function createStaffTimeOff(data: {
-  staffId: string;
-  start: string;
-  end: string;
-  reason?: string;
-}) {
-  return api<StaffTimeOff>(`/staff-time-off`, {
+export async function createStaffTimeOff(data: CreateStaffTimeOffInput) {
+  return api<CreateStaffTimeOffResponse>(`/staff-time-off`, {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
+
 
 // ===============================
 // CREATE RECURRING INSTANCES
@@ -81,7 +110,7 @@ export async function updateStaffTimeOff(
     start?: string;
     end?: string;
     reason?: string;
-  }
+  },
 ) {
   return api(`/staff-time-off/${id}`, {
     method: "PATCH",
@@ -137,7 +166,7 @@ export async function updateStaffTimeOffRule(
     startDate?: string;
     endDate?: string;
     reason?: string;
-  }>
+  }>,
 ) {
   return api<StaffTimeOffRule>(`/staff-time-off/rules/${id}`, {
     method: "PATCH",
