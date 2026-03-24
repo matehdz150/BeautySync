@@ -8,11 +8,12 @@ import {
   useEffect,
   type ReactNode,
   useCallback,
+  type Dispatch,
 } from "react";
 import { DateTime } from "luxon";
 import { useBranch } from "@/context/BranchContext";
-import { getAppointmentsByDay } from "@/lib/services/appointments";
-import { getStaffByBranch } from "@/lib/services/staff";
+import { getCalendarDay } from "@/lib/services/calendar";
+import { getStaffByBranch, Staff } from "@/lib/services/staff";
 import { getScheduleForStaff } from "@/lib/services/staffSchedules";
 import { getConceptualStatus } from "@/lib/helpers/conceptualStatus";
 
@@ -21,12 +22,6 @@ import { getConceptualStatus } from "@/lib/helpers/conceptualStatus";
 export type Prefill = {
   defaultStaffId?: string;
   startISO?: string;
-  presetServices?: {
-    id: string;
-    name: string;
-    durationMin: number;
-    priceCents?: number;
-  }[];
 };
 
 export type SlotPrefill = {
@@ -35,75 +30,104 @@ export type SlotPrefill = {
   pinnedStaffName: string;
 };
 
+export type CalendarAppointment = {
+  id: string;
+  bookingId?: string | null;
+  staffId: string;
+  client: string;
+  serviceName: string;
+  color: string;
+  startISO: string;
+  endISO: string;
+  startTime: string;
+  minutes: number;
+  conceptualStatus: string;
+  type: "APPOINTMENT";
+};
+
+export type CalendarTimeOff = {
+  id: string;
+  staffId: string;
+  startISO: string;
+  endISO: string;
+  startTime: string;
+  minutes: number;
+  reason?: string;
+  type: "TIME_OFF";
+};
+
 type CalendarState = {
   date: string;
 
-  staff: string[];
+  staff: Staff[];
   schedules: Record<string, unknown[]>;
-  appointments: any[];
+  appointments: CalendarAppointment[];
+  timeOffs: CalendarTimeOff[];
   dailyCounts: Record<string, number>;
 
   dialogOpen: boolean;
   BlockDialogOpen: boolean;
   prefill: Prefill;
 
-  selectedAppointment?: any; // 👈 NEW
   selectedAppointmentId?: string;
 
   selectedEvent: unknown | null;
   anchorRect: DOMRect | null;
 
-  view: CalendarViewState;
+  view: {
+    maxVisibleStaff: number;
+    staffOffset: number;
+    enabledStaffIds: string[];
+  };
 
   slotDialogOpen: boolean;
   slotPrefill: SlotPrefill | null;
 };
 
-type CalendarViewState = {
-  maxVisibleStaff: number; // ej. 5, 7
-  staffOffset: number; // ventana actual
-  enabledStaffIds: string[]; // filtros activos
-};
-
 type Action =
   | { type: "SET_DATE"; payload: string }
-  | { type: "SET_STAFF"; payload: unknown[] }
+  | { type: "SET_STAFF"; payload: Staff[] }
   | { type: "SET_SCHEDULES"; payload: Record<string, unknown[]> }
-  | { type: "SET_APPOINTMENTS"; payload: any[] }
+  | { type: "SET_APPOINTMENTS"; payload: CalendarAppointment[] }
+  | { type: "SET_TIMEOFFS"; payload: CalendarTimeOff[] }
   | { type: "SET_DAILY_COUNTS"; payload: Record<string, number> }
   | { type: "OPEN_SHEET"; payload?: Prefill }
   | { type: "OPEN_BLOCK_SHEET"; payload?: Prefill }
   | { type: "CLOSE_SHEET" }
-  | { type: "CLOSE_BLOCK_SHEET"; payload?: Prefill }
-  | { type: "SELECT_EVENT"; payload: { event: unknown; rect: DOMRect } }
-  | { type: "CLEAR_EVENT" }
-  | { type: "ADD_APPOINTMENTS"; payload: any[] }
-  | { type: "OPEN_APPOINTMENT"; payload: any }
+  | { type: "CLOSE_BLOCK_SHEET" }
+  | { type: "OPEN_APPOINTMENT"; payload: string }
   | { type: "CLOSE_APPOINTMENT" }
-  | { type: "SET_MAX_VISIBLE_STAFF"; payload: number }
-  | { type: "SET_STAFF_OFFSET"; payload: number }
   | { type: "OPEN_SLOT_SHEET"; payload: SlotPrefill }
   | { type: "CLOSE_SLOT_SHEET" }
   | { type: "SET_ENABLED_STAFF"; payload: string[] };
 
+type CalendarContextType = {
+  state: CalendarState;
+  dispatch: Dispatch<Action>;
+  reload: () => Promise<void>;
+  visibleStaff: Staff[];
+};
+
 /* ---------- INITIAL STATE ---------- */
 
 const initialState: CalendarState = {
-  date: DateTime.now().toISODate(),
+  date: DateTime.now().toISODate()!,
 
   staff: [],
   schedules: {},
   appointments: [],
+  timeOffs: [],
   dailyCounts: {},
 
   dialogOpen: false,
   BlockDialogOpen: false,
   prefill: {},
 
-  selectedAppointment: undefined,
+  selectedAppointmentId: undefined,
 
   selectedEvent: null,
   anchorRect: null,
+
   view: {
     maxVisibleStaff: 7,
     staffOffset: 0,
@@ -116,7 +140,7 @@ const initialState: CalendarState = {
 
 /* ---------- REDUCER ---------- */
 
-function calendarReducer(state: CalendarState, action: Action): CalendarState {
+function reducer(state: CalendarState, action: Action): CalendarState {
   switch (action.type) {
     case "SET_DATE":
       return { ...state, date: action.payload };
@@ -130,12 +154,15 @@ function calendarReducer(state: CalendarState, action: Action): CalendarState {
     case "SET_APPOINTMENTS":
       return { ...state, appointments: action.payload };
 
+    case "SET_TIMEOFFS":
+      return { ...state, timeOffs: action.payload };
+
     case "SET_DAILY_COUNTS":
       return { ...state, dailyCounts: action.payload };
 
     case "OPEN_SHEET":
       return { ...state, dialogOpen: true, prefill: action.payload ?? {} };
-    
+
     case "OPEN_BLOCK_SHEET":
       return { ...state, BlockDialogOpen: true, prefill: action.payload ?? {} };
 
@@ -145,25 +172,11 @@ function calendarReducer(state: CalendarState, action: Action): CalendarState {
     case "CLOSE_BLOCK_SHEET":
       return { ...state, BlockDialogOpen: false, prefill: {} };
 
-    case "SELECT_EVENT":
-      return {
-        ...state,
-        selectedEvent: action.payload.event,
-        anchorRect: action.payload.rect,
-      };
+    case "OPEN_SLOT_SHEET":
+      return { ...state, slotDialogOpen: true, slotPrefill: action.payload };
 
-    case "CLEAR_EVENT":
-      return { ...state, selectedEvent: null, anchorRect: null };
-
-    case "ADD_APPOINTMENTS":
-      return {
-        ...state,
-        appointments: [...state.appointments, ...action.payload].sort(
-          (a, b) =>
-            DateTime.fromISO(a.startISO).toMillis() -
-            DateTime.fromISO(b.startISO).toMillis()
-        ),
-      };
+    case "CLOSE_SLOT_SHEET":
+      return { ...state, slotDialogOpen: false, slotPrefill: null };
 
     case "OPEN_APPOINTMENT":
       return {
@@ -177,40 +190,14 @@ function calendarReducer(state: CalendarState, action: Action): CalendarState {
         selectedAppointmentId: undefined,
       };
 
-    case "SET_MAX_VISIBLE_STAFF":
-      return {
-        ...state,
-        view: {
-          ...state.view,
-          maxVisibleStaff: action.payload,
-          staffOffset: 0,
-        },
-      };
-
-    case "SET_STAFF_OFFSET":
-      return {
-        ...state,
-        view: {
-          ...state.view,
-          staffOffset: action.payload,
-        },
-      };
-
     case "SET_ENABLED_STAFF":
       return {
         ...state,
         view: {
           ...state.view,
           enabledStaffIds: action.payload,
-          staffOffset: 0,
         },
       };
-
-    case "OPEN_SLOT_SHEET":
-      return { ...state, slotDialogOpen: true, slotPrefill: action.payload };
-
-    case "CLOSE_SLOT_SHEET":
-      return { ...state, slotDialogOpen: false, slotPrefill: null };
 
     default:
       return state;
@@ -219,29 +206,28 @@ function calendarReducer(state: CalendarState, action: Action): CalendarState {
 
 /* ---------- CONTEXT ---------- */
 
-const CalendarContext = createContext<any>(null);
+const CalendarContext = createContext<CalendarContextType | null>(null);
 
 export function CalendarProvider({ children }: { children: ReactNode }) {
   const { branch } = useBranch();
-  const [state, dispatch] = useReducer(calendarReducer, initialState);
-
-  /* ---------- DATA LOADING ---------- */
+  const branchId = branch?.id;
+  const [state, dispatch] = useReducer(reducer, initialState);
 
   const reload = useCallback(async () => {
-    if (!branch) return;
+    if (!branchId) return;
 
-    const staff = await getStaffByBranch(branch.id);
+    const staff = await getStaffByBranch(branchId);
     dispatch({ type: "SET_STAFF", payload: staff });
 
     if (state.view.enabledStaffIds.length === 0) {
       dispatch({
         type: "SET_ENABLED_STAFF",
-        payload: staff.map((s: any) => s.id),
+        payload: staff.map((s) => s.id),
       });
     }
 
     const sched = await Promise.all(
-      staff.map((s) => getScheduleForStaff(s.id))
+      staff.map((s) => getScheduleForStaff(s.id)),
     );
 
     dispatch({
@@ -249,108 +235,99 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       payload: Object.fromEntries(staff.map((s, i) => [s.id, sched[i]])),
     });
 
-    const res = await getAppointmentsByDay({
-      branchId: branch.id,
+    const res = await getCalendarDay({
+      branchId,
       date: state.date,
     });
 
-    console.log('Daily: ',res)
+    console.log(res);
 
-    const mappedAppointments = res.data.map((a: any) => {
-      const start = DateTime.fromISO(a.start);
-      const end = DateTime.fromISO(a.end);
+    const appointments: CalendarAppointment[] = res.appointments.map(
+      (a: any) => {
+        const start = DateTime.fromISO(a.start);
+        const end = DateTime.fromISO(a.end);
+
+        return {
+          id: a.id,
+          staffId: a.staffId,
+
+          bookingId: a.bookingId ?? null, // 🔥 CRÍTICO
+
+          client: a.clientName ?? "Cliente",
+          serviceName: a.serviceName ?? "Servicio",
+
+          staffName: a.staffName ?? "", // opcional pero útil
+
+          color: a.color ?? "#A78BFA",
+
+          startISO: a.start,
+          endISO: a.end,
+          startTime: start.toFormat("H:mm"),
+          minutes: end.diff(start, "minutes").minutes,
+
+          conceptualStatus: getConceptualStatus(a.start, a.end),
+
+          raw: a, // 🔥 te salva después
+
+          type: "APPOINTMENT",
+        };
+      },
+    );
+
+    const timeOffs: CalendarTimeOff[] = res.timeOffs.map((t: any) => {
+      const start = DateTime.fromISO(t.start);
+      const end = DateTime.fromISO(t.end);
 
       return {
-        id: a.id,
-        bookingId: a.bookingId ?? null,
-        priceCents: a.priceCents ?? a.service?.priceCents ?? 0,
-        staffId: a.staff.id,
-        staffName: a.staff.name,
-        client: a.client?.name ?? "Cliente",
-        serviceName: a.service?.name ?? "",
-        serviceColor: a.service?.categoryColor ?? "#A78BFA",
-        startISO: a.start,
-        endISO: a.end,
-        startTime: start.toLocal().toFormat("H:mm"),
+        id: `timeoff-${t.id}`,
+        staffId: t.staffId,
+        startISO: t.start,
+        endISO: t.end,
+        startTime: start.toFormat("H:mm"),
         minutes: end.diff(start, "minutes").minutes,
-        conceptualStatus: getConceptualStatus(a.start, a.end),
-        raw: a,
+        reason: t.reason ?? undefined,
+        type: "TIME_OFF",
       };
     });
 
-    dispatch({ type: "SET_APPOINTMENTS", payload: mappedAppointments });
+    dispatch({ type: "SET_APPOINTMENTS", payload: appointments });
+    dispatch({ type: "SET_TIMEOFFS", payload: timeOffs });
 
     const selected = DateTime.fromISO(state.date);
     const startOfWeek = selected.startOf("week").plus({ days: 1 });
 
     const weekDays = [...Array(7)].map(
-      (_, i) => startOfWeek.plus({ days: i }).toISODate()!
+      (_, i) => startOfWeek.plus({ days: i }).toISODate()!,
     );
 
     const weekRes = await Promise.all(
-      weekDays.map((d) =>
-        getAppointmentsByDay({ branchId: branch.id, date: d })
-      )
+      weekDays.map((d) => getCalendarDay({ branchId, date: d })),
     );
 
     dispatch({
       type: "SET_DAILY_COUNTS",
       payload: Object.fromEntries(
-        weekRes.map((r, i) => [weekDays[i], r.data.length])
+        weekRes.map((r, i) => [weekDays[i], r.appointments.length]),
       ),
     });
-  }, [branch, state.date, dispatch]);
+  }, [branchId, state.date, state.view.enabledStaffIds.length]);
 
   useEffect(() => {
     void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branch, state.date]);
-
-  useEffect(() => {
-    let id: NodeJS.Timeout | null = null;
-
-    function start() {
-      if (!id) {
-        reload(); // 👈 refresh inmediato al volver
-        id = setInterval(reload, 60_000);
-      }
-    }
-
-    function stop() {
-      if (id) {
-        clearInterval(id);
-        id = null;
-      }
-    }
-
-    function onVisibilityChange() {
-      if (document.visibilityState === "visible") start();
-      else stop();
-    }
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
-    start();
-
-    return () => {
-      stop();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
   }, [reload]);
 
-  const filteredStaff = state.view.enabledStaffIds.length
-    ? state.staff.filter((s: any) => state.view.enabledStaffIds.includes(s.id))
-    : state.staff;
+  const filteredStaff =
+    state.view.enabledStaffIds.length > 0
+      ? state.staff.filter((s) => state.view.enabledStaffIds.includes(s.id))
+      : state.staff;
 
   const visibleStaff = filteredStaff.slice(
     state.view.staffOffset,
-    state.view.staffOffset + state.view.maxVisibleStaff
+    state.view.staffOffset + state.view.maxVisibleStaff,
   );
 
   return (
-    <CalendarContext.Provider
-      value={{ state, dispatch, reload, visibleStaff, filteredStaff }}
-    >
+    <CalendarContext.Provider value={{ state, dispatch, reload, visibleStaff }}>
       {children}
     </CalendarContext.Provider>
   );
@@ -359,7 +336,11 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 /* ---------- HOOKS ---------- */
 
 export function useCalendar() {
-  return useContext(CalendarContext);
+  const ctx = useContext(CalendarContext);
+  if (!ctx) {
+    throw new Error("useCalendar must be used inside CalendarProvider");
+  }
+  return ctx;
 }
 
 export function useCalendarActions() {
@@ -367,53 +348,19 @@ export function useCalendarActions() {
 
   return {
     setDate: (d: string) => dispatch({ type: "SET_DATE", payload: d }),
-
     openNewAppointment: (prefill?: Prefill) =>
       dispatch({ type: "OPEN_SHEET", payload: prefill }),
-
     openBlockTime: (prefill?: Prefill) =>
       dispatch({ type: "OPEN_BLOCK_SHEET", payload: prefill }),
-
     closeSheet: () => dispatch({ type: "CLOSE_SHEET" }),
-
-    closeBlockTime: (prefill?: Prefill) =>
-      dispatch({ type: "CLOSE_BLOCK_SHEET", payload: prefill }),
-
-    selectEvent: (event: any, rect: DOMRect) =>
-      dispatch({ type: "SELECT_EVENT", payload: { event, rect } }),
-
-    clearEvent: () => dispatch({ type: "CLEAR_EVENT" }),
-
-    addAppointments: (apps: any[]) =>
-      dispatch({ type: "ADD_APPOINTMENTS", payload: apps }),
-
-    /* ---------- NEW ---------- */
-    openAppointment: (a: any) =>
-      dispatch({ type: "OPEN_APPOINTMENT", payload: a }),
+    closeBlockTime: () => dispatch({ type: "CLOSE_BLOCK_SHEET" }),
+    setEnabledStaff: (ids: string[]) =>
+      dispatch({ type: "SET_ENABLED_STAFF", payload: ids }),
 
     openAppointmentById: (id: string) =>
       dispatch({ type: "OPEN_APPOINTMENT", payload: id }),
 
     closeAppointment: () => dispatch({ type: "CLOSE_APPOINTMENT" }),
-
-    setMaxVisibleStaff: (n: number) =>
-      dispatch({ type: "SET_MAX_VISIBLE_STAFF", payload: n }),
-
-    nextStaffPage: () =>
-      dispatch({
-        type: "SET_STAFF_OFFSET",
-        payload: (prev: number) => prev + 1,
-      }),
-
-    prevStaffPage: () =>
-      dispatch({
-        type: "SET_STAFF_OFFSET",
-        payload: (prev: number) => Math.max(0, prev - 1),
-      }),
-
-    setEnabledStaff: (ids: string[]) =>
-      dispatch({ type: "SET_ENABLED_STAFF", payload: ids }),
-
     openSlotBooking: (payload: SlotPrefill) =>
       dispatch({ type: "OPEN_SLOT_SHEET", payload }),
 

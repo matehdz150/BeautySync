@@ -39,6 +39,7 @@ export interface CreateStaffTimeOffRuleInput {
 
 export interface CreateStaffTimeOffInput {
   staffId: string;
+  branchId: string;
 
   // simple time off
   start?: string;

@@ -6,6 +6,7 @@ import { CalendarGrid } from "./CalendarGrid";
 import { useEffect, useState } from "react";
 import { getScheduleForStaff } from "@/lib/services/staffSchedules";
 import { useCalendarActions } from "@/context/CalendarContext";
+import { TimeOffItem } from "./TimeOffItem";
 
 type Staff = {
   id: string;
@@ -18,6 +19,7 @@ export function StaffColumn({
   staff,
   appointments,
   timeSlots,
+  timeOffs,
   onSlotClick,
   date,
 }: any) {
@@ -142,6 +144,24 @@ export function StaffColumn({
             isPast={false}
             isOngoing={false}
             onClick={() => openAppointmentById(a.id)}
+          />
+        ))}
+
+      {/* 🔥 TIME OFFS */}
+      {timeOffs
+        ?.filter((t: any) => t.staffId === staff.id)
+        .map((t: any) => (
+          <TimeOffItem
+            key={t.id}
+            t={t}
+            onClick={() => {
+              console.log("click timeoff", t);
+
+              // 🔥 aquí tú defines la lógica
+              // openEditTimeOff(t)
+              // openDeleteModal(t)
+              // etc
+            }}
           />
         ))}
 
