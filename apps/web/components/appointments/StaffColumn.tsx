@@ -6,6 +6,7 @@ import { CalendarGrid } from "./CalendarGrid";
 import { useEffect, useState } from "react";
 import { getScheduleForStaff } from "@/lib/services/staffSchedules";
 import { useCalendarActions } from "@/context/CalendarContext";
+import { TimeOffItem } from "./TimeOffItem";
 
 type Staff = {
   id: string;
@@ -150,15 +151,17 @@ export function StaffColumn({
       {timeOffs
         ?.filter((t: any) => t.staffId === staff.id)
         .map((t: any) => (
-          <AppointmentItem
+          <TimeOffItem
             key={t.id}
-            a={{
-              ...t,
-              client: "",
-              serviceName: t.reason ?? "Bloqueado",
-              type: "TIME_OFF", // 👈 🔥 CLAVE
+            t={t}
+            onClick={() => {
+              console.log("click timeoff", t);
+
+              // 🔥 aquí tú defines la lógica
+              // openEditTimeOff(t)
+              // openDeleteModal(t)
+              // etc
             }}
-            isPast={false}
           />
         ))}
 

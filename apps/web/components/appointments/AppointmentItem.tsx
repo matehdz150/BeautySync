@@ -1,9 +1,6 @@
 "use client";
-import { motion } from "framer-motion";
 import { cn, colorFromName } from "@/lib/utils";
 import { DateTime } from "luxon";
-import { getConceptualStatus } from "@/lib/helpers/conceptualStatus";
-import { ClipboardClock } from "lucide-react";
 
 export function AppointmentItem({
   a,
