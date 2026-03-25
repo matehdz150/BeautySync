@@ -206,3 +206,61 @@ export async function getStaffTimeOffDetail(params: {
     `/staff-time-off/${staffId}/${branchId}/${timeOffId}`
   );
 }
+
+// ===============================
+// TIME OFF AVAILABILITY
+// ===============================
+
+export interface TimeOffStartSlotsResponse {
+  slots: string[]; // ISO UTC
+}
+
+export interface TimeOffEndSlotsResponse {
+  endSlots: string[]; // ISO UTC
+}
+
+// ===============================
+// GET AVAILABLE START SLOTS
+// ===============================
+
+export async function getTimeOffStartSlots(params: {
+  branchId: string;
+  staffId: string;
+  date: string;
+}) {
+  const { branchId, staffId, date } = params;
+
+  const query = new URLSearchParams({
+    branchId,
+    staffId,
+    date,
+  }).toString();
+
+  return api<TimeOffStartSlotsResponse>(
+    `/staff-time-off/availability/start?${query}`
+  );
+}
+
+// ===============================
+// GET AVAILABLE END SLOTS
+// ===============================
+
+export async function getTimeOffEndSlots(params: {
+  branchId: string;
+  staffId: string;
+  date: string;
+  startISO: string;
+}) {
+  const { branchId, staffId, date, startISO } = params;
+
+  const query = new URLSearchParams({
+    branchId,
+    staffId,
+    date,
+    startISO,
+  }).toString();
+
+  return api<TimeOffEndSlotsResponse>(
+    `/staff-time-off/availability/end?${query}`
+  );
+}

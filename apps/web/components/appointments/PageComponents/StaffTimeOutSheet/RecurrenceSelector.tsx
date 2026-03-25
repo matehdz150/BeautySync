@@ -20,7 +20,6 @@ const OPTIONS: { value: RecurrenceType; label: string }[] = [
   { value: "NONE", label: "Sin repetición" },
   { value: "DAILY", label: "Cada dia" },
   { value: "WEEKLY", label: "Cada semana" },
-  { value: "MONTHLY", label: "Cada mes" },
 ];
 
 type Props = {

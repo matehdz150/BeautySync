@@ -24,7 +24,6 @@ export class GetAvailableTimeOffEndSlotsUseCase {
       throw new Error('INVALID_INPUT');
     }
 
-    // 🔥 1. availability base
     const availability = await this.availabilityRepo.getAvailability({
       branchId,
       staffId,
@@ -40,33 +39,29 @@ export class GetAvailableTimeOffEndSlotsUseCase {
       return { endSlots: [] };
     }
 
-    // 🔥 2. ordenar slots
     const slots = [...staffAvailability.slots].sort();
-
-    // 🔥 3. encontrar index del start
     const startIndex = slots.findIndex((s) => s === startISO);
 
     if (startIndex === -1) {
       return { endSlots: [] };
     }
 
-    // 🔥 4. construir consecutivos
     const endSlots: string[] = [];
 
-    let prev = DateTime.fromISO(startISO);
+    let prevStart = DateTime.fromISO(startISO, { zone: 'utc' });
+
+    // el primer fin válido siempre es start + 15
+    endSlots.push(prevStart.plus({ minutes: SLOT_MIN }).toISO()!);
 
     for (let i = startIndex + 1; i < slots.length; i++) {
-      const current = DateTime.fromISO(slots[i]);
+      const currentStart = DateTime.fromISO(slots[i], { zone: 'utc' });
 
-      const diff = current.diff(prev, 'minutes').minutes;
+      const diff = currentStart.diff(prevStart, 'minutes').minutes;
 
-      // ❌ rompe continuidad
       if (diff !== SLOT_MIN) break;
 
-      // ✅ válido
-      endSlots.push(current.toISO()!);
-
-      prev = current;
+      endSlots.push(currentStart.plus({ minutes: SLOT_MIN }).toISO()!);
+      prevStart = currentStart;
     }
 
     return {

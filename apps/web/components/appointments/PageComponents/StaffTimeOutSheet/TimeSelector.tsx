@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Clock } from "lucide-react";
-import { DateTime } from "luxon";
+import { ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,59 +11,103 @@ import {
 } from "@/components/ui/popover";
 
 type Props = {
-  value: string; // "HH:mm"
+  value: string;
   onChange: (time: string) => void;
-  step?: number; // minutos (default 15)
+
+  options: string[];
+  loading?: boolean;
+  placeholder?: string;
+
+  disabled?: boolean;
+  emptyMessage?: string;
 };
 
 export function TimePickerInput({
   value,
   onChange,
-  step = 15,
+  options,
+  loading = false,
+  placeholder = "Seleccionar",
+  disabled = false,
+  emptyMessage = "Sin disponibilidad",
 }: Props) {
   const [open, setOpen] = useState(false);
 
-  // generar slots (6:00 → 23:45)
-  const times = [];
-  for (let h = 6; h < 24; h++) {
-    for (let m = 0; m < 60; m += step) {
-      const t = DateTime.fromObject({ hour: h, minute: m }).toFormat("HH:mm");
-      times.push(t);
-    }
-  }
-
-  const formatted = value
-    ? DateTime.fromFormat(value, "HH:mm").toFormat("HH:mm")
-    : "Seleccionar";
+  const display = value || placeholder;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open && !disabled}
+      onOpenChange={setOpen}
+      modal={false}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          disabled={disabled}
           className="w-full justify-between py-5 font-normal shadow-none"
         >
-          <span>{formatted}</span>
+          <span className={!value ? "text-muted-foreground" : ""}>
+            {display}
+          </span>
           <ChevronDown className="w-4 h-4 opacity-60" />
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-40 p-2 max-h-60 overflow-y-auto">
-        <div className="flex flex-col gap-1">
-          {times.map((t) => (
-            <button
-              key={t}
-              onClick={() => {
-                onChange(t);
-                setOpen(false);
-              }}
-              className={`text-sm px-2 py-1 rounded hover:bg-gray-100 text-left ${
-                t === value ? "bg-gray-200 font-medium" : ""
-              }`}
-            >
-              {t}
-            </button>
-          ))}
+      <PopoverContent
+        side="bottom"
+        align="start"
+        sideOffset={4}
+        avoidCollisions={false}
+        className="w-[var(--radix-popover-trigger-width)] p-0 overflow-hidden pointer-events-auto"
+      >
+        <div
+          className="max-h-[300px] overflow-y-auto p-2"
+          onWheel={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
+          {/* 🔥 NO STAFF */}
+          {disabled && (
+            <p className="text-sm text-muted-foreground px-2 py-2">
+              {emptyMessage}
+            </p>
+          )}
+
+          {/* 🔥 LOADING */}
+          {!disabled && loading && (
+            <p className="text-sm text-muted-foreground px-2 py-2">
+              Cargando horarios...
+            </p>
+          )}
+
+          {/* 🔥 EMPTY */}
+          {!disabled && !loading && options.length === 0 && (
+            <p className="text-sm text-muted-foreground px-2 py-2">
+              Sin disponibilidad
+            </p>
+          )}
+
+          {/* 🔥 OPTIONS */}
+          {!disabled && !loading && options.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {options.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    onChange(t);
+                    setOpen(false);
+                  }}
+                  className={`text-sm px-2 py-2 rounded-md text-left transition ${
+                    t === value
+                      ? "bg-gray-200 font-medium"
+                      : "hover:bg-gray-100"
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>

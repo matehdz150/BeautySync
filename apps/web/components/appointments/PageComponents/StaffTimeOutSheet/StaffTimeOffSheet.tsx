@@ -17,13 +17,18 @@ import { Button } from "@/components/ui/button";
 import { useTimeOffDraft } from "@/context/TimeOffDraftContext";
 import { useTimeOffActions } from "@/context/TimeOffDraftContext";
 import { buildTimeOffPayload } from "@/lib/helpers/buildTimeOffPayload";
-import { createStaffTimeOff } from "@/lib/services/staff-time-off";
+import {
+  createStaffTimeOff,
+  getTimeOffEndSlots,
+  getTimeOffStartSlots,
+} from "@/lib/services/staff-time-off";
 
 import { StaffSelector } from "./StaffSelector";
 import { DateSelector } from "./DateSelector";
 import { TimePickerInput } from "./TimeSelector";
 import { RecurrenceSelector } from "./RecurrenceSelector";
 import { Input } from "@/components/ui/input";
+import { DateTime } from "luxon";
 
 type Props = {
   open: boolean;
@@ -59,6 +64,23 @@ export function StaffTimeOffSheet({
   const { init, setField, toggleDay } = useTimeOffActions();
 
   const [loading, setLoading] = useState(false);
+  const [startSlots, setStartSlots] = useState<string[]>([]);
+  const [endSlots, setEndSlots] = useState<string[]>([]);
+
+  const [loadingStart, setLoadingStart] = useState(false);
+  const [loadingEnd, setLoadingEnd] = useState(false);
+
+  function isoToTime(iso: string) {
+    return DateTime.fromISO(iso)
+      .setZone("America/Mexico_City")
+      .toFormat("HH:mm");
+  }
+
+  function timeToISO(date: string, time: string) {
+    const [h, m] = time.split(":").map(Number);
+
+    return DateTime.fromISO(date).set({ hour: h, minute: m }).toUTC().toISO();
+  }
 
   // INIT
   useEffect(() => {
@@ -83,6 +105,62 @@ export function StaffTimeOffSheet({
 
     return `Mensual · ${state.startTime} - ${state.endTime}`;
   }, [state]);
+
+  useEffect(() => {
+    if (!state.staffId || !state.date) return;
+
+    async function load() {
+      setLoadingStart(true);
+
+      try {
+        const res = await getTimeOffStartSlots({
+          branchId,
+          staffId: state.staffId,
+          date: state.date,
+        });
+
+        setStartSlots(res.slots);
+      } catch (e) {
+        console.error(e);
+        setStartSlots([]);
+      } finally {
+        setLoadingStart(false);
+      }
+    }
+
+    load();
+  }, [state.staffId, state.date]);
+
+  useEffect(() => {
+    if (!state.staffId || !state.date || !state.startTime) {
+      setEndSlots([]);
+      return;
+    }
+
+    async function load() {
+      setLoadingEnd(true);
+
+      try {
+        const startISO = timeToISO(state.date, state.startTime);
+
+        const res = await getTimeOffEndSlots({
+          branchId,
+          staffId: state.staffId,
+          date: state.date,
+          startISO: startISO!,
+        });
+
+        setEndSlots(res.endSlots);
+      } catch (e) {
+        console.error(e);
+        setEndSlots([]);
+      } finally {
+        setLoadingEnd(false);
+      }
+    }
+
+    load();
+  }, [state.startTime]);
 
   async function handleSubmit() {
     if (loading) return;
@@ -129,6 +207,8 @@ export function StaffTimeOffSheet({
     }
   }
 
+  const noStaff = !state.staffId;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full !max-w-[32rem] bg-white flex flex-col h-[100dvh] p-0">
@@ -155,8 +235,20 @@ export function StaffTimeOffSheet({
               <Label>Hora inicio</Label>
               <TimePickerInput
                 value={state.startTime}
-                onChange={(t) => setField("startTime", t)}
+                onChange={(t) => {
+                  setField("startTime", t);
+                  setField("endTime", "");
+                }}
+                options={startSlots.map(isoToTime)}
+                loading={loadingStart}
+                disabled={!state.staffId}
+                emptyMessage="Selecciona un staff primero"
               />
+              {noStaff && (
+                <p className="text-xs text-muted-foreground">
+                  Selecciona un staff para ver disponibilidad
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -164,6 +256,10 @@ export function StaffTimeOffSheet({
               <TimePickerInput
                 value={state.endTime}
                 onChange={(t) => setField("endTime", t)}
+                options={endSlots.map(isoToTime)}
+                loading={loadingEnd}
+                disabled={!state.staffId}
+                emptyMessage="Selecciona un staff primero"
               />
             </div>
           </div>
@@ -246,22 +342,18 @@ export function StaffTimeOffSheet({
           {/* MOTIVO */}
           <div className="space-y-2">
             <Label>Motivo</Label>
-          <Input
-            placeholder="Motivo..."
-            value={state.reason}
-            onChange={(e) => setField("reason", e.target.value)}
-            className="shadow-none py-6"
-          />
+            <Input
+              placeholder="Motivo..."
+              value={state.reason}
+              onChange={(e) => setField("reason", e.target.value)}
+              className="shadow-none py-6"
+            />
           </div>
         </div>
 
         {/* ACTIONS */}
         <div className="border-t px-6 py-4 flex justify-end gap-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-
-          <Button onClick={handleSubmit} disabled={loading}>
+          <Button onClick={handleSubmit} disabled={loading} className="w-full py-6">
             {loading ? "Guardando..." : "Guardar"}
           </Button>
         </div>

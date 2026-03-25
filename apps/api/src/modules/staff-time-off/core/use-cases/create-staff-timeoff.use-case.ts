@@ -7,6 +7,10 @@ import {
   STAFF_TIMEOFF_RULES_REPOSITORY,
 } from '../ports/tokens';
 
+import { GetAvailableTimeOffStartSlotsUseCase } from './availability/get-available-timeoff-slots.use-case';
+import { GetAvailableTimeOffEndSlotsUseCase } from './availability/get-available-timeoff-end.use-case';
+import { DateTime } from 'luxon';
+
 @Injectable()
 export class CreateStaffTimeOffUseCase {
   constructor(
@@ -15,7 +19,61 @@ export class CreateStaffTimeOffUseCase {
 
     @Inject(STAFF_TIMEOFF_RULES_REPOSITORY)
     private rulesRepo: StaffTimeOffRulesRepository,
+
+    private readonly getAvailableStartSlots: GetAvailableTimeOffStartSlotsUseCase,
+    private readonly getAvailableEndSlots: GetAvailableTimeOffEndSlotsUseCase,
   ) {}
+
+  private async assertTimeOffIsAvailable(params: {
+    branchId: string;
+    staffId: string;
+    start: Date;
+    end: Date;
+  }) {
+    const { branchId, staffId, start, end } = params;
+
+    if (start >= end) {
+      throw new Error('INVALID_RANGE');
+    }
+
+    const startDt = DateTime.fromJSDate(start).setZone('utc');
+    const endDt = DateTime.fromJSDate(end).setZone('utc');
+
+    const date = startDt.setZone('America/Mexico_City').toISODate();
+    const startISO = startDt.toISO();
+    const endISO = endDt.toISO();
+
+    if (!date || !startISO || !endISO) {
+      throw new Error('INVALID_DATETIME');
+    }
+
+    // 1. validar start disponible
+    const startSlots = await this.getAvailableStartSlots.execute({
+      branchId,
+      staffId,
+      date,
+    });
+
+    const hasStart = startSlots.slots.includes(startISO);
+
+    if (!hasStart) {
+      throw new Error('TIMEOFF_START_NOT_AVAILABLE');
+    }
+
+    // 2. validar end permitido para ese start
+    const endSlots = await this.getAvailableEndSlots.execute({
+      branchId,
+      staffId,
+      date,
+      startISO,
+    });
+
+    const hasEnd = endSlots.endSlots.includes(endISO);
+
+    if (!hasEnd) {
+      throw new Error('TIMEOFF_END_NOT_AVAILABLE');
+    }
+  }
 
   async execute(params: {
     branchId: string;
@@ -23,7 +81,6 @@ export class CreateStaffTimeOffUseCase {
     start?: Date;
     end?: Date;
     reason?: string;
-
     rule?: {
       recurrenceType: 'NONE' | 'DAILY' | 'WEEKLY';
       daysOfWeek?: number[];
@@ -40,12 +97,15 @@ export class CreateStaffTimeOffUseCase {
     // =========================
     if (!rule) {
       if (!start || !end) {
-        throw new Error('start and end are required');
+        throw new Error('START_AND_END_REQUIRED');
       }
 
-      if (start >= end) {
-        throw new Error('Invalid time range');
-      }
+      await this.assertTimeOffIsAvailable({
+        branchId,
+        staffId,
+        start,
+        end,
+      });
 
       return this.repo.create({
         branchId,
@@ -59,12 +119,11 @@ export class CreateStaffTimeOffUseCase {
     // =========================
     // CASE 2: RULE
     // =========================
-
     if (rule.recurrenceType === 'WEEKLY' && !rule.daysOfWeek?.length) {
-      throw new Error('daysOfWeek required for weekly recurrence');
+      throw new Error('NO_DAYS_SELECTED');
     }
 
-    // 🔥 crear rule
+    // crear regla
     const createdRule = await this.rulesRepo.create({
       staffId,
       recurrenceType: rule.recurrenceType,
@@ -76,11 +135,7 @@ export class CreateStaffTimeOffUseCase {
       reason,
     });
 
-    // =========================
-    // OPCIONAL: materializar instancias
-    // =========================
-    // (esto es PRO, puedes quitarlo si quieres lazy evaluation)
-
+    // materializar instancias
     const instances: {
       branchId: string;
       staffId: string;
@@ -90,11 +145,10 @@ export class CreateStaffTimeOffUseCase {
     }[] = [];
 
     const cursor = new Date(rule.startDate);
-    const endDate = rule.endDate ?? new Date(cursor.getTime() + 30 * 86400000); // fallback 30 días
+    const endDate = rule.endDate ?? new Date(cursor.getTime() + 30 * 86400000);
 
     while (cursor <= endDate) {
       const day = cursor.getDay(); // 0-6
-
       let shouldApply = false;
 
       if (rule.recurrenceType === 'DAILY') {
@@ -121,6 +175,16 @@ export class CreateStaffTimeOffUseCase {
       }
 
       cursor.setDate(cursor.getDate() + 1);
+    }
+
+    // 🔥 validar TODAS antes de crear
+    for (const instance of instances) {
+      await this.assertTimeOffIsAvailable({
+        branchId: instance.branchId,
+        staffId: instance.staffId,
+        start: instance.start,
+        end: instance.end,
+      });
     }
 
     if (instances.length) {
