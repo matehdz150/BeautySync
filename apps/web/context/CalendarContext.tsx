@@ -24,6 +24,12 @@ export type Prefill = {
   startISO?: string;
 };
 
+export type BlockDetailPrefill = {
+  staffTimeOffId: string;
+  staffId: string;
+  branchId: string;
+};
+
 export type SlotPrefill = {
   pinnedStaffId: string;
   pinnedStartIso: string;
@@ -67,9 +73,11 @@ type CalendarState = {
 
   dialogOpen: boolean;
   BlockDialogOpen: boolean;
+  BlockDetailOpen: boolean;
   prefill: Prefill;
 
   selectedAppointmentId?: string;
+  selectedBlockId?: string;
 
   selectedEvent: unknown | null;
   anchorRect: DOMRect | null;
@@ -99,6 +107,9 @@ type Action =
   | { type: "CLOSE_APPOINTMENT" }
   | { type: "OPEN_SLOT_SHEET"; payload: SlotPrefill }
   | { type: "CLOSE_SLOT_SHEET" }
+  | { type: "ADD_APPOINTMENTS"; payload: any[] }
+  | { type: "OPEN_BLOCK_DETAIL_SHEET"; payload: BlockDetailPrefill }
+  | { type: "CLOSE_BLOCK_DETAIL_SHEET" }
   | { type: "SET_ENABLED_STAFF"; payload: string[] };
 
 type CalendarContextType = {
@@ -121,9 +132,11 @@ const initialState: CalendarState = {
 
   dialogOpen: false,
   BlockDialogOpen: false,
+  BlockDetailOpen: false,
   prefill: {},
 
   selectedAppointmentId: undefined,
+  selectedBlockId: undefined,
 
   selectedEvent: null,
   anchorRect: null,
@@ -184,10 +197,34 @@ function reducer(state: CalendarState, action: Action): CalendarState {
         selectedAppointmentId: action.payload,
       };
 
-    case "CLOSE_APPOINTMENT":
+    case "OPEN_BLOCK_DETAIL_SHEET":
       return {
         ...state,
-        selectedAppointmentId: undefined,
+        BlockDetailOpen: true,
+        selectedBlockId: action.payload.staffTimeOffId,
+      };
+
+    case "CLOSE_BLOCK_DETAIL_SHEET":
+      return {
+        ...state,
+        BlockDetailOpen: false,
+        selectedBlockId: undefined,
+      };
+
+    case "CLOSE_BLOCK_DETAIL_SHEET":
+      return {
+        ...state,
+        selectedBlockId: undefined,
+      };
+
+    case "ADD_APPOINTMENTS":
+      return {
+        ...state,
+        appointments: [...state.appointments, ...action.payload].sort(
+          (a, b) =>
+            DateTime.fromISO(a.startISO).toMillis() -
+            DateTime.fromISO(b.startISO).toMillis(),
+        ),
       };
 
     case "SET_ENABLED_STAFF":
@@ -365,5 +402,10 @@ export function useCalendarActions() {
       dispatch({ type: "OPEN_SLOT_SHEET", payload }),
 
     closeSlotBooking: () => dispatch({ type: "CLOSE_SLOT_SHEET" }),
+    addAppointments: (apps: any[]) =>
+      dispatch({ type: "ADD_APPOINTMENTS", payload: apps }),
+    openBlockDetail: (payload: BlockDetailPrefill) =>
+      dispatch({ type: "OPEN_BLOCK_DETAIL_SHEET", payload }),
+    closeBlockDetail: () => dispatch({ type: "CLOSE_BLOCK_DETAIL_SHEET" }),
   };
 }

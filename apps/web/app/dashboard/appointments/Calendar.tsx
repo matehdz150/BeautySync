@@ -20,6 +20,7 @@ import SlotBookingSheet from "@/components/appointments/PageComponents/SlootBook
 import { StaffTimeOffSheet } from "@/components/appointments/PageComponents/StaffTimeOutSheet/StaffTimeOffSheet";
 import { TimeOffDraftProvider } from "@/context/TimeOffDraftContext";
 import { useBranch } from "@/context/BranchContext";
+import { BlockDetailSheet } from "@/components/appointments/PageComponents/TimeOffDetailSheet/TimeOffDetailSheet";
 
 const ROW_HEIGHT = 40;
 const MINUTES_PER_SLOT = 30;
@@ -121,6 +122,7 @@ export default function Calendar() {
           </TimeOffDraftProvider>
 
           <AppointmentDetailSheet />
+          <BlockDetailSheet />
 
           <SlotBookingSheet
             open={state.slotDialogOpen}

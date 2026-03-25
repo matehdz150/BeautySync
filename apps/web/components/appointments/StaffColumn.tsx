@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { getScheduleForStaff } from "@/lib/services/staffSchedules";
 import { useCalendarActions } from "@/context/CalendarContext";
 import { TimeOffItem } from "./TimeOffItem";
+import { useBranch } from "@/context/BranchContext";
 
 type Staff = {
   id: string;
@@ -26,7 +27,9 @@ export function StaffColumn({
   const getTimeIndex = (t: string) => timeSlots.indexOf(t);
   const [schedule, setSchedule] = useState<any[]>([]);
 
-  const { openAppointmentById } = useCalendarActions();
+  const { branch } = useBranch();
+
+  const { openAppointmentById, openBlockDetail } = useCalendarActions();
 
   // 📅 LOAD STAFF SCHEDULE
   useEffect(() => {
@@ -154,14 +157,13 @@ export function StaffColumn({
           <TimeOffItem
             key={t.id}
             t={t}
-            onClick={() => {
-              console.log("click timeoff", t);
-
-              // 🔥 aquí tú defines la lógica
-              // openEditTimeOff(t)
-              // openDeleteModal(t)
-              // etc
-            }}
+            onClick={() =>
+              openBlockDetail({
+                staffTimeOffId: t.id.toString(), // 👈 limpio
+                staffId: t.staffId,
+                branchId: branch?.id ?? "",
+              })
+            }
           />
         ))}
 

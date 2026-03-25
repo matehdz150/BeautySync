@@ -22,6 +22,7 @@ import {
   STAFF_TIMEOFF_REPOSITORY,
   STAFF_TIMEOFF_RULES_REPOSITORY,
 } from './core/ports/tokens';
+import { GetStaffTimeOffDetailUseCase } from './core/use-cases/get-staff-timeoff-details.use-case';
 
 @Module({
   controllers: [StaffTimeOffController],
@@ -37,6 +38,8 @@ import {
     // rules usecases
     UpdateStaffTimeOffRuleUseCase,
     DeleteStaffTimeOffRuleUseCase,
+
+    GetStaffTimeOffDetailUseCase,
 
     // repositories
     {

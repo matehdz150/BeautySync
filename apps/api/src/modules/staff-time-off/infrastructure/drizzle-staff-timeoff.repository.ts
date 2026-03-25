@@ -95,4 +95,21 @@ export class DrizzleStaffTimeOffRepository implements StaffTimeOffRepository {
 
     return rows.map((r) => this.map(r));
   }
+
+  async findOne(params: {
+    id: number;
+    staffId: string;
+    branchId: string;
+  }): Promise<StaffTimeOff | null> {
+    const { id, staffId, branchId } = params;
+
+    const row = await this.db.query.staffTimeOff.findFirst({
+      where: (t, { and, eq }) =>
+        and(eq(t.id, id), eq(t.staffId, staffId), eq(t.branchId, branchId)),
+    });
+
+    if (!row) return null;
+
+    return this.map(row);
+  }
 }
