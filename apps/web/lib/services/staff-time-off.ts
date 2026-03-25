@@ -184,3 +184,25 @@ export async function deleteStaffTimeOffRule(id: number) {
     method: "DELETE",
   });
 }
+
+
+// ===============================
+// GET ONE TIME OFF DETAIL
+// ===============================
+
+export interface StaffTimeOffDetail {
+  timeOff: StaffTimeOff;
+  rules: StaffTimeOffRule[];
+}
+
+export async function getStaffTimeOffDetail(params: {
+  staffId: string;
+  branchId: string;
+  timeOffId: number;
+}) {
+  const { staffId, branchId, timeOffId } = params;
+
+  return api<StaffTimeOffDetail>(
+    `/staff-time-off/${staffId}/${branchId}/${timeOffId}`
+  );
+}
