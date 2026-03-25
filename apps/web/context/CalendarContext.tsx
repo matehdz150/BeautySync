@@ -110,6 +110,8 @@ type Action =
   | { type: "ADD_APPOINTMENTS"; payload: any[] }
   | { type: "OPEN_BLOCK_DETAIL_SHEET"; payload: BlockDetailPrefill }
   | { type: "CLOSE_BLOCK_DETAIL_SHEET" }
+  | { type: "NEXT_STAFF_PAGE" }
+  | { type: "PREV_STAFF_PAGE" }
   | { type: "SET_ENABLED_STAFF"; payload: string[] };
 
 type CalendarContextType = {
@@ -142,7 +144,7 @@ const initialState: CalendarState = {
   anchorRect: null,
 
   view: {
-    maxVisibleStaff: 7,
+    maxVisibleStaff: 10,
     staffOffset: 0,
     enabledStaffIds: [],
   },
@@ -235,6 +237,33 @@ function reducer(state: CalendarState, action: Action): CalendarState {
           enabledStaffIds: action.payload,
         },
       };
+
+    case "NEXT_STAFF_PAGE": {
+      const nextOffset = state.view.staffOffset + state.view.maxVisibleStaff;
+
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          staffOffset: Math.min(
+            nextOffset,
+            state.staff.length - state.view.maxVisibleStaff,
+          ),
+        },
+      };
+    }
+
+    case "PREV_STAFF_PAGE": {
+      const prevOffset = state.view.staffOffset - state.view.maxVisibleStaff;
+
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          staffOffset: Math.max(prevOffset, 0),
+        },
+      };
+    }
 
     default:
       return state;
@@ -407,5 +436,7 @@ export function useCalendarActions() {
     openBlockDetail: (payload: BlockDetailPrefill) =>
       dispatch({ type: "OPEN_BLOCK_DETAIL_SHEET", payload }),
     closeBlockDetail: () => dispatch({ type: "CLOSE_BLOCK_DETAIL_SHEET" }),
+    nextStaffPage: () => dispatch({ type: "NEXT_STAFF_PAGE" }),
+    prevStaffPage: () => dispatch({ type: "PREV_STAFF_PAGE" }),
   };
 }
