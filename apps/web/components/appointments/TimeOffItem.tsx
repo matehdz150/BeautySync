@@ -25,13 +25,12 @@ export function TimeOffItem({
     <div
       onClick={onClick} 
       className={cn(
-        "absolute left-1 right-1 rounded-sm px-2 py-1 border-l-4 cursor-pointer"
+        "absolute left-1 right-1 rounded-sm px-2 py-1 cursor-pointer"
       )}
       style={{
         top: (minsFromStart / MINUTES_PER_SLOT) * ROW_HEIGHT,
         height: (minutes / MINUTES_PER_SLOT) * ROW_HEIGHT,
         background: "#E5E7EB", // gris
-        borderLeftColor: "#9CA3AF",
         color: "#374151",
       }}
     >

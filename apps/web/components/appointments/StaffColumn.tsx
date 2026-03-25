@@ -8,6 +8,8 @@ import { getScheduleForStaff } from "@/lib/services/staffSchedules";
 import { useCalendarActions } from "@/context/CalendarContext";
 import { TimeOffItem } from "./TimeOffItem";
 import { useBranch } from "@/context/BranchContext";
+import { getStaffTimeOffDetail } from "@/lib/services/staff-time-off";
+import { useTimeOffActions } from "@/context/TimeOffDraftContext";
 
 type Staff = {
   id: string;
@@ -28,6 +30,8 @@ export function StaffColumn({
   const [schedule, setSchedule] = useState<any[]>([]);
 
   const { branch } = useBranch();
+  const { loadFromTimeOff } = useTimeOffActions();
+  const { openBlockTime } = useCalendarActions();
 
   const { openAppointmentById, openBlockDetail } = useCalendarActions();
 
@@ -157,13 +161,31 @@ export function StaffColumn({
           <TimeOffItem
             key={t.id}
             t={t}
-            onClick={() =>
-              openBlockDetail({
-                staffTimeOffId: t.id.toString(), // 👈 limpio
-                staffId: t.staffId,
-                branchId: branch?.id ?? "",
-              })
-            }
+            onClick={async () => {
+              if (!branch?.id) return;
+
+              try {
+                const timeOffId = Number(
+                  t.id.toString().replace("timeoff-", ""),
+                );
+                const res = await getStaffTimeOffDetail({
+                  timeOffId,
+                  staffId: t.staffId,
+                  branchId: branch.id,
+                });
+
+                console.log(res);
+
+                // 🔥 usar action, NO dispatch
+                loadFromTimeOff(res);
+
+                setTimeout(() => {
+                  openBlockTime();
+                }, 0);
+              } catch (e) {
+                console.error(e);
+              }
+            }}
           />
         ))}
 

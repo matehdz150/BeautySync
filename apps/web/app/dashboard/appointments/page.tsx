@@ -1,11 +1,14 @@
 // app/dashboard/appointments/page.tsx
 import { CalendarProvider } from "@/context/CalendarContext";
 import Calendar from "./Calendar";
+import { TimeOffDraftProvider } from "@/context/TimeOffDraftContext";
 
 export default function Page() {
   return (
     <CalendarProvider>
-      <Calendar />
+      <TimeOffDraftProvider>
+        <Calendar />
+      </TimeOffDraftProvider>
     </CalendarProvider>
   );
 }

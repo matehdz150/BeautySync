@@ -1,12 +1,25 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+
 import { StaffTimeOffRepository } from '../ports/staff-timeoff.repository.port';
-import { STAFF_TIMEOFF_REPOSITORY } from '../ports/tokens';
+import { StaffTimeOffRulesRepository } from '../ports/staff-timeoff-rules.repository.port';
+
+import {
+  STAFF_TIMEOFF_REPOSITORY,
+  STAFF_TIMEOFF_RULES_REPOSITORY,
+} from '../ports/tokens';
+
+import { CreateStaffTimeOffUseCase } from './create-staff-timeoff.use-case';
 
 @Injectable()
 export class UpdateStaffTimeOffUseCase {
   constructor(
     @Inject(STAFF_TIMEOFF_REPOSITORY)
     private repo: StaffTimeOffRepository,
+
+    @Inject(STAFF_TIMEOFF_RULES_REPOSITORY)
+    private rulesRepo: StaffTimeOffRulesRepository,
+
+    private readonly createUseCase: CreateStaffTimeOffUseCase,
   ) {}
 
   async execute(params: {
@@ -14,21 +27,87 @@ export class UpdateStaffTimeOffUseCase {
     start?: Date;
     end?: Date;
     reason?: string;
+    rule?: {
+      recurrenceType: 'NONE' | 'DAILY' | 'WEEKLY';
+      daysOfWeek?: number[];
+      startTime: string;
+      endTime: string;
+      startDate: Date;
+      endDate?: Date;
+    };
   }) {
-    if (params.start && params.end && params.start >= params.end) {
-      throw new Error('Invalid time range');
-    }
+    const { id, start, end, reason, rule } = params;
 
-    const updated = await this.repo.update(params.id, {
-      start: params.start,
-      end: params.end,
-      reason: params.reason,
-    });
+    // 🔥 traer desde DB
+    const existing = await this.repo.findById(id);
 
-    if (!updated) {
+    if (!existing) {
       throw new NotFoundException('Time off not found');
     }
 
-    return updated;
+    const branchId = existing.branchId;
+    const staffId = existing.staffId;
+
+    // =========================
+    // CASE 1: SINGLE
+    // =========================
+    if (!rule) {
+      if (!start || !end) {
+        throw new Error('START_AND_END_REQUIRED');
+      }
+
+      // 🔥 borrar actual
+      await this.repo.delete(id);
+
+      try {
+        // 🔥 recrear con misma lógica que create
+        return await this.createUseCase.execute({
+          branchId,
+          staffId,
+          start,
+          end,
+          reason,
+        });
+      } catch (e) {
+        // 🔥 rollback
+        await this.repo.create({
+          branchId: existing.branchId,
+          staffId: existing.staffId,
+          start: existing.start,
+          end: existing.end,
+          reason: existing.reason,
+        });
+
+        throw e;
+      }
+    }
+
+    // =========================
+    // CASE 2: RULE
+    // =========================
+
+    // 🔥 eliminar TODAS las instancias del staff en la sucursal
+    const allTimeOffs = await this.repo.findForStaff(staffId);
+
+    const toDelete = allTimeOffs.filter((t) => t.branchId === branchId);
+
+    for (const t of toDelete) {
+      await this.repo.delete(t.id);
+    }
+
+    // 🔥 eliminar TODAS las rules del staff
+    const rules = await this.rulesRepo.findForStaff(staffId);
+
+    for (const r of rules) {
+      await this.rulesRepo.delete(r.id);
+    }
+
+    // 🔥 recrear con lógica completa de reglas
+    return this.createUseCase.execute({
+      branchId,
+      staffId,
+      reason,
+      rule,
+    });
   }
 }

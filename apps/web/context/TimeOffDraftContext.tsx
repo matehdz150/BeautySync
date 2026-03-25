@@ -7,6 +7,8 @@ import { useBranch } from "./BranchContext";
 type RecurrenceType = "NONE" | "DAILY" | "WEEKLY";
 
 export type TimeOffDraft = {
+  isEdit: boolean;
+  timeOffId?: number;
   staffId: string;
 
   branchId: string;
@@ -33,6 +35,8 @@ type Action =
       field: keyof TimeOffDraft;
       value: TimeOffDraft[keyof TimeOffDraft];
     }
+  | { type: "RESET" }
+  | { type: "LOAD_FROM_TIMEOFF"; payload: any }
   | { type: "TOGGLE_DAY"; day: number }
   | { type: "SET_MODE"; mode: "SINGLE" | "RECURRING" };
 
@@ -42,6 +46,7 @@ function createInitialState(): TimeOffDraft {
   return {
     staffId: "",
     branchId: "",
+    isEdit: false,
 
     mode: "SINGLE",
 
@@ -61,6 +66,7 @@ function createInitialState(): TimeOffDraft {
 function reducer(state: TimeOffDraft, action: Action): TimeOffDraft {
   switch (action.type) {
     case "INIT": {
+      if (state.isEdit) return state;
       const now = action.payload?.startISO
         ? DateTime.fromISO(action.payload.startISO)
         : DateTime.now();
@@ -73,6 +79,9 @@ function reducer(state: TimeOffDraft, action: Action): TimeOffDraft {
         daysOfWeek: [now.weekday === 7 ? 0 : now.weekday],
       };
     }
+
+    case "RESET":
+      return createInitialState();
 
     case "SET_STAFF":
       return {
@@ -117,6 +126,52 @@ function reducer(state: TimeOffDraft, action: Action): TimeOffDraft {
         mode: action.mode,
       };
 
+    case "LOAD_FROM_TIMEOFF": {
+      const data = action.payload;
+
+      console.log(data, 'desde el contexto')
+
+      const start = DateTime.fromISO(data.timeOff.start, {
+        zone: "utc",
+      }).setZone("America/Mexico_City");
+
+      const end = DateTime.fromISO(data.timeOff.end, { zone: "utc" }).setZone(
+        "America/Mexico_City",
+      );
+
+      const rule = data.rules?.[0];
+
+      return {
+        ...state,
+
+        isEdit: true,
+        timeOffId: data.timeOff.id,
+
+        staffId: data.timeOff.staffId,
+
+        date: start.toISODate()!,
+        startTime: start.toFormat("HH:mm"),
+        endTime: end.toFormat("HH:mm"),
+
+        recurrenceType: rule?.recurrenceType ?? "NONE",
+        daysOfWeek: rule?.daysOfWeek ?? [],
+
+        startDate: rule?.startDate
+          ? DateTime.fromISO(rule.startDate, { zone: "utc" })
+              .setZone("America/Mexico_City")
+              .toISODate()!
+          : start.toISODate()!,
+
+        endDate: rule?.endDate
+          ? DateTime.fromISO(rule.endDate, { zone: "utc" })
+              .setZone("America/Mexico_City")
+              .toISODate()!
+          : "",
+
+        reason: data.timeOff.reason ?? "",
+      };
+    }
+
     default:
       return state;
   }
@@ -140,13 +195,13 @@ export function TimeOffDraftProvider({
   const { branch } = useBranch();
 
   useEffect(() => {
-    if (branch?.id) {
-      dispatch({
-        type: "SET_FIELD",
-        field: "branchId",
-        value: branch.id,
-      });
-    }
+    if (!branch?.id) return;
+
+    dispatch({
+      type: "SET_FIELD",
+      field: "branchId",
+      value: branch.id,
+    });
   }, [branch?.id]);
 
   return (
@@ -184,7 +239,12 @@ export function useTimeOffActions() {
     setMode: (mode: "SINGLE" | "RECURRING") =>
       dispatch({ type: "SET_MODE", mode }),
 
+    loadFromTimeOff: (data: any) =>
+      dispatch({ type: "LOAD_FROM_TIMEOFF", payload: data }),
+
     init: (startISO?: string) =>
       dispatch({ type: "INIT", payload: { startISO } }),
+
+    reset: () => dispatch({ type: "RESET" }),
   };
 }
