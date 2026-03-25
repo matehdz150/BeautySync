@@ -21,6 +21,7 @@ import { CreateStaffTimeOffDto } from './dto/create-staff-time-off.dto';
 import { UpdateStaffTimeOffDto } from './dto/update-staff-time-off.dto';
 
 import { UpdateStaffTimeOffRuleDto } from './dto/update-staff-time-off-rule.dto';
+import { GetStaffTimeOffDetailUseCase } from '../core/use-cases/get-staff-timeoff-details.use-case';
 
 @Controller('staff-time-off')
 export class StaffTimeOffController {
@@ -33,6 +34,7 @@ export class StaffTimeOffController {
 
     private readonly updateRuleUseCase: UpdateStaffTimeOffRuleUseCase,
     private readonly deleteRuleUseCase: DeleteStaffTimeOffRuleUseCase,
+    private readonly getOneUseCase: GetStaffTimeOffDetailUseCase,
   ) {}
 
   // -------------------------
@@ -51,6 +53,19 @@ export class StaffTimeOffController {
   @Get('branch/:branchId')
   findForBranch(@Param('branchId') branchId: string) {
     return this.getBranchUseCase.execute(branchId);
+  }
+
+  @Get(':staffId/:branchId/:id')
+  findOne(
+    @Param('staffId') staffId: string,
+    @Param('branchId') branchId: string,
+    @Param('id') id: string,
+  ) {
+    return this.getOneUseCase.execute({
+      timeOffId: Number(id),
+      staffId,
+      branchId,
+    });
   }
 
   // -------------------------

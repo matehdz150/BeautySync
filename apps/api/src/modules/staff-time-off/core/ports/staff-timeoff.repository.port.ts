@@ -34,4 +34,10 @@ export interface StaffTimeOffRepository {
   ): Promise<StaffTimeOff>;
 
   delete(id: number): Promise<void>;
+
+  findOne(params: {
+    id: number;
+    staffId: string;
+    branchId: string;
+  }): Promise<StaffTimeOff | null>;
 }
