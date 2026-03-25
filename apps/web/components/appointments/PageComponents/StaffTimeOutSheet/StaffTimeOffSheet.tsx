@@ -30,6 +30,7 @@ import { TimePickerInput } from "./TimeSelector";
 import { RecurrenceSelector } from "./RecurrenceSelector";
 import { Input } from "@/components/ui/input";
 import { DateTime } from "luxon";
+import { useCalendar } from "@/context/CalendarContext";
 
 type Props = {
   open: boolean;
@@ -63,7 +64,7 @@ export function StaffTimeOffSheet({
 }: Props) {
   const { state } = useTimeOffDraft();
   const { setField, toggleDay } = useTimeOffActions();
-  console.log(state.isEdit);
+  const { reload } = useCalendar();
 
   const [loading, setLoading] = useState(false);
   const [startSlots, setStartSlots] = useState<string[]>([]);
@@ -179,18 +180,16 @@ export function StaffTimeOffSheet({
       };
 
       if (state.isEdit && state.timeOffId) {
-        // 🔥 UPDATE
-        if (!state.timeOffId) {
-          throw new Error("Missing timeOffId for update");
-        }
         await updateStaffTimeOff({
           timeOffId: state.timeOffId,
           ...payload,
         });
       } else {
-        // 🔥 CREATE
         await createStaffTimeOff(payload);
       }
+
+      // 🔥🔥🔥 ESTO ES LO QUE TE FALTABA
+      await reload();
 
       onOpenChange(false);
     } catch (e: any) {
