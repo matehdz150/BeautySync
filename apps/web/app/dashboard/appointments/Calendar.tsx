@@ -112,17 +112,16 @@ export default function Calendar() {
             presetServices={state.prefill?.presetServices}
           />
 
-          <TimeOffDraftProvider>
             <StaffTimeOffSheet
               open={state.BlockDialogOpen}
               onOpenChange={() => dispatch({ type: "CLOSE_BLOCK_SHEET" })}
               branchId={branchId ?? ""}
               startISO={state.prefill?.startISO}
             />
-          </TimeOffDraftProvider>
+
+            <BlockDetailSheet />
 
           <AppointmentDetailSheet />
-          <BlockDetailSheet />
 
           <SlotBookingSheet
             open={state.slotDialogOpen}

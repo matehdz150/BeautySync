@@ -40,4 +40,6 @@ export interface StaffTimeOffRepository {
     staffId: string;
     branchId: string;
   }): Promise<StaffTimeOff | null>;
+
+  findById(id: number): Promise<StaffTimeOff | null>;
 }

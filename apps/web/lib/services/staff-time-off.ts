@@ -105,15 +105,23 @@ export async function createRecurringStaffTimeOff(data: {
 // UPDATE INSTANCE
 // ===============================
 
-export async function updateStaffTimeOff(
-  id: number,
-  data: {
-    start?: string;
-    end?: string;
-    reason?: string;
-  },
-) {
-  return api(`/staff-time-off/${id}`, {
+export async function updateStaffTimeOff(params: {
+  timeOffId: number;
+  start?: string;
+  end?: string;
+  reason?: string;
+  rule?: {
+    recurrenceType: "NONE" | "DAILY" | "WEEKLY";
+    daysOfWeek?: number[];
+    startTime: string;
+    endTime: string;
+    startDate: string;
+    endDate?: string;
+  };
+}) {
+  const { timeOffId, ...data } = params;
+
+  return api(`/staff-time-off/${timeOffId}`, {
     method: "PATCH",
     body: JSON.stringify(data),
   });

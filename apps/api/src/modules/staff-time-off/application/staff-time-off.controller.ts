@@ -110,9 +110,21 @@ export class StaffTimeOffController {
   update(@Param('id') id: string, @Body() dto: UpdateStaffTimeOffDto) {
     return this.updateUseCase.execute({
       id: Number(id),
+
       start: dto.start ? new Date(dto.start) : undefined,
       end: dto.end ? new Date(dto.end) : undefined,
       reason: dto.reason,
+
+      rule: dto.rule
+        ? {
+            recurrenceType: dto.rule.recurrenceType,
+            daysOfWeek: dto.rule.daysOfWeek,
+            startTime: dto.rule.startTime,
+            endTime: dto.rule.endTime,
+            startDate: new Date(dto.rule.startDate),
+            endDate: dto.rule.endDate ? new Date(dto.rule.endDate) : undefined,
+          }
+        : undefined,
     });
   }
 

@@ -21,6 +21,7 @@ import {
   createStaffTimeOff,
   getTimeOffEndSlots,
   getTimeOffStartSlots,
+  updateStaffTimeOff,
 } from "@/lib/services/staff-time-off";
 
 import { StaffSelector } from "./StaffSelector";
@@ -61,7 +62,8 @@ export function StaffTimeOffSheet({
   startISO,
 }: Props) {
   const { state } = useTimeOffDraft();
-  const { init, setField, toggleDay } = useTimeOffActions();
+  const { setField, toggleDay } = useTimeOffActions();
+  console.log(state.isEdit);
 
   const [loading, setLoading] = useState(false);
   const [startSlots, setStartSlots] = useState<string[]>([]);
@@ -81,13 +83,6 @@ export function StaffTimeOffSheet({
 
     return DateTime.fromISO(date).set({ hour: h, minute: m }).toUTC().toISO();
   }
-
-  // INIT
-  useEffect(() => {
-    if (open) {
-      init(startISO);
-    }
-  }, [open, startISO]);
 
   // PREVIEW (mejorado)
   const preview = useMemo(() => {
@@ -183,7 +178,19 @@ export function StaffTimeOffSheet({
         branchId,
       };
 
-      await createStaffTimeOff(payload);
+      if (state.isEdit && state.timeOffId) {
+        // 🔥 UPDATE
+        if (!state.timeOffId) {
+          throw new Error("Missing timeOffId for update");
+        }
+        await updateStaffTimeOff({
+          timeOffId: state.timeOffId,
+          ...payload,
+        });
+      } else {
+        // 🔥 CREATE
+        await createStaffTimeOff(payload);
+      }
 
       onOpenChange(false);
     } catch (e: any) {
@@ -213,7 +220,9 @@ export function StaffTimeOffSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full !max-w-[32rem] bg-white flex flex-col h-[100dvh] p-0">
         <SheetHeader className="px-6 py-5 border-b text-left">
-          <SheetTitle>Bloquear horario</SheetTitle>
+          <SheetTitle>
+            {state.isEdit ? "Editar bloqueo" : "Bloquear horario"}
+          </SheetTitle>
           <SheetDescription>
             Crea un bloqueo individual o recurrente.
           </SheetDescription>
@@ -353,8 +362,16 @@ export function StaffTimeOffSheet({
 
         {/* ACTIONS */}
         <div className="border-t px-6 py-4 flex justify-end gap-3">
-          <Button onClick={handleSubmit} disabled={loading} className="w-full py-6">
-            {loading ? "Guardando..." : "Guardar"}
+          <Button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full py-6"
+          >
+            {loading
+              ? "Guardando..."
+              : state.isEdit
+                ? "Guardar cambios"
+                : "Guardar"}
           </Button>
         </div>
       </SheetContent>
