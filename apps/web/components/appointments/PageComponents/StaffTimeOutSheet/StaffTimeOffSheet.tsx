@@ -9,22 +9,31 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
+
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 
 import { useTimeOffDraft } from "@/context/TimeOffDraftContext";
 import { useTimeOffActions } from "@/context/TimeOffDraftContext";
 import { buildTimeOffPayload } from "@/lib/helpers/buildTimeOffPayload";
-import { createStaffTimeOff } from "@/lib/services/staff-time-off";
+import {
+  createStaffTimeOff,
+  getTimeOffEndSlots,
+  getTimeOffStartSlots,
+} from "@/lib/services/staff-time-off";
+
 import { StaffSelector } from "./StaffSelector";
+import { DateSelector } from "./DateSelector";
+import { TimePickerInput } from "./TimeSelector";
+import { RecurrenceSelector } from "./RecurrenceSelector";
+import { Input } from "@/components/ui/input";
+import { DateTime } from "luxon";
 
 type Props = {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  branchId: string; // 🔥 ahora usamos branchId
+  branchId: string;
   startISO?: string;
 };
 
@@ -38,6 +47,13 @@ const WEEK_DAYS = [
   { value: 0, label: "Dom" },
 ];
 
+const RECURRENCE_OPTIONS = [
+  { value: "NONE", label: "Sin repetición" },
+  { value: "DAILY", label: "Diario" },
+  { value: "WEEKLY", label: "Cada semana" },
+  { value: "MONTHLY", label: "Cada mes" },
+];
+
 export function StaffTimeOffSheet({
   open,
   onOpenChange,
@@ -45,20 +61,37 @@ export function StaffTimeOffSheet({
   startISO,
 }: Props) {
   const { state } = useTimeOffDraft();
-  const { init, setField, setMode, toggleDay } = useTimeOffActions();
+  const { init, setField, toggleDay } = useTimeOffActions();
 
   const [loading, setLoading] = useState(false);
+  const [startSlots, setStartSlots] = useState<string[]>([]);
+  const [endSlots, setEndSlots] = useState<string[]>([]);
 
-  // 🔥 INIT
+  const [loadingStart, setLoadingStart] = useState(false);
+  const [loadingEnd, setLoadingEnd] = useState(false);
+
+  function isoToTime(iso: string) {
+    return DateTime.fromISO(iso)
+      .setZone("America/Mexico_City")
+      .toFormat("HH:mm");
+  }
+
+  function timeToISO(date: string, time: string) {
+    const [h, m] = time.split(":").map(Number);
+
+    return DateTime.fromISO(date).set({ hour: h, minute: m }).toUTC().toISO();
+  }
+
+  // INIT
   useEffect(() => {
     if (open) {
       init(startISO);
     }
   }, [open, startISO]);
 
-  // 🔎 Preview
+  // PREVIEW (mejorado)
   const preview = useMemo(() => {
-    if (state.mode === "SINGLE") {
+    if (state.recurrenceType === "NONE") {
       return `${state.date} · ${state.startTime} - ${state.endTime}`;
     }
 
@@ -66,8 +99,68 @@ export function StaffTimeOffSheet({
       return `Todos los días · ${state.startTime} - ${state.endTime}`;
     }
 
-    return `Semanal · ${state.daysOfWeek.length} día(s) · ${state.startTime} - ${state.endTime}`;
+    if (state.recurrenceType === "WEEKLY") {
+      return `Semanal · ${state.daysOfWeek.length} día(s) · ${state.startTime} - ${state.endTime}`;
+    }
+
+    return `Mensual · ${state.startTime} - ${state.endTime}`;
   }, [state]);
+
+  useEffect(() => {
+    if (!state.staffId || !state.date) return;
+
+    async function load() {
+      setLoadingStart(true);
+
+      try {
+        const res = await getTimeOffStartSlots({
+          branchId,
+          staffId: state.staffId,
+          date: state.date,
+        });
+
+        setStartSlots(res.slots);
+      } catch (e) {
+        console.error(e);
+        setStartSlots([]);
+      } finally {
+        setLoadingStart(false);
+      }
+    }
+
+    load();
+  }, [state.staffId, state.date]);
+
+  useEffect(() => {
+    if (!state.staffId || !state.date || !state.startTime) {
+      setEndSlots([]);
+      return;
+    }
+
+    async function load() {
+      setLoadingEnd(true);
+
+      try {
+        const startISO = timeToISO(state.date, state.startTime);
+
+        const res = await getTimeOffEndSlots({
+          branchId,
+          staffId: state.staffId,
+          date: state.date,
+          startISO: startISO!,
+        });
+
+        setEndSlots(res.endSlots);
+      } catch (e) {
+        console.error(e);
+        setEndSlots([]);
+      } finally {
+        setLoadingEnd(false);
+      }
+    }
+
+    load();
+  }, [state.startTime]);
 
   async function handleSubmit() {
     if (loading) return;
@@ -77,12 +170,12 @@ export function StaffTimeOffSheet({
       return;
     }
 
-    setLoading(true);
-
     if (!branchId) {
       alert("Sucursal inválida");
       return;
     }
+
+    setLoading(true);
 
     try {
       const payload = {
@@ -114,173 +207,153 @@ export function StaffTimeOffSheet({
     }
   }
 
+  const noStaff = !state.staffId;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full !max-w-[32rem] bg-white flex flex-col h-[100dvh] p-0"
-      >
+      <SheetContent className="w-full !max-w-[32rem] bg-white flex flex-col h-[100dvh] p-0">
         <SheetHeader className="px-6 py-5 border-b text-left">
           <SheetTitle>Bloquear horario</SheetTitle>
           <SheetDescription>
-            Crea un bloqueo individual o una regla recurrente.
+            Crea un bloqueo individual o recurrente.
           </SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-          {/* 🔥 STAFF SELECTOR */}
+          {/* FECHA */}
+          <div className="space-y-2">
+            <Label>Fecha</Label>
+            <DateSelector
+              value={state.date}
+              onChange={(d) => setField("date", d)}
+            />
+          </div>
+
+          {/* HORAS */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Hora inicio</Label>
+              <TimePickerInput
+                value={state.startTime}
+                onChange={(t) => {
+                  setField("startTime", t);
+                  setField("endTime", "");
+                }}
+                options={startSlots.map(isoToTime)}
+                loading={loadingStart}
+                disabled={!state.staffId}
+                emptyMessage="Selecciona un staff primero"
+              />
+              {noStaff && (
+                <p className="text-xs text-muted-foreground">
+                  Selecciona un staff para ver disponibilidad
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Hora fin</Label>
+              <TimePickerInput
+                value={state.endTime}
+                onChange={(t) => setField("endTime", t)}
+                options={endSlots.map(isoToTime)}
+                loading={loadingEnd}
+                disabled={!state.staffId}
+                emptyMessage="Selecciona un staff primero"
+              />
+            </div>
+          </div>
+
+          {/* STAFF */}
           <StaffSelector branchId={branchId} />
 
-          {/* PREVIEW */}
-          <div className="rounded-2xl border bg-gray-50 px-4 py-3">
-            <p className="text-sm font-medium">Preview</p>
-            <p className="text-sm text-muted-foreground mt-1">{preview}</p>
+          {/* 🔥 RECURRENCIA */}
+          <div className="space-y-2">
+            <Label>Repetición</Label>
+
+            <div className="space-y-2">
+              <RecurrenceSelector
+                value={state.recurrenceType}
+                onChange={(v) => setField("recurrenceType", v)}
+              />
+            </div>
           </div>
 
-          {/* MODE */}
-          <div className="flex items-center gap-3 rounded-xl border px-4 py-3">
-            <Checkbox
-              checked={state.mode === "RECURRING"}
-              onCheckedChange={(v) => setMode(v ? "RECURRING" : "SINGLE")}
-            />
-            <Label className="cursor-pointer">Repetir bloqueo</Label>
-          </div>
+          {/* WEEKLY */}
+          {state.recurrenceType === "WEEKLY" && (
+            <div className="space-y-2">
+              <Label>Días de la semana</Label>
 
-          {/* SINGLE */}
-          {state.mode === "SINGLE" ? (
-            <>
-              <div className="space-y-2">
-                <Label>Fecha</Label>
-                <Input
-                  type="date"
-                  value={state.date}
-                  onChange={(e) => setField("date", e.target.value)}
-                />
+              <div className="flex flex-wrap gap-2">
+                {WEEK_DAYS.map((day) => {
+                  const active = state.daysOfWeek.includes(day.value);
+
+                  return (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => toggleDay(day.value)}
+                      className={`h-10 min-w-10 rounded-full border px-3 text-sm ${
+                        active ? "bg-black text-white border-black" : "bg-white"
+                      }`}
+                    >
+                      {day.label}
+                    </button>
+                  );
+                })}
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Hora inicio</Label>
-                  <Input
-                    type="time"
-                    value={state.startTime}
-                    onChange={(e) => setField("startTime", e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Hora fin</Label>
-                  <Input
-                    type="time"
-                    value={state.endTime}
-                    onChange={(e) => setField("endTime", e.target.value)}
-                  />
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* TYPE */}
-              <div className="space-y-2">
-                <Label>Tipo de repetición</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setField("recurrenceType", "DAILY")}
-                    className={`rounded-xl border px-4 py-3 text-sm ${
-                      state.recurrenceType === "DAILY"
-                        ? "bg-black text-white border-black"
-                        : "bg-white"
-                    }`}
-                  >
-                    Diario
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setField("recurrenceType", "WEEKLY")}
-                    className={`rounded-xl border px-4 py-3 text-sm ${
-                      state.recurrenceType === "WEEKLY"
-                        ? "bg-black text-white border-black"
-                        : "bg-white"
-                    }`}
-                  >
-                    Semanal
-                  </button>
-                </div>
-              </div>
-
-              {/* DAYS */}
-              {state.recurrenceType === "WEEKLY" && (
-                <div className="space-y-2">
-                  <Label>Días de la semana</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {WEEK_DAYS.map((day) => {
-                      const active = state.daysOfWeek.includes(day.value);
-
-                      return (
-                        <button
-                          key={day.value}
-                          type="button"
-                          onClick={() => toggleDay(day.value)}
-                          className={`h-10 min-w-10 rounded-full border px-3 text-sm ${
-                            active
-                              ? "bg-black text-white border-black"
-                              : "bg-white"
-                          }`}
-                        >
-                          {day.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* TIME */}
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  type="time"
-                  value={state.startTime}
-                  onChange={(e) => setField("startTime", e.target.value)}
-                />
-                <Input
-                  type="time"
-                  value={state.endTime}
-                  onChange={(e) => setField("endTime", e.target.value)}
-                />
-              </div>
-
-              {/* RANGE */}
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  type="date"
-                  value={state.startDate}
-                  onChange={(e) => setField("startDate", e.target.value)}
-                />
-                <Input
-                  type="date"
-                  value={state.endDate}
-                  onChange={(e) => setField("endDate", e.target.value)}
-                />
-              </div>
-            </>
+            </div>
           )}
 
-          {/* REASON */}
-          <Textarea
-            placeholder="Motivo..."
-            value={state.reason}
-            onChange={(e) => setField("reason", e.target.value)}
-          />
+          {/* DAILY / MONTHLY INFO */}
+          {state.recurrenceType === "DAILY" && (
+            <p className="text-sm text-muted-foreground">
+              Se repetirá todos los días
+            </p>
+          )}
+
+          {state.recurrenceType === "MONTHLY" && (
+            <p className="text-sm text-muted-foreground">
+              Se repetirá cada mes en este día
+            </p>
+          )}
+
+          {/* RANGE */}
+          {state.recurrenceType !== "NONE" && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Desde</Label>
+                <DateSelector
+                  value={state.startDate}
+                  onChange={(d) => setField("startDate", d)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Hasta</Label>
+                <DateSelector
+                  value={state.endDate}
+                  onChange={(d) => setField("endDate", d)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* MOTIVO */}
+          <div className="space-y-2">
+            <Label>Motivo</Label>
+            <Input
+              placeholder="Motivo..."
+              value={state.reason}
+              onChange={(e) => setField("reason", e.target.value)}
+              className="shadow-none py-6"
+            />
+          </div>
         </div>
 
+        {/* ACTIONS */}
         <div className="border-t px-6 py-4 flex justify-end gap-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-
-          <Button onClick={handleSubmit} disabled={loading}>
+          <Button onClick={handleSubmit} disabled={loading} className="w-full py-6">
             {loading ? "Guardando..." : "Guardar"}
           </Button>
         </div>

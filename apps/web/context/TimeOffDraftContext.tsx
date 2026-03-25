@@ -46,10 +46,10 @@ function createInitialState(): TimeOffDraft {
     mode: "SINGLE",
 
     date: now.toISODate()!,
-    startTime: now.toFormat("HH:mm"),
-    endTime: now.plus({ hours: 1 }).toFormat("HH:mm"),
+    startTime: "",
+    endTime: "",
 
-    recurrenceType: "WEEKLY",
+    recurrenceType: "NONE",
     daysOfWeek: [now.weekday === 7 ? 0 : now.weekday],
     startDate: now.toISODate()!,
     endDate: now.plus({ months: 1 }).toISODate()!,
@@ -68,8 +68,8 @@ function reducer(state: TimeOffDraft, action: Action): TimeOffDraft {
       return {
         ...createInitialState(),
         date: now.toISODate()!,
-        startTime: now.toFormat("HH:mm"),
-        endTime: now.plus({ hours: 1 }).toFormat("HH:mm"),
+        startTime: "",
+        endTime: "",
         daysOfWeek: [now.weekday === 7 ? 0 : now.weekday],
       };
     }
@@ -78,13 +78,30 @@ function reducer(state: TimeOffDraft, action: Action): TimeOffDraft {
       return {
         ...state,
         staffId: action.staffId,
+        startTime: "",
+        endTime: "",
       };
 
-    case "SET_FIELD":
-      return {
+    case "SET_FIELD": {
+      const newState = {
         ...state,
         [action.field]: action.value,
       };
+
+      // 🔥 reset al cambiar fecha
+      if (action.field === "date") {
+        newState.startTime = "";
+        newState.endTime = "";
+      }
+
+      // 🔥 reset al cambiar tipo de recurrencia
+      if (action.field === "recurrenceType") {
+        newState.startTime = "";
+        newState.endTime = "";
+      }
+
+      return newState;
+    }
 
     case "TOGGLE_DAY":
       return {

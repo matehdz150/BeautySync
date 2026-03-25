@@ -71,6 +71,12 @@ import { UnlockSlotUseCase } from './core/use-cases/unlock-slot.use-case';
     GetPublicAvailableTimesUseCase,
     GetPublicAvailableTimesChainUseCase,
   ],
-  exports: [AvailabilityService],
+  exports: [
+    AvailabilityService,
+    {
+      provide: AVAILABILITY_REPOSITORY,
+      useExisting: DrizzleAvailabilityRepository,
+    },
+  ],
 })
 export class AvailabilityModule {}

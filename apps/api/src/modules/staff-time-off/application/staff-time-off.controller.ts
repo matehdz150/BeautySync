@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 
 import { CreateStaffTimeOffUseCase } from '../core/use-cases/create-staff-timeoff.use-case';
@@ -22,6 +23,8 @@ import { UpdateStaffTimeOffDto } from './dto/update-staff-time-off.dto';
 
 import { UpdateStaffTimeOffRuleDto } from './dto/update-staff-time-off-rule.dto';
 import { GetStaffTimeOffDetailUseCase } from '../core/use-cases/get-staff-timeoff-details.use-case';
+import { GetAvailableTimeOffStartSlotsUseCase } from '../core/use-cases/availability/get-available-timeoff-slots.use-case';
+import { GetAvailableTimeOffEndSlotsUseCase } from '../core/use-cases/availability/get-available-timeoff-end.use-case';
 
 @Controller('staff-time-off')
 export class StaffTimeOffController {
@@ -35,6 +38,9 @@ export class StaffTimeOffController {
     private readonly updateRuleUseCase: UpdateStaffTimeOffRuleUseCase,
     private readonly deleteRuleUseCase: DeleteStaffTimeOffRuleUseCase,
     private readonly getOneUseCase: GetStaffTimeOffDetailUseCase,
+
+    private readonly getStartSlotsUseCase: GetAvailableTimeOffStartSlotsUseCase,
+    private readonly getEndSlotsUseCase: GetAvailableTimeOffEndSlotsUseCase,
   ) {}
 
   // -------------------------
@@ -143,5 +149,33 @@ export class StaffTimeOffController {
   @Delete('rules/:id')
   deleteRule(@Param('id') id: string) {
     return this.deleteRuleUseCase.execute(Number(id));
+  }
+
+  @Get('availability/start')
+  getAvailableStartSlots(
+    @Query('branchId') branchId: string,
+    @Query('staffId') staffId: string,
+    @Query('date') date: string,
+  ) {
+    return this.getStartSlotsUseCase.execute({
+      branchId,
+      staffId,
+      date,
+    });
+  }
+
+  @Get('availability/end')
+  getAvailableEndSlots(
+    @Query('branchId') branchId: string,
+    @Query('staffId') staffId: string,
+    @Query('date') date: string,
+    @Query('startISO') startISO: string,
+  ) {
+    return this.getEndSlotsUseCase.execute({
+      branchId,
+      staffId,
+      date,
+      startISO,
+    });
   }
 }
