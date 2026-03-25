@@ -23,9 +23,13 @@ import {
   STAFF_TIMEOFF_RULES_REPOSITORY,
 } from './core/ports/tokens';
 import { GetStaffTimeOffDetailUseCase } from './core/use-cases/get-staff-timeoff-details.use-case';
+import { GetAvailableTimeOffStartSlotsUseCase } from './core/use-cases/availability/get-available-timeoff-slots.use-case';
+import { GetAvailableTimeOffEndSlotsUseCase } from './core/use-cases/availability/get-available-timeoff-end.use-case';
+import { AvailabilityModule } from '../availability/availability.module';
 
 @Module({
   controllers: [StaffTimeOffController],
+  imports: [AvailabilityModule],
 
   providers: [
     // timeoff usecases
@@ -40,6 +44,8 @@ import { GetStaffTimeOffDetailUseCase } from './core/use-cases/get-staff-timeoff
     DeleteStaffTimeOffRuleUseCase,
 
     GetStaffTimeOffDetailUseCase,
+    GetAvailableTimeOffStartSlotsUseCase,
+    GetAvailableTimeOffEndSlotsUseCase,
 
     // repositories
     {
