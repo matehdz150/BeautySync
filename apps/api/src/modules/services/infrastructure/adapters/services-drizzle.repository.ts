@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 
-import { services, staffServices } from 'src/modules/db/schema';
+import {
+  serviceCategories,
+  services,
+  staffServices,
+} from 'src/modules/db/schema';
 
 import { Service } from '../../core/entities/service.entity';
 
@@ -265,5 +269,18 @@ export class ServicesDrizzleRepository implements ServiceRepository {
       .where(eq(services.id, serviceId));
 
     return updated;
+  }
+
+  async getAllCategories() {
+    const rows = await this.db
+      .select({
+        id: serviceCategories.id,
+        name: serviceCategories.name,
+        icon: serviceCategories.icon,
+        hexColor: serviceCategories.colorHex,
+      })
+      .from(serviceCategories);
+
+    return rows;
   }
 }

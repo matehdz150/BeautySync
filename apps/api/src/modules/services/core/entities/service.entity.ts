@@ -15,3 +15,12 @@ export class Service {
     public isActive: boolean,
   ) {}
 }
+
+// core/entities/service-category.entity.ts
+
+export type ServiceCategory = {
+  id: string;
+  name: string;
+  icon: string;
+  hexColor: string;
+};

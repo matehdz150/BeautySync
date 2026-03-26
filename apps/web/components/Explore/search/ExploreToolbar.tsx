@@ -10,6 +10,7 @@ import {
   Scissors,
 } from "lucide-react";
 import { useState } from "react";
+import ServicesFilter from "./ServicesFilter";
 
 export function ExploreToolbar({
   total,
@@ -105,11 +106,7 @@ export function ExploreToolbar({
         </div>
 
         {/* 🏷 CATEGORIES BUTTON */}
-        <button className="flex items-center gap-2 border rounded-full px-4 py-2 text-sm hover:bg-gray-50 transition">
-          <Scissors className="w-4 h-4" />
-          Servicios
-        </button>
-
+        <ServicesFilter/>
         {/* ⚙️ FILTERS */}
         <button
           onClick={onOpenFilters}
