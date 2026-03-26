@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import ServicesFilter from "./ServicesFilter";
+import FiltersButton from "./FiltersButton";
 
 export function ExploreToolbar({
   total,
@@ -108,13 +109,7 @@ export function ExploreToolbar({
         {/* 🏷 CATEGORIES BUTTON */}
         <ServicesFilter/>
         {/* ⚙️ FILTERS */}
-        <button
-          onClick={onOpenFilters}
-          className="flex items-center gap-2 border rounded-full px-4 py-2 text-sm hover:bg-gray-50 transition"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-          Filtros
-        </button>
+        <FiltersButton/>
       </div>
 
       {/* 🔥 RESULT COUNT */}
