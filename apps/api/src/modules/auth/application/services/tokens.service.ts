@@ -10,6 +10,7 @@ export class TokensService {
     role: string;
     organizationId: string | null;
   }) {
+    console.log('JWT_ACCESS_SECRET:', process.env.JWT_ACCESS_SECRET);
     const payload = {
       sub: user.id,
       orgId: user.organizationId,

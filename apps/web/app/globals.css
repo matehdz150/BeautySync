@@ -146,3 +146,87 @@ html, body{
 * {
   -ms-overflow-style: none;
 }
+
+.rating-marker {
+  background: black;
+  color: white;
+  font-weight: 600;
+  font-size: 10px;
+
+  padding: 6px 10px;
+  border-radius: 999px;
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+/* puntita tipo burbuja */
+.rating-marker::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid black;
+}
+
+.custom-rating-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.custom-rating-icon .rating-marker {
+  background: black;
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1;
+
+  min-width: 42px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.custom-rating-icon .rating-marker::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%);
+  transition: transform 0.2s ease;
+
+  width: 0;
+  height: 0;
+
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid black;
+}
+
+.custom-rating-icon .rating-marker:hover::after {
+  transform: translateX(-50%) translateY(2px);
+}
+
+.custom-rating-icon .rating-marker:hover {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+}
