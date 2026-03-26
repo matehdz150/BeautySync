@@ -25,12 +25,15 @@ export class LoginUseCase {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    const needsOnboarding = !user.organizationId;
+
     return {
       user: {
         id: user.id,
         email: user.email,
         role: user.role,
         organizationId: user.organizationId ?? null,
+        needsOnboarding,
       },
     };
   }

@@ -18,5 +18,6 @@ export type LoginResult = {
     email: string;
     role: string;
     organizationId: string | null;
+    needsOnboarding: boolean;
   };
 };

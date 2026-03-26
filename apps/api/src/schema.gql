@@ -1,0 +1,27 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type ServicePreviewGql {
+  name: String!
+  priceCents: Int
+  durationMin: Int!
+}
+
+type ExploreBranchGql {
+  id: String!
+  name: String!
+  address: String
+  lat: Float
+  lng: Float
+  publicSlug: String
+  coverImage: String
+  ratingAvg: Float!
+  ratingCount: Int!
+  servicesCount: Int!
+  servicesPreview: [ServicePreviewGql!]!
+}
+
+type Query {
+  exploreBranches: [ExploreBranchGql!]!
+}

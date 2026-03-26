@@ -29,6 +29,9 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { MessagesModule } from './modules/messages/messages.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
+import { GraphqlModule } from './graphql.module';
+import { ExploreModule } from './modules/explore/explore.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -60,6 +63,11 @@ import { CalendarModule } from './modules/calendar/calendar.module';
     MessagesModule,
     CacheModule,
     CalendarModule,
+    GraphqlModule,
+    ExploreModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],

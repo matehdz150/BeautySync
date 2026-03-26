@@ -57,7 +57,12 @@ import { ValidateBranchAccessUseCase } from './core/use-cases/manager/validate-b
 import { JwtRefreshStrategy } from './infraestructure/strategies/jwt-refresh.strategy';
 
 @Module({
-  imports: [JwtModule.register({})],
+  imports: [
+    JwtModule.register({
+      secret: process.env.JWT_ACCESS_SECRET,
+      signOptions: { expiresIn: '1h' },
+    }),
+  ],
 
   controllers: [AuthController, PublicAuthController],
 
@@ -143,6 +148,7 @@ import { JwtRefreshStrategy } from './infraestructure/strategies/jwt-refresh.str
     PublicAuthGuard,
     RefreshJwtGuard,
     RolesGuard,
+    JwtModule,
   ],
 })
 export class AuthModule {}

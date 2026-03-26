@@ -29,6 +29,7 @@ export default function ManagerLogin() {
 
     try {
       const user = await login(email, password);
+      console.log(user)
 
       if (user.role === "owner" && user.needsOnboarding) {
         router.push("/onboarding");

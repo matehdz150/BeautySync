@@ -138,6 +138,7 @@ export class AuthController {
         email: result.user.email,
         role: result.user.role,
         orgId: result.user.organizationId,
+        needsOnboarding: result.user.needsOnboarding,
       },
     };
   }
