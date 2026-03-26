@@ -18,7 +18,7 @@ export default function ExploreList({ branches }: any) {
       />
 
       {/* 🔥 GRID */}
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-0">
         {branches.map((b: any) => (
           <div
             key={b.id}

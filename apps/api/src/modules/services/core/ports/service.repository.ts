@@ -48,4 +48,13 @@ export interface ServiceRepository {
   addRule(serviceId: string, text: string): Promise<string[]>;
 
   removeRule(serviceId: string, index: number): Promise<string[]>;
+
+  getAllCategories(): Promise<
+    {
+      id: string;
+      name: string;
+      icon: string;
+      hexColor: string;
+    }[]
+  >;
 }

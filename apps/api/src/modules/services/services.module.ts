@@ -44,6 +44,7 @@ import {
   SERVICE_REPOSITORY,
   SERVICE_PUBLIC_REPOSITORY,
 } from './core/ports/tokens';
+import { GetServiceCategoriesUseCase } from './core/use-cases/public/get-all-categories.use-case';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import {
 
     GetPublicServicesByBranchSlugUseCase,
     GetStaffForServicePublicUseCase,
+    GetServiceCategoriesUseCase,
 
     /* =========================
        REPOSITORIES

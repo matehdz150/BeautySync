@@ -1,12 +1,14 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { GetPublicServicesByBranchSlugUseCase } from '../../core/use-cases/public/get-public-services-by-branch.use-case';
 import { GetStaffForServicePublicUseCase } from '../../core/use-cases/public/get-staff-for-service-public.use-case';
+import { GetServiceCategoriesUseCase } from '../../core/use-cases/public/get-all-categories.use-case';
 
 @Controller('public')
 export class ServicesPublicController {
   constructor(
     private readonly getServices: GetPublicServicesByBranchSlugUseCase,
     private readonly getStaff: GetStaffForServicePublicUseCase,
+    private readonly getCategories: GetServiceCategoriesUseCase,
   ) {}
 
   @Get(':slug/services')
@@ -20,5 +22,10 @@ export class ServicesPublicController {
     @Param('serviceId') serviceId: string,
   ) {
     return this.getStaff.execute({ slug, serviceId });
+  }
+
+  @Get('service-categories')
+  getServiceCategories() {
+    return this.getCategories.execute();
   }
 }
