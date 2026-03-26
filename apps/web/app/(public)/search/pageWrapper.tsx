@@ -18,6 +18,7 @@ function ExploreContent({ initialBranches }: any) {
   const [branches, setBranches] = useState(initialBranches);
   const [loading, setLoading] = useState(false);
   const [showMapFull, setShowMapFull] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   // 🔥 FETCH CUANDO CAMBIAN FILTROS
   useEffect(() => {
@@ -57,7 +58,7 @@ function ExploreContent({ initialBranches }: any) {
         {/* LEFT */}
         {!showMapFull && (
           <div>
-            <ExploreList branches={branches} loading={loading} />
+            <ExploreList branches={branches} loading={loading} onHover={setHoveredId}/>
           </div>
         )}
 
@@ -67,7 +68,7 @@ function ExploreContent({ initialBranches }: any) {
             showMapFull ? "col-span-1" : ""
           }`}
         >
-          <ExploreMap branches={branches} isFullMap={showMapFull} />
+          <ExploreMap branches={branches} isFullMap={showMapFull} hoveredId={hoveredId} />
         </div>
       </div>
 
