@@ -1,7 +1,6 @@
 import { Resolver, Query, Args } from '@nestjs/graphql';
-import { ExploreBranchGql } from './dto/explore-branch.dto';
+import { ExploreBranchGql, ExploreSort } from './dto/explore-branch.dto';
 import { GetExploreBranchesUseCase } from '../core/use-cases/get-explore-branches.use-case';
-import { ExploreFiltersInput } from './dto/explore-branch.dto';
 
 @Resolver(() => ExploreBranchGql)
 export class ExploreResolver {
@@ -9,9 +8,27 @@ export class ExploreResolver {
 
   @Query(() => [ExploreBranchGql])
   async exploreBranches(
-    @Args('filters', { type: () => ExploreFiltersInput, nullable: true })
-    filters?: ExploreFiltersInput,
+    @Args('lat', { nullable: true }) lat?: number,
+    @Args('lng', { nullable: true }) lng?: number,
+    @Args('radius', { nullable: true }) radius?: number,
+    @Args('categories', { nullable: true }) categories?: string,
+    @Args('minPrice', { nullable: true }) minPrice?: number,
+    @Args('maxPrice', { nullable: true }) maxPrice?: number,
+    @Args('rating', { nullable: true }) rating?: number,
+    @Args('sort', { type: () => ExploreSort, nullable: true })
+    sort?: ExploreSort,
   ) {
-    return this.useCase.execute(filters ?? {});
+    const filters = {
+      lat,
+      lng,
+      radius,
+      categories,
+      minPrice,
+      maxPrice,
+      rating,
+      sort,
+    };
+
+    return this.useCase.execute(filters);
   }
 }

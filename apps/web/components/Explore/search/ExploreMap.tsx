@@ -3,12 +3,12 @@
 import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import * as L from "leaflet";
-import { useMemo, useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Star, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 
-export default function ExploreMap({ branches, isFullMap }: any) {
+export default function ExploreMap({ branches, isFullMap, hoveredId }: any) {
   const key = process.env.NEXT_PUBLIC_MAPTILER_KEY;
 
   const [selected, setSelected] = useState<any | null>(null);
@@ -16,13 +16,16 @@ export default function ExploreMap({ branches, isFullMap }: any) {
     null,
   );
 
+  // 🔥 refs de markers
+  const markersRef = useRef<Record<string, L.Marker>>({});
+
   function ResizeMap({ trigger }: { trigger: boolean }) {
     const map = useMap();
 
     useEffect(() => {
       const timeout = setTimeout(() => {
-        map.invalidateSize(); // 🔥 recalcula el mapa
-      }, 300); // pequeño delay para animación
+        map.invalidateSize();
+      }, 300);
 
       return () => clearTimeout(timeout);
     }, [trigger, map]);
@@ -37,53 +40,62 @@ export default function ExploreMap({ branches, isFullMap }: any) {
       if (!location) return;
 
       map.flyTo(location, 14, {
-        duration: 0.8, // suavecito
+        duration: 0.8,
       });
     }, [location, map]);
 
     return null;
   }
 
+  // 📍 geolocalización
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        setUserLocation([lat, lng]);
+        setUserLocation([pos.coords.latitude, pos.coords.longitude]);
       },
-      (err) => {
-        console.warn("No location permission", err);
-      },
+      () => {},
     );
   }, []);
+
+  // 🔥 ICON FACTORY
+  const createRatingIcon = (rating: number, active = false) =>
+    L.divIcon({
+      className: "custom-rating-icon",
+      html: `
+        <div class="rating-marker ${active ? "active" : ""}">
+          ${rating.toFixed(1)}
+        </div>
+      `,
+      iconSize: [56, 36],
+      iconAnchor: [28, 42],
+    });
+
+  // 🔥 UPDATE ICON SIN RECREAR MARKER (CLAVE)
+  useEffect(() => {
+    Object.entries(markersRef.current).forEach(([id, marker]) => {
+      const isActive = hoveredId === id;
+
+      const branch = branches.find((b: any) => b.id === id);
+      if (!branch) return;
+
+      marker.setIcon(createRatingIcon(branch.ratingAvg ?? 0, isActive));
+    });
+  }, [hoveredId, branches]);
 
   const userIcon = L.divIcon({
     className: "",
     html: `
-    <div style="
-      width: 14px;
-      height: 14px;
-      background: #6366f1;
-      border-radius: 999px;
-      box-shadow: 0 0 0 6px rgba(99,102,241,0.2);
-    "></div>
-  `,
+      <div style="
+        width: 14px;
+        height: 14px;
+        background: #6366f1;
+        border-radius: 999px;
+        box-shadow: 0 0 0 6px rgba(99,102,241,0.2);
+      "></div>
+    `,
     iconSize: [14, 14],
     iconAnchor: [7, 7],
   });
-
-  const createRatingIcon = (rating: number) =>
-    L.divIcon({
-      className: "custom-rating-icon",
-      html: `
-      <div class="rating-marker">
-        ${rating.toFixed(1)}
-      </div>
-    `,
-      iconSize: [56, 36],
-      iconAnchor: [28, 42],
-    });
 
   if (!key) return <div>No map key</div>;
 
@@ -100,6 +112,7 @@ export default function ExploreMap({ branches, isFullMap }: any) {
     >
       <FlyToUser location={userLocation} />
       <ResizeMap trigger={isFullMap} />
+
       <TileLayer
         url={`https://api.maptiler.com/maps/topo-v2/{z}/{x}/{y}.png?key=${key}`}
       />
@@ -115,9 +128,13 @@ export default function ExploreMap({ branches, isFullMap }: any) {
 
         return (
           <Marker
-            key={b.id}
+            key={b.id} // 🔥 estable (NO dinámico)
             position={[b.lat, b.lng]}
             icon={createRatingIcon(b.ratingAvg ?? 0)}
+            ref={(ref) => {
+              if (ref) markersRef.current[b.id] = ref;
+              else delete markersRef.current[b.id];
+            }}
             eventHandlers={{
               click: () => setSelected(b),
             }}
@@ -158,25 +175,13 @@ function MarkerOverlay({ branch, onClose }: any) {
         style={{
           left: position.x,
           top: position.y,
-          translateX: "-50%", // 👈 POSICIÓN (NO animada)
-          translateY: "-120%", // 👈 POSICIÓN (NO animada)
+          translateX: "-50%",
+          translateY: "-120%",
         }}
-        initial={{
-          opacity: 0,
-          scale: 0.85,
-        }}
-        animate={{
-          opacity: 1,
-          scale: 1,
-        }}
-        exit={{
-          opacity: 0,
-          scale: 0.85,
-        }}
-        transition={{
-          duration: 0.18,
-          ease: "easeOut",
-        }}
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.85 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
       >
         <motion.div
           onClick={() => router.push(`/book/${branch.publicSlug}`)}
@@ -184,20 +189,18 @@ function MarkerOverlay({ branch, onClose }: any) {
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
         >
-          {/* ❌ CLOSE */}
           <div className="absolute top-2 right-2 z-10">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();
               }}
-              className="bg-white text-black rounded-full p-1 transition hover:bg-gray-100"
+              className="bg-white rounded-full p-1 hover:bg-gray-100"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* IMAGE */}
           {branch.coverImage && (
             <img src={branch.coverImage} className="w-full h-32 object-cover" />
           )}
@@ -209,7 +212,7 @@ function MarkerOverlay({ branch, onClose }: any) {
               {branch.address}
             </p>
 
-            <div className="flex items-center justify-between mt-2 text-xs">
+            <div className="flex justify-between mt-2 text-xs">
               <span className="flex items-center gap-1">
                 <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                 {branch.ratingAvg.toFixed(1)}

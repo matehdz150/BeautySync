@@ -7,6 +7,7 @@ type ServicePreviewGql {
   priceCents: Int
   durationMin: Int!
   categoryName: String
+  categorySlug: String
 }
 
 type ExploreBranchGql {
@@ -25,16 +26,11 @@ type ExploreBranchGql {
 }
 
 type Query {
-  exploreBranches(filters: ExploreFiltersInput): [ExploreBranchGql!]!
+  exploreBranches(lat: Float, lng: Float, radius: Float, categories: String, minPrice: Float, maxPrice: Float, rating: Float, sort: ExploreSort): [ExploreBranchGql!]!
 }
 
-input ExploreFiltersInput {
-  lat: Float
-  lng: Float
-  radius: Float
-  categories: String
-  minPrice: Int
-  maxPrice: Int
-  rating: Float
-  sort: String
+enum ExploreSort {
+  DISTANCE
+  RATING
+  PRICE
 }

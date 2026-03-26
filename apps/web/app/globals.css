@@ -230,3 +230,13 @@ html, body{
   transform: translateY(-4px) scale(1.05);
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
 }
+
+.rating-marker {
+  transform: translateY(2px);
+  transition: all 0.2s ease;
+}
+
+.rating-marker.active {
+  transform: translateY(-6px) scale(1.3);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+}

@@ -1,12 +1,17 @@
 // lib/graphql.ts
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 export async function graphqlFetch<T>(
   query: string,
   variables?: Record<string, any>,
 ): Promise<T> {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/graphql`, {
+  const isServer = typeof window === "undefined";
+
+  const res = await fetch(`${API_URL}/graphql`, {
     method: "POST",
-    credentials: "include", // 🔥 cookies (auth)
+    ...(isServer ? {} : { credentials: "include" }),
     headers: {
       "Content-Type": "application/json",
     },

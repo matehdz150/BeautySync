@@ -12,6 +12,15 @@ import { serviceCategories } from 'src/modules/db/schema';
 import { CreateServiceCategoryDto } from './dto/create-service-category.dto';
 import { UpdateServiceCategoryDto } from './dto/update-service-category.dto';
 
+export function createSlug(text: string) {
+  return text
+    .normalize('NFD') // quita acentos
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
 @Injectable()
 export class ServiceCategoriesService {
   constructor(@Inject('DB') private db: client.DB) {}
@@ -31,7 +40,10 @@ export class ServiceCategoriesService {
 
     const [row] = await this.db
       .insert(serviceCategories)
-      .values(dto)
+      .values({
+        ...dto,
+        slug: createSlug(dto.name),
+      })
       .returning();
 
     return row;

@@ -1,4 +1,15 @@
-import { ObjectType, Field, Float, Int, InputType } from '@nestjs/graphql';
+import { ObjectType, Field, Float, Int, ArgsType } from '@nestjs/graphql';
+import { registerEnumType } from '@nestjs/graphql';
+
+export enum ExploreSort {
+  DISTANCE = 'distance',
+  RATING = 'rating',
+  PRICE = 'price',
+}
+
+registerEnumType(ExploreSort, {
+  name: 'ExploreSort',
+});
 
 @ObjectType()
 export class ServicePreviewGql {
@@ -12,7 +23,10 @@ export class ServicePreviewGql {
   durationMin!: number;
 
   @Field({ nullable: true })
-  categoryName?: string;
+  categoryName?: string; // 👈 para UI
+
+  @Field({ nullable: true })
+  categorySlug?: string; // 👈 🔥 para filtros
 }
 
 @ObjectType()
@@ -55,7 +69,7 @@ export class ExploreBranchGql {
   servicesPreview!: ServicePreviewGql[];
 }
 
-@InputType()
+@ArgsType()
 export class ExploreFiltersInput {
   @Field(() => Float, { nullable: true })
   lat?: number;
@@ -66,7 +80,7 @@ export class ExploreFiltersInput {
   @Field(() => Float, { nullable: true })
   radius?: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   categories?: string;
 
   @Field(() => Int, { nullable: true })
@@ -78,6 +92,6 @@ export class ExploreFiltersInput {
   @Field(() => Float, { nullable: true })
   rating?: number;
 
-  @Field({ nullable: true })
-  sort?: 'distance' | 'rating' | 'price';
+  @Field(() => ExploreSort, { nullable: true })
+  sort?: ExploreSort;
 }

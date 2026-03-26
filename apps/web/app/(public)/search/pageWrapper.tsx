@@ -1,19 +1,55 @@
 "use client";
 
-import { useState } from "react";
-import { getExploreBranches } from "@/lib/services/public/explore";
+import { useState, useEffect } from "react";
 import ExploreList from "@/components/Explore/search/ExploreList";
 import ExploreMap from "@/components/Explore/search/ExploreMapWrapper";
 import { PublicHeader } from "@/components/book/PublicHeader";
 import { Map } from "lucide-react";
 
-export default function PageWrapper({ branches }: any) {
+import {
+  ExploreFiltersProvider,
+  useExploreFilters,
+} from "@/context/public/ExploreFiltersContext";
+import { getExploreBranches } from "@/lib/services/public/explore";
+
+function ExploreContent({ initialBranches }: any) {
+  const { filters } = useExploreFilters();
+
+  const [branches, setBranches] = useState(initialBranches);
+  const [loading, setLoading] = useState(false);
   const [showMapFull, setShowMapFull] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  // 🔥 FETCH CUANDO CAMBIAN FILTROS
+  useEffect(() => {
+    async function fetchData() {
+      setLoading(true);
+
+      try {
+        const data = await getExploreBranches({
+          ...filters,
+          categories:
+            filters.categories && filters.categories.length > 0
+              ? filters.categories.join(",")
+              : undefined,
+        });
+
+        setBranches(data);
+      } catch (e) {
+        console.error("Error fetching explore:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [filters]);
 
   return (
     <>
       <PublicHeader />
 
+      {/* 🔥 GRID */}
       <div
         className={`grid transition-all duration-300 ${
           showMapFull ? "grid-cols-1" : "grid-cols-[60%_40%]"
@@ -22,7 +58,7 @@ export default function PageWrapper({ branches }: any) {
         {/* LEFT */}
         {!showMapFull && (
           <div>
-            <ExploreList branches={branches} />
+            <ExploreList branches={branches} loading={loading} onHover={setHoveredId}/>
           </div>
         )}
 
@@ -32,7 +68,7 @@ export default function PageWrapper({ branches }: any) {
             showMapFull ? "col-span-1" : ""
           }`}
         >
-          <ExploreMap branches={branches} isFullMap={showMapFull} />
+          <ExploreMap branches={branches} isFullMap={showMapFull} hoveredId={hoveredId} />
         </div>
       </div>
 
@@ -45,5 +81,13 @@ export default function PageWrapper({ branches }: any) {
         {showMapFull ? "Ver lista" : "Ver mapa"}
       </button>
     </>
+  );
+}
+
+export default function PageWrapper({ branches }: any) {
+  return (
+    <ExploreFiltersProvider>
+      <ExploreContent initialBranches={branches} />
+    </ExploreFiltersProvider>
   );
 }
