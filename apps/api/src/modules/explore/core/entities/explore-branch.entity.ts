@@ -13,9 +13,24 @@ export type ExploreBranch = {
 
   servicesCount: number;
 
+  distanceKm?: number;
+
   servicesPreview: {
     name: string;
     priceCents?: number;
     durationMin: number;
   }[];
+};
+
+export type ExploreFilters = {
+  lat?: number;
+  lng?: number;
+  radius?: number;
+
+  categories?: string;
+  minPrice?: number;
+  maxPrice?: number;
+
+  rating?: number;
+  sort?: 'distance' | 'rating' | 'price';
 };

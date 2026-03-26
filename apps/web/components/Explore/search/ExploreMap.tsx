@@ -12,6 +12,9 @@ export default function ExploreMap({ branches, isFullMap }: any) {
   const key = process.env.NEXT_PUBLIC_MAPTILER_KEY;
 
   const [selected, setSelected] = useState<any | null>(null);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(
+    null,
+  );
 
   function ResizeMap({ trigger }: { trigger: boolean }) {
     const map = useMap();
@@ -27,6 +30,49 @@ export default function ExploreMap({ branches, isFullMap }: any) {
     return null;
   }
 
+  function FlyToUser({ location }: { location: [number, number] | null }) {
+    const map = useMap();
+
+    useEffect(() => {
+      if (!location) return;
+
+      map.flyTo(location, 14, {
+        duration: 0.8, // suavecito
+      });
+    }, [location, map]);
+
+    return null;
+  }
+
+  useEffect(() => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+
+        setUserLocation([lat, lng]);
+      },
+      (err) => {
+        console.warn("No location permission", err);
+      },
+    );
+  }, []);
+
+  const userIcon = L.divIcon({
+    className: "",
+    html: `
+    <div style="
+      width: 14px;
+      height: 14px;
+      background: #6366f1;
+      border-radius: 999px;
+      box-shadow: 0 0 0 6px rgba(99,102,241,0.2);
+    "></div>
+  `,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+
   const createRatingIcon = (rating: number) =>
     L.divIcon({
       className: "custom-rating-icon",
@@ -41,9 +87,9 @@ export default function ExploreMap({ branches, isFullMap }: any) {
 
   if (!key) return <div>No map key</div>;
 
-  const center = branches[0]
-    ? [branches[0].lat, branches[0].lng]
-    : [20.67, -103.35];
+  const center =
+    userLocation ??
+    (branches[0] ? [branches[0].lat, branches[0].lng] : [20.67, -103.35]);
 
   return (
     <MapContainer
@@ -52,6 +98,7 @@ export default function ExploreMap({ branches, isFullMap }: any) {
       zoomControl={false}
       className="h-full w-full rounded-md"
     >
+      <FlyToUser location={userLocation} />
       <ResizeMap trigger={isFullMap} />
       <TileLayer
         url={`https://api.maptiler.com/maps/topo-v2/{z}/{x}/{y}.png?key=${key}`}
@@ -60,6 +107,8 @@ export default function ExploreMap({ branches, isFullMap }: any) {
       {selected && (
         <MarkerOverlay branch={selected} onClose={() => setSelected(null)} />
       )}
+
+      {userLocation && <Marker position={userLocation} icon={userIcon} />}
 
       {branches.map((b: any) => {
         if (!b.lat || !b.lng) return null;

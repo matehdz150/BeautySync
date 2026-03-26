@@ -1,4 +1,4 @@
-import { ObjectType, Field, Float, Int } from '@nestjs/graphql';
+import { ObjectType, Field, Float, Int, InputType } from '@nestjs/graphql';
 
 @ObjectType()
 export class ServicePreviewGql {
@@ -10,6 +10,9 @@ export class ServicePreviewGql {
 
   @Field(() => Int)
   durationMin!: number;
+
+  @Field({ nullable: true })
+  categoryName?: string;
 }
 
 @ObjectType()
@@ -45,6 +48,36 @@ export class ExploreBranchGql {
   @Field(() => Int)
   servicesCount!: number;
 
+  @Field(() => Float, { nullable: true })
+  distanceKm?: number;
+
   @Field(() => [ServicePreviewGql])
   servicesPreview!: ServicePreviewGql[];
+}
+
+@InputType()
+export class ExploreFiltersInput {
+  @Field(() => Float, { nullable: true })
+  lat?: number;
+
+  @Field(() => Float, { nullable: true })
+  lng?: number;
+
+  @Field(() => Float, { nullable: true })
+  radius?: number;
+
+  @Field({ nullable: true })
+  categories?: string;
+
+  @Field(() => Int, { nullable: true })
+  minPrice?: number;
+
+  @Field(() => Int, { nullable: true })
+  maxPrice?: number;
+
+  @Field(() => Float, { nullable: true })
+  rating?: number;
+
+  @Field({ nullable: true })
+  sort?: 'distance' | 'rating' | 'price';
 }
