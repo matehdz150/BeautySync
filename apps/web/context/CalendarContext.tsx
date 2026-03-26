@@ -144,7 +144,7 @@ const initialState: CalendarState = {
   anchorRect: null,
 
   view: {
-    maxVisibleStaff: 10,
+    maxVisibleStaff: 7,
     staffOffset: 0,
     enabledStaffIds: [],
   },

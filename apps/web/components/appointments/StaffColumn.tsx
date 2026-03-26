@@ -11,12 +11,7 @@ import { useBranch } from "@/context/BranchContext";
 import { getStaffTimeOffDetail } from "@/lib/services/staff-time-off";
 import { useTimeOffActions } from "@/context/TimeOffDraftContext";
 
-type Staff = {
-  id: string;
-  name: string;
-};
 
-type Appointment = any;
 
 export function StaffColumn({
   staff,
@@ -33,7 +28,7 @@ export function StaffColumn({
   const { loadFromTimeOff } = useTimeOffActions();
   const { openBlockTime } = useCalendarActions();
 
-  const { openAppointmentById, openBlockDetail } = useCalendarActions();
+  const { openAppointmentById } = useCalendarActions();
 
   // 📅 LOAD STAFF SCHEDULE
   useEffect(() => {

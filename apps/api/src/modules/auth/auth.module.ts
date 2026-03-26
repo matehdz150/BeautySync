@@ -54,6 +54,7 @@ import { PublicAuthGuard } from './application/guards/public-auth.guard';
 import { RefreshJwtGuard } from './application/guards/refresh-jwt.guard';
 import { RolesGuard } from './application/guards/roles.guard';
 import { ValidateBranchAccessUseCase } from './core/use-cases/manager/validate-branch-access.use-case';
+import { JwtRefreshStrategy } from './infraestructure/strategies/jwt-refresh.strategy';
 
 @Module({
   imports: [JwtModule.register({})],
@@ -81,6 +82,7 @@ import { ValidateBranchAccessUseCase } from './core/use-cases/manager/validate-b
     /* STRATEGIES */
 
     JwtStrategy,
+    JwtRefreshStrategy,
 
     /* PORT → ADAPTER */
 
@@ -134,6 +136,7 @@ import { ValidateBranchAccessUseCase } from './core/use-cases/manager/validate-b
     GetUserBySessionUseCase,
     ValidateBranchAccessUseCase,
     JwtStrategy,
+    JwtRefreshStrategy,
     BranchAccessGuard,
     JwtAuthGuard,
     OrganizationAccessGuard,
