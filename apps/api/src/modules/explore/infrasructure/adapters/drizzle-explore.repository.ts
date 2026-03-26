@@ -22,7 +22,7 @@ export class DrizzleExploreRepository implements ExploreRepository {
     // PARSEO
     // =========================
     const categoryList = filters.categories
-      ? filters.categories.split(',').map((c) => c.trim().toLowerCase())
+      ? filters.categories.split(',').map((c) => c.trim())
       : [];
 
     const hasCategories = categoryList.length > 0;
@@ -110,6 +110,7 @@ export class DrizzleExploreRepository implements ExploreRepository {
         name: services.name,
         priceCents: services.priceCents,
         durationMin: services.durationMin,
+        categorySlug: serviceCategories.slug,
         categoryName: serviceCategories.name,
       })
       .from(services)
@@ -125,6 +126,7 @@ export class DrizzleExploreRepository implements ExploreRepository {
       priceCents: number | null;
       durationMin: number;
       categoryName: string | null;
+      categorySlug: string | null;
     };
 
     const servicesMap = new Map<string, ServiceRow[]>();
@@ -169,6 +171,7 @@ export class DrizzleExploreRepository implements ExploreRepository {
           priceCents: s.priceCents ?? undefined,
           durationMin: s.durationMin,
           categoryName: s.categoryName ?? undefined,
+          categorySlug: s.categorySlug ?? undefined,
         })),
 
         minPrice,
@@ -199,15 +202,21 @@ export class DrizzleExploreRepository implements ExploreRepository {
       result = result.filter((b) => b.maxPrice <= filters.maxPrice!);
     }
 
+    console.log({
+      raw: filters.categories,
+      parsed: categoryList,
+      hasCategories,
+    });
+
     // 🧩 categories (por NAME)
     if (hasCategories) {
-      result = result.filter((b) =>
-        b.servicesPreview.some(
-          (s) =>
-            s.categoryName &&
-            categoryList.includes(s.categoryName.toLowerCase()),
-        ),
-      );
+      result = result.filter((b) => {
+        const servicesList = servicesMap.get(b.id) ?? [];
+
+        return servicesList.some(
+          (s) => s.categorySlug && categoryList.includes(s.categorySlug),
+        );
+      });
     }
 
     // =========================

@@ -26,11 +26,9 @@ export type ExploreFilters = {
   lat?: number;
   lng?: number;
   radius?: number;
-
   categories?: string;
   minPrice?: number;
   maxPrice?: number;
-
   rating?: number;
   sort?: 'distance' | 'rating' | 'price';
 };

@@ -18,12 +18,17 @@ export const serviceCategories = pgTable(
 
     icon: text("icon").notNull(),
 
+    slug: text('slug').notNull(),
+
     colorHex: text("color_hex").notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (table) => ({
     nameIdx: index("service_category_name_idx").on(table.name),
-    nameUniqueIdx: uniqueIndex("service_category_name_unique_idx").on(table.name)
+    nameUniqueIdx: uniqueIndex("service_category_name_unique_idx").on(table.name),
+    slugUniqueIdx: uniqueIndex("service_category_slug_unique_idx").on(
+      table.slug
+    ),
   })
 );

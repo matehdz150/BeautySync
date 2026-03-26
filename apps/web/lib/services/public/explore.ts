@@ -40,12 +40,36 @@ export type ExploreBranch = {
 };
 
 export async function getExploreBranches(filters?: ExploreFilters) {
-  const data = await graphqlFetch<{
-    exploreBranches: ExploreBranch[];
-  }>(
-    `
-    query ExploreBranches($filters: ExploreFiltersInput) {
-      exploreBranches(filters: $filters) {
+  function buildArgs() {
+    if (!filters) return "";
+
+    const args: string[] = [];
+
+    if (filters.lat !== undefined) args.push(`lat: ${filters.lat}`);
+    if (filters.lng !== undefined) args.push(`lng: ${filters.lng}`);
+    if (filters.radius !== undefined) args.push(`radius: ${filters.radius}`);
+
+    if (filters.categories)
+      args.push(`categories: "${filters.categories}"`);
+
+    if (filters.minPrice !== undefined)
+      args.push(`minPrice: ${filters.minPrice}`);
+
+    if (filters.maxPrice !== undefined)
+      args.push(`maxPrice: ${filters.maxPrice}`);
+
+    if (filters.rating !== undefined)
+      args.push(`rating: ${filters.rating}`);
+
+    if (filters.sort)
+      args.push(`sort: ${filters.sort.toUpperCase()}`);
+
+    return args.length ? `(${args.join(", ")})` : "";
+  }
+
+  const query = `
+    query {
+      exploreBranches${buildArgs()} {
         id
         name
         publicSlug
@@ -53,14 +77,10 @@ export async function getExploreBranches(filters?: ExploreFilters) {
         lat
         lng
         coverImage
-
         ratingAvg
         ratingCount
-
         servicesCount
-
         distanceKm
-
         servicesPreview {
           name
           priceCents
@@ -69,11 +89,11 @@ export async function getExploreBranches(filters?: ExploreFilters) {
         }
       }
     }
-  `,
-    {
-      filters,
-    }
-  );
+  `;
+
+  const data = await graphqlFetch<{
+    exploreBranches: ExploreBranch[];
+  }>(query);
 
   return data.exploreBranches;
 }

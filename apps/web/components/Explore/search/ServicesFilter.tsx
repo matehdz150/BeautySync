@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Scissors, Check } from "lucide-react";
 import { getServiceCategories } from "@/lib/services/public/services";
 import { CategoryIcon } from "@/components/shared/Icon";
+import { useExploreFilters } from "@/context/public/ExploreFiltersContext";
 
 type Category = {
   id: string;
@@ -11,16 +12,15 @@ type Category = {
   icon: string;
 };
 
-type Props = {
-  value?: string[];
-  onChange?: (value: string[]) => void;
-};
-
-export default function ServicesFilter({ value = [], onChange }: Props) {
+export default function ServicesFilter() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 🔥 CONTEXTO
+  const { filters, setFilters } = useExploreFilters();
+  const value = filters.categories ?? [];
 
   // 🔥 fetch categories
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function ServicesFilter({ value = [], onChange }: Props) {
       .finally(() => setLoading(false));
   }, []);
 
-  // 🔒 bloquear scroll cuando está abierto
+  // 🔒 bloquear scroll
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "auto";
   }, [open]);
@@ -50,7 +50,8 @@ export default function ServicesFilter({ value = [], onChange }: Props) {
       next = [...value, name];
     }
 
-    onChange?.(next);
+    // 🔥 ACTUALIZA URL (esto dispara SSR)
+    setFilters({ categories: next });
   }
 
   return (
@@ -59,7 +60,7 @@ export default function ServicesFilter({ value = [], onChange }: Props) {
       {open && (
         <div
           onClick={() => setOpen(false)}
-          className="fixed inset-0 bg-black/10 backdrop-blur-[1px] z-40"
+          className="fixed inset-0 bg-black/10 z-40"
         />
       )}
 
@@ -72,6 +73,7 @@ export default function ServicesFilter({ value = [], onChange }: Props) {
       >
         <Scissors className="w-4 h-4" />
         Servicios
+
         {value.length > 0 && (
           <span className="ml-1 text-xs bg-black text-white px-2 py-0.5 rounded-full">
             {value.length}
@@ -93,7 +95,9 @@ export default function ServicesFilter({ value = [], onChange }: Props) {
 
           {/* LOADING */}
           {loading && (
-            <div className="text-sm text-gray-400 px-2 py-4">Cargando...</div>
+            <div className="text-sm text-gray-400 px-2 py-4">
+              Cargando...
+            </div>
           )}
 
           {/* LIST */}
@@ -107,28 +111,42 @@ export default function ServicesFilter({ value = [], onChange }: Props) {
                     key={c.id}
                     onClick={() => toggleCategory(c.name)}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition
-                ${selected ? "bg-black text-white" : "hover:bg-gray-100"}
-              `}
+                      ${
+                        selected
+                          ? "bg-black text-white"
+                          : "hover:bg-gray-100"
+                      }
+                    `}
                   >
                     {/* ICON */}
                     <div
                       className={`w-10 h-10 flex items-center justify-center rounded-full border transition shrink-0
-                  ${selected ? "border-white" : "border-gray-200"}
-                `}
+                        ${
+                          selected
+                            ? "border-white"
+                            : "border-gray-200"
+                        }
+                      `}
                     >
                       <CategoryIcon
                         name={c.icon}
                         className={`w-4 h-4 ${
-                          selected ? "text-white" : "text-indigo-500"
+                          selected
+                            ? "text-white"
+                            : "text-indigo-500"
                         }`}
                       />
                     </div>
 
                     {/* NAME */}
-                    <span className="truncate flex-1 text-left">{c.name}</span>
+                    <span className="truncate flex-1 text-left">
+                      {c.name}
+                    </span>
 
                     {/* CHECK */}
-                    {selected && <Check className="w-4 h-4 shrink-0" />}
+                    {selected && (
+                      <Check className="w-4 h-4 shrink-0" />
+                    )}
                   </button>
                 );
               })}
