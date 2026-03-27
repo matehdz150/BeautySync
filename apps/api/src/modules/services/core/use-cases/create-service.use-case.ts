@@ -19,6 +19,7 @@ export class CreateServiceUseCase {
     const service = await this.repo.create(input);
 
     await this.cache.delPattern('public:services:branch:*');
+    await this.cache.delPattern('explore:*');
 
     return service;
   }

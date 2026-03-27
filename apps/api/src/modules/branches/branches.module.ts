@@ -47,9 +47,10 @@ import { AuthModule } from '../auth/auth.module';
 import { PublicBranchesDrizzleRepository } from './infrastructure/adapters/public-branches-drizzle.repository';
 import { GetPublicBranchUseCase } from './core/use-cases/public/get-public-branch.use-case';
 import { BranchesPublicController } from './application/controllers/branches.public.controller';
+import { CacheModule } from '../cache/cache.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, CacheModule],
   controllers: [
     BranchesController,
     BranchImagesController,

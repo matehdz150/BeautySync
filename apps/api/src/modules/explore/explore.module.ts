@@ -5,8 +5,10 @@ import { GetExploreBranchesUseCase } from './core/use-cases/get-explore-branches
 import { DrizzleExploreRepository } from './infrasructure/adapters/drizzle-explore.repository';
 
 import { EXPLORE_REPOSITORY } from './core/ports/tokens';
+import { CacheModule } from '../cache/cache.module';
 
 @Module({
+  imports: [CacheModule],
   providers: [
     ExploreResolver,
     GetExploreBranchesUseCase,
