@@ -12,6 +12,7 @@ import {
 import { useState } from "react";
 import ServicesFilter from "./ServicesFilter";
 import FiltersButton from "./FiltersButton";
+import GlobalSearchBar from "./GlobalSearchBar/GlobalSearchBar";
 
 export function ExploreToolbar({
   total,
@@ -48,18 +49,9 @@ export function ExploreToolbar({
   return (
     <div className="sticky top-0 z-30 bg-white px-6 py-4 space-y-3">
       {/* 🔥 MAIN BAR */}
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex gap-3 ">
         {/* 🔍 SEARCH */}
-        <div className="flex-1 min-w-[260px] flex items-center gap-3 rounded-full px-5 py-3 bg-gray-100 focus-within:shadow-md transition-all duration-200">
-          <Search className="w-4 h-4 text-gray-500" />
-
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar servicios o establecimientos"
-            className="w-full bg-transparent outline-none text-sm placeholder:text-gray-400"
-          />
-        </div>
+        <GlobalSearchBar/>
 
         {/* 📍 LOCATION BUTTON */}
         <div className="relative">

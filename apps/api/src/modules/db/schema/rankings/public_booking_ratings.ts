@@ -1,11 +1,11 @@
 import {
   pgTable,
   uuid,
-  integer,
   text,
   timestamp,
   uniqueIndex,
   index,
+  numeric,
 } from 'drizzle-orm/pg-core';
 
 import { publicBookings } from '../public';
@@ -33,7 +33,7 @@ export const publicBookingRatings = pgTable(
       .references(() => branches.id, { onDelete: 'cascade' }),
 
     // ⭐ Rating único (1–5)
-    rating: integer('rating').notNull(),
+    rating: numeric('rating', { precision: 2, scale: 1 }).notNull(),
 
     // 💬 Comentario opcional
     comment: text('comment'),

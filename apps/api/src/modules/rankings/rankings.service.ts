@@ -92,7 +92,7 @@ export class RankingsService {
           bookingId,
           publicUserId,
           branchId: booking.branchId,
-          rating,
+          rating: rating.toString(),
           comment,
         })
         .returning();
