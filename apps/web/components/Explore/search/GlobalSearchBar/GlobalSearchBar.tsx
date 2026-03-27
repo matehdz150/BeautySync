@@ -12,7 +12,11 @@ export default function GlobalSearchBar() {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { results, loading, hasFetched } = useSearch(query, open, type);
+  const { results, loading, loadingMore, loadMore } = useSearch(
+    query,
+    open,
+    type,
+  );
 
   // 🔥 cerrar al click afuera
   useEffect(() => {
@@ -49,12 +53,12 @@ export default function GlobalSearchBar() {
             onClick={() => setOpen(false)}
           />
           <SearchDropdown
-            query={query}
             results={results}
             loading={loading}
+            loadingMore={loadingMore}
+            loadMore={loadMore}
             type={type}
             setType={setType}
-            hasFetched={hasFetched}
           />
         </>
       )}

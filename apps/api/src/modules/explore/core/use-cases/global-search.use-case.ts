@@ -7,11 +7,42 @@ import * as cachePort from 'src/modules/cache/core/ports/cache.port';
 
 import { GlobalSearchResult } from '../ports/global-search.repository';
 
-import {
-  BranchSearchItem,
-  ServiceSearchItem,
-  StaffSearchItem,
-} from '../entities/global-search.entity'; // 🔥 IMPORT CORRECTO
+/* ========================= */
+/* CURSOR */
+/* ========================= */
+
+type Cursor = {
+  score: number;
+  id: string;
+};
+
+function isCursor(value: unknown): value is Cursor {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const v = value as Record<string, unknown>;
+
+  return typeof v.score === 'number' && typeof v.id === 'string';
+}
+
+function parseCursor(cursor?: string): Cursor | undefined {
+  if (!cursor) return undefined;
+
+  try {
+    const parsed: unknown = JSON.parse(
+      Buffer.from(cursor, 'base64').toString(),
+    );
+
+    if (isCursor(parsed)) return parsed;
+
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/* ========================= */
+/* USE CASE */
+/* ========================= */
 
 @Injectable()
 export class GlobalSearchUseCase {
@@ -28,23 +59,41 @@ export class GlobalSearchUseCase {
     lat?: number;
     lng?: number;
     type?: 'all' | 'branches' | 'services' | 'staff';
+    cursor?: string;
+    limit?: number;
   }): Promise<GlobalSearchResult> {
     const query = this.normalizeQuery(params.query);
     const type = params.type ?? 'all';
+    const limit = params.limit ?? 10;
+
+    // 🔥 cursor SOLO permitido si NO es "all"
+    const isCursorAllowed = type !== 'all';
+    const decodedCursor = isCursorAllowed
+      ? parseCursor(params.cursor)
+      : undefined;
+
+    // 🔥 cache SOLO primera página y NO en "all"
+    const shouldCache = !params.cursor && type !== 'all';
 
     const cacheKey = this.buildCacheKey(query, params.lat, params.lng, type);
 
-    const cached = await this.cache.get<GlobalSearchResult>(cacheKey);
-    if (cached) return cached;
+    if (shouldCache) {
+      const cached = await this.cache.get<GlobalSearchResult>(cacheKey);
+      if (cached) return cached;
+    }
 
-    let branches: BranchSearchItem[] = [];
-    let services: ServiceSearchItem[] = [];
-    let staff: StaffSearchItem[] = [];
+    // 🔥 resultado SIEMPRE consistente
+    let result: GlobalSearchResult = {
+      branches: { items: [], nextCursor: null },
+      services: { items: [], nextCursor: null },
+      staff: { items: [], nextCursor: null },
+    };
 
-    // =========================
-    // 🔥 RECOMMENDATIONS
-    // =========================
-    if (!query && type === 'all') {
+    /* ========================= */
+    /* RECOMMENDATIONS */
+    /* ========================= */
+
+    if (!query && type === 'all' && !params.cursor) {
       const [b, s, st] = await Promise.all([
         this.repository.getRecommendedBranches({
           limit: 3,
@@ -55,82 +104,110 @@ export class GlobalSearchUseCase {
         this.repository.getRecommendedStaff(2),
       ]);
 
-      branches = b;
-      services = s;
-      staff = st;
-    }
-
-    // =========================
-    // 🔥 EXPLORE (sin query)
-    // =========================
-    else if (!query) {
+      result = {
+        branches: { items: b, nextCursor: null },
+        services: { items: s, nextCursor: null },
+        staff: { items: st, nextCursor: null },
+      };
+    } else if (!query) {
+      /* ========================= */
+      /* EXPLORE (sin query) */
+      /* ========================= */
       if (type === 'branches') {
-        branches = await this.repository.searchBranches({
+        result.branches = await this.repository.searchBranches({
           query: '',
-          limit: 20,
+          limit,
+          cursor: decodedCursor,
           lat: params.lat,
           lng: params.lng,
         });
       }
 
       if (type === 'services') {
-        services = await this.repository.searchServices('', 20);
+        result.services = await this.repository.searchServices({
+          query: '',
+          limit,
+          cursor: decodedCursor,
+        });
       }
 
       if (type === 'staff') {
-        staff = await this.repository.searchStaff('', 20);
+        result.staff = await this.repository.searchStaff({
+          query: '',
+          limit,
+          cursor: decodedCursor,
+        });
       }
-    }
-
-    // =========================
-    // 🔥 SEARCH (con query)
-    // =========================
-    else {
+    } else {
+      /* ========================= */
+      /* SEARCH (con query) */
+      /* ========================= */
       if (query.length < 2) {
-        return { branches: [], services: [], staff: [] };
+        return result;
       }
 
-      const branchesPromise: Promise<BranchSearchItem[]> =
-        type === 'all' || type === 'branches'
-          ? this.repository.searchBranches({
-              query,
-              limit: 5,
-              lat: params.lat,
-              lng: params.lng,
-            })
-          : Promise.resolve([]);
+      // 🔥 TYPE ESPECÍFICO → PAGINADO
+      if (type === 'branches') {
+        result.branches = await this.repository.searchBranches({
+          query,
+          limit,
+          cursor: decodedCursor,
+          lat: params.lat,
+          lng: params.lng,
+        });
+      }
 
-      const servicesPromise: Promise<ServiceSearchItem[]> =
-        type === 'all' || type === 'services'
-          ? this.repository.searchServices(query, 5)
-          : Promise.resolve([]);
+      if (type === 'services') {
+        result.services = await this.repository.searchServices({
+          query,
+          limit,
+          cursor: decodedCursor,
+        });
+      }
 
-      const staffPromise: Promise<StaffSearchItem[]> =
-        type === 'all' || type === 'staff'
-          ? this.repository.searchStaff(query, 5)
-          : Promise.resolve([]);
+      if (type === 'staff') {
+        result.staff = await this.repository.searchStaff({
+          query,
+          limit,
+          cursor: decodedCursor,
+        });
+      }
 
-      const [b, s, st] = await Promise.all([
-        branchesPromise,
-        servicesPromise,
-        staffPromise,
-      ]);
+      // 🔥 ALL → SOLO PREVIEW (NO cursor)
+      if (type === 'all') {
+        const [b, s, st] = await Promise.all([
+          this.repository.searchBranches({
+            query,
+            limit: 5,
+            lat: params.lat,
+            lng: params.lng,
+          }),
+          this.repository.searchServices({
+            query,
+            limit: 5,
+          }),
+          this.repository.searchStaff({
+            query,
+            limit: 5,
+          }),
+        ]);
 
-      branches = b;
-      services = s;
-      staff = st;
+        result.branches = b;
+        result.services = s;
+        result.staff = st;
+      }
     }
 
-    const result: GlobalSearchResult = { branches, services, staff };
-
-    await this.cache.set(cacheKey, result, 60);
+    if (shouldCache) {
+      await this.cache.set(cacheKey, result, 60);
+    }
 
     return result;
   }
 
-  // =========================
-  // 🔧 HELPERS
-  // =========================
+  /* ========================= */
+  /* HELPERS */
+  /* ========================= */
 
   private normalizeQuery(query?: string): string | null {
     if (!query) return null;

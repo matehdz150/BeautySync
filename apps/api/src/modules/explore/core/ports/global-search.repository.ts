@@ -4,6 +4,16 @@ import {
   StaffSearchItem,
 } from '../entities/global-search.entity';
 
+export type Cursor = {
+  score: number;
+  id: string;
+};
+
+export type Paginated<T> = {
+  items: T[];
+  nextCursor: string | null;
+};
+
 export interface GlobalSearchRepository {
   // 🔥 recommendations
   getRecommendedBranches(params: {
@@ -16,21 +26,30 @@ export interface GlobalSearchRepository {
 
   getRecommendedStaff(limit: number): Promise<StaffSearchItem[]>;
 
-  // 🔥 search
+  // 🔥 cursor-based search
   searchBranches(params: {
     query: string;
     limit: number;
+    cursor?: Cursor;
     lat?: number;
     lng?: number;
-  }): Promise<BranchSearchItem[]>;
+  }): Promise<Paginated<BranchSearchItem>>;
 
-  searchServices(query: string, limit: number): Promise<ServiceSearchItem[]>;
+  searchServices(params: {
+    query: string;
+    limit: number;
+    cursor?: Cursor;
+  }): Promise<Paginated<ServiceSearchItem>>;
 
-  searchStaff(query: string, limit: number): Promise<StaffSearchItem[]>;
+  searchStaff(params: {
+    query: string;
+    limit: number;
+    cursor?: Cursor;
+  }): Promise<Paginated<StaffSearchItem>>;
 }
 
 export type GlobalSearchResult = {
-  branches: any[];
-  services: any[];
-  staff: any[];
+  branches?: Paginated<BranchSearchItem>;
+  services?: Paginated<ServiceSearchItem>;
+  staff?: Paginated<StaffSearchItem>;
 };

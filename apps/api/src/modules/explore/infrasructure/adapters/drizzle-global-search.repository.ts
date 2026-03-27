@@ -28,235 +28,290 @@ export class DrizzleGlobalSearchRepository implements GlobalSearchRepository {
     lng?: number;
   }) {
     const result = await db.execute(sql`
-  SELECT DISTINCT ON (b.id)
-    b.id,
-    b.name,
-    b.address,
-    b.lat,
-    b.lng,
-    b.public_slug as "publicSlug",
+      SELECT DISTINCT ON (b.id)
+        b.id,
+        b.name,
+        b.address,
+        b.lat,
+        b.lng,
+        b.public_slug as "publicSlug",
+        img.url as "coverImage",
+        COALESCE(r.avg, 0) as "ratingAvg",
 
-    img.url as "coverImage",
+        ${
+          lat && lng
+            ? sql`ST_Distance(
+                ST_MakePoint(${lng}, ${lat})::geography,
+                ST_MakePoint(b.lng, b.lat)::geography
+              )`
+            : sql`0`
+        } as distance
 
-    COALESCE(r.avg, 0) as "ratingAvg",
+      FROM branches b
 
-    ${
-      lat && lng
-        ? sql`ST_Distance(
-            ST_MakePoint(${lng}, ${lat})::geography,
-            ST_MakePoint(b.lng, b.lat)::geography
-          )`
-        : sql`0`
-    } as distance
+      LEFT JOIN branch_images img 
+        ON img.branch_id = b.id AND img.is_cover = true
 
-  FROM branches b
+      LEFT JOIN (
+        SELECT branch_id, AVG(rating) as avg
+        FROM public_booking_ratings
+        GROUP BY branch_id
+      ) r ON r.branch_id = b.id
 
-  LEFT JOIN branch_images img 
-    ON img.branch_id = b.id AND img.is_cover = true
+      WHERE b.public_presence_enabled = true
 
-  LEFT JOIN (
-    SELECT 
-      branch_id,
-      AVG(rating) as avg
-    FROM public_booking_ratings
-    GROUP BY branch_id
-  ) r ON r.branch_id = b.id
+      ORDER BY 
+        b.id,
+        ${lat && lng ? sql`distance ASC,` : sql``}
+        COALESCE(r.avg, 0) DESC
 
-  WHERE b.public_presence_enabled = true
-
-  ORDER BY 
-    b.id,
-    ${lat && lng ? sql`distance ASC,` : sql``}
-    COALESCE(r.avg, 0) DESC
-
-  LIMIT ${limit}
-`);
+      LIMIT ${limit}
+    `);
 
     return rows<BranchSearchItem>(result);
   }
 
-  async getRecommendedServices(limit: number): Promise<ServiceSearchItem[]> {
+  async getRecommendedServices(limit: number) {
     const result = await db.execute(sql`
-  SELECT 
-    s.id,
-    s.name,
-    s.duration_min as "durationMin",
-    sc.icon,
-    b.public_slug as "publicSlug"
+      SELECT 
+        s.id,
+        s.name,
+        s.duration_min as "durationMin",
+        sc.icon,
+        b.public_slug as "publicSlug"
 
-  FROM services s
+      FROM services s
+      LEFT JOIN service_categories sc ON sc.id = s.category_id
+      LEFT JOIN branches b ON b.id = s.branch_id
 
-  LEFT JOIN service_categories sc
-    ON sc.id = s.category_id
+      WHERE s.is_active = true
 
-  LEFT JOIN branches b
-    ON b.id = s.branch_id
-
-  WHERE s.is_active = true
-
-  ORDER BY s.created_at DESC
-
-  LIMIT ${limit}
-`);
+      ORDER BY s.created_at DESC
+      LIMIT ${limit}
+    `);
 
     return rows<ServiceSearchItem>(result);
   }
 
-  async getRecommendedStaff(limit: number): Promise<StaffSearchItem[]> {
+  async getRecommendedStaff(limit: number) {
     const result = await db.execute(sql`
-  SELECT 
-    s.id,
-    s.name,
-    s."jobRole" as role,
-    s.avatar_url as "avatarUrl",
-    b.public_slug as "publicSlug"
+      SELECT 
+        s.id,
+        s.name,
+        s."jobRole" as role,
+        s.avatar_url as "avatarUrl",
+        b.public_slug as "publicSlug"
 
-  FROM staff s
+      FROM staff s
+      LEFT JOIN branches b ON b.id = s.branch_id
 
-  LEFT JOIN branches b
-    ON b.id = s.branch_id
+      WHERE s.is_active = true
 
-  WHERE s.is_active = true
-
-  ORDER BY s.created_at DESC
-
-  LIMIT ${limit}
-`);
+      ORDER BY s.created_at DESC
+      LIMIT ${limit}
+    `);
 
     return rows<StaffSearchItem>(result);
   }
 
   // =========================
-  // 🔥 SEARCH
+  // 🔥 SEARCH (CON OFFSET)
   // =========================
 
   async searchBranches({
     query,
     limit,
-    lat,
-    lng,
+    cursor,
   }: {
     query: string;
     limit: number;
+    cursor?: { score: number; id: string };
     lat?: number;
     lng?: number;
   }) {
+    const cursorCondition = cursor
+      ? sql`AND (
+        similarity(b.name, ${query}) < ${cursor.score}
+        OR (
+          similarity(b.name, ${query}) = ${cursor.score}
+          AND b.id > ${cursor.id}
+        )
+      )`
+      : sql``;
+
     const result = await db.execute(sql`
-  SELECT DISTINCT ON (b.id)
-    b.id,
-    b.name,
-    b.address,
-    b.lat,
-    b.lng,
-    b.public_slug as "publicSlug",
+    SELECT
+      b.id,
+      b.name,
+      b.address,
+      b.lat,
+      b.lng,
+      b.public_slug as "publicSlug",
+      img.url as "coverImage",
+      COALESCE(r.avg, 0) as "ratingAvg",
+      similarity(b.name, ${query}) as score
 
-    img.url as "coverImage",
+    FROM branches b
 
-    COALESCE(r.avg, 0) as "ratingAvg",
+    LEFT JOIN branch_images img 
+      ON img.branch_id = b.id AND img.is_cover = true
 
-    similarity(b.name, ${query}) as score,
+    LEFT JOIN (
+      SELECT branch_id, AVG(rating) as avg
+      FROM public_booking_ratings
+      GROUP BY branch_id
+    ) r ON r.branch_id = b.id
 
-    ${
-      lat && lng
-        ? sql`ST_Distance(
-            ST_MakePoint(${lng}, ${lat})::geography,
-            ST_MakePoint(b.lng, b.lat)::geography
-          )`
-        : sql`0`
-    } as distance
+    WHERE 
+      b.public_presence_enabled = true
+      AND (
+        b.name ILIKE ${'%' + query + '%'}
+        OR similarity(b.name, ${query}) > 0.3
+      )
+      ${cursorCondition}
 
-  FROM branches b
+    ORDER BY score DESC, b.id ASC
+    LIMIT ${limit + 1} -- 🔥 para saber si hay más
+  `);
 
-  LEFT JOIN branch_images img 
-    ON img.branch_id = b.id AND img.is_cover = true
+    const data = rows<BranchSearchItem & { score: number }>(result);
 
-  LEFT JOIN (
+    const hasMore = data.length > limit;
+    const items = hasMore ? data.slice(0, limit) : data;
+
+    const nextCursor = hasMore
+      ? Buffer.from(
+          JSON.stringify({
+            score: items[items.length - 1].score,
+            id: items[items.length - 1].id,
+          }),
+        ).toString('base64')
+      : null;
+
+    return {
+      items,
+      nextCursor,
+    };
+  }
+
+  async searchServices({
+    query,
+    limit,
+    cursor,
+  }: {
+    query: string;
+    limit: number;
+    cursor?: { score: number; id: string };
+  }) {
+    const cursorCondition = cursor
+      ? sql`AND (
+        similarity(s.name, ${query}) < ${cursor.score}
+        OR (
+          similarity(s.name, ${query}) = ${cursor.score}
+          AND s.id > ${cursor.id}
+        )
+      )`
+      : sql``;
+
+    const result = await db.execute(sql`
     SELECT 
-      branch_id,
-      AVG(rating) as avg
-    FROM public_booking_ratings
-    GROUP BY branch_id
-  ) r ON r.branch_id = b.id
+      s.id,
+      s.name,
+      s.duration_min as "durationMin",
+      sc.icon,
+      b.public_slug as "publicSlug",
+      similarity(s.name, ${query}) as score
 
-  WHERE 
-    b.public_presence_enabled = true
-    AND (
-      b.name ILIKE ${'%' + query + '%'}
-      OR similarity(b.name, ${query}) > 0.3
-    )
+    FROM services s
+    LEFT JOIN service_categories sc ON sc.id = s.category_id
+    LEFT JOIN branches b ON b.id = s.branch_id
 
-  ORDER BY 
-    b.id,
-    score DESC,
-    ${lat && lng ? sql`distance ASC,` : sql``}
-    COALESCE(r.avg, 0) DESC
+    WHERE 
+      s.is_active = true
+      AND (
+        s.name ILIKE ${'%' + query + '%'}
+        OR similarity(s.name, ${query}) > 0.3
+      )
+      ${cursorCondition}
 
-  LIMIT ${limit}
-`);
+    ORDER BY score DESC, s.id ASC
+    LIMIT ${limit + 1}
+  `);
 
-    return rows<BranchSearchItem>(result);
+    const data = rows<ServiceSearchItem & { score: number }>(result);
+
+    const hasMore = data.length > limit;
+    const items = hasMore ? data.slice(0, limit) : data;
+
+    const nextCursor = hasMore
+      ? Buffer.from(
+          JSON.stringify({
+            score: items[items.length - 1].score,
+            id: items[items.length - 1].id,
+          }),
+        ).toString('base64')
+      : null;
+
+    return { items, nextCursor };
   }
 
-  async searchServices(query: string, limit: number) {
+  async searchStaff({
+    query,
+    limit,
+    cursor,
+  }: {
+    query: string;
+    limit: number;
+    cursor?: { score: number; id: string };
+  }) {
+    const cursorCondition = cursor
+      ? sql`AND (
+        similarity(s.name, ${query}) < ${cursor.score}
+        OR (
+          similarity(s.name, ${query}) = ${cursor.score}
+          AND s.id > ${cursor.id}
+        )
+      )`
+      : sql``;
+
     const result = await db.execute(sql`
-  SELECT 
-    s.id,
-    s.name,
-    s.duration_min as "durationMin",
-    sc.icon,
-    b.public_slug as "publicSlug",
-    similarity(s.name, ${query}) as score
+    SELECT 
+      s.id,
+      s.name,
+      s."jobRole" as role,
+      s.avatar_url as "avatarUrl",
+      b.public_slug as "publicSlug",
+      similarity(s.name, ${query}) as score
 
-  FROM services s
+    FROM staff s
+    LEFT JOIN branches b ON b.id = s.branch_id
 
-  LEFT JOIN service_categories sc
-    ON sc.id = s.category_id
+    WHERE 
+      s.is_active = true
+      AND (
+        s.name ILIKE ${'%' + query + '%'}
+        OR similarity(s.name, ${query}) > 0.3
+      )
+      ${cursorCondition}
 
-  LEFT JOIN branches b
-    ON b.id = s.branch_id
+    ORDER BY score DESC, s.id ASC
+    LIMIT ${limit + 1}
+  `);
 
-  WHERE 
-    s.is_active = true
-    AND (
-      s.name ILIKE ${'%' + query + '%'}
-      OR similarity(s.name, ${query}) > 0.3
-    )
+    const data = rows<StaffSearchItem & { score: number }>(result);
 
-  ORDER BY score DESC
+    const hasMore = data.length > limit;
+    const items = hasMore ? data.slice(0, limit) : data;
 
-  LIMIT ${limit}
-`);
+    const nextCursor = hasMore
+      ? Buffer.from(
+          JSON.stringify({
+            score: items[items.length - 1].score,
+            id: items[items.length - 1].id,
+          }),
+        ).toString('base64')
+      : null;
 
-    return rows<ServiceSearchItem>(result);
-  }
-
-  async searchStaff(query: string, limit: number) {
-    const result = await db.execute(sql`
-  SELECT 
-    s.id,
-    s.name,
-    s."jobRole" as role,
-    s.avatar_url as "avatarUrl",
-    b.public_slug as "publicSlug",
-    similarity(s.name, ${query}) as score
-
-  FROM staff s
-
-  LEFT JOIN branches b
-    ON b.id = s.branch_id
-
-  WHERE 
-    s.is_active = true
-    AND (
-      s.name ILIKE ${'%' + query + '%'}
-      OR similarity(s.name, ${query}) > 0.3
-    )
-
-  ORDER BY score DESC
-
-  LIMIT ${limit}
-`);
-
-    return rows<StaffSearchItem>(result);
+    return { items, nextCursor };
   }
 }

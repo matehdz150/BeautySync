@@ -1,133 +1,188 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-/* ========================= */
-/* TYPES */
-/* ========================= */
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type Branch = {
   id: string;
   name: string;
   address?: string;
+  coverImage?: string;
 };
 
 export type Service = {
   id: string;
   name: string;
   durationMin: number;
+  icon?: string;
 };
 
 export type Staff = {
   id: string;
   name: string;
   role?: string;
+  avatarUrl?: string;
+};
+
+export type CursorResponse<T> = {
+  items: T[];
+  nextCursor: string | null;
 };
 
 export type SearchResults = {
-  branches: Branch[];
-  services: Service[];
-  staff: Staff[];
+  branches: CursorResponse<Branch>;
+  services: CursorResponse<Service>;
+  staff: CursorResponse<Staff>;
 };
 
 export type SearchType = "all" | "branches" | "services" | "staff";
 
-/* ========================= */
-/* HOOK */
-/* ========================= */
+function emptyResults(): SearchResults {
+  return {
+    branches: { items: [], nextCursor: null },
+    services: { items: [], nextCursor: null },
+    staff: { items: [], nextCursor: null },
+  };
+}
+
+function normalize(data: unknown): SearchResults {
+  const safe = (data ?? {}) as Partial<SearchResults>;
+
+  return {
+    branches: safe.branches ?? { items: [], nextCursor: null },
+    services: safe.services ?? { items: [], nextCursor: null },
+    staff: safe.staff ?? { items: [], nextCursor: null },
+  };
+}
 
 export function useSearch(query: string, open: boolean, type: SearchType) {
-  const [results, setResults] = useState<SearchResults>({
-    branches: [],
-    services: [],
-    staff: [],
+  const [results, setResults] = useState<SearchResults>(emptyResults());
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  
+
+  const cursorsRef = useRef<{
+    branches: string | null;
+    services: string | null;
+    staff: string | null;
+  }>({
+    branches: null,
+    services: null,
+    staff: null,
   });
 
-  const [loading, setLoading] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
-  const [debouncedQuery, setDebouncedQuery] = useState(query);
-
-  // 🔥 cache en memoria
-  const cacheRef = useRef<Map<string, SearchResults>>(new Map());
-
-  /* ========================= */
-  /* DEBOUNCE */
-  /* ========================= */
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setDebouncedQuery(query);
-    }, 400);
-
-    return () => clearTimeout(timeout);
-  }, [query]);
-
-  /* ========================= */
-  /* FETCH */
-  /* ========================= */
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!open) return;
 
-    if (debouncedQuery && debouncedQuery.length < 2) return;
+    setResults(emptyResults());
+    cursorsRef.current = {
+      branches: null,
+      services: null,
+      staff: null,
+    };
+  }, [query, type, open]);
 
-    const safeType = type ?? "all";
+  const fetchData = useCallback(
+    async (isLoadMore = false) => {
+        
+      if (type === "all" && isLoadMore) return;
 
-    const key = `${safeType}:${debouncedQuery || "empty"}`;
+      if (isLoadMore) {
+        if (loadingMore) return;
+      } else {
+        if (loading) return;
+      }
 
-    // 🔥 CACHE HIT → instant UX
-    const cached = cacheRef.current.get(key);
-    if (cached) {
-      setResults(cached);
-    }
+      if (isLoadMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        abortRef.current?.abort();
+      }
 
-    const controller = new AbortController();
-
-    const fetchData = async () => {
-      setLoading(true);
+      const controller = new AbortController();
+      abortRef.current = controller;
 
       try {
         const params = new URLSearchParams();
 
-        if (debouncedQuery?.trim()) {
-          params.append("query", debouncedQuery);
-        }
+        if (query.trim()) params.append("query", query);
+        if (type !== "all") params.append("type", type);
 
-        if (safeType !== "all") {
-          params.append("type", safeType);
+        if (type !== "all") {
+          const cursor = cursorsRef.current[type];
+          if (cursor) params.append("cursor", cursor);
         }
 
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/search/global?${params.toString()}`,
-          { signal: controller.signal }
+          { signal: controller.signal },
         );
 
-        if (!res.ok) {
-          const text = await res.text();
-          console.error("❌ API ERROR:", res.status, text);
-          throw new Error("Search failed");
-        }
+        const raw = await res.json();
+        const data = normalize(raw);
 
-        const data: SearchResults = await res.json();
+        setResults((prev) => ({
+          branches: {
+            items:
+              isLoadMore && type === "branches"
+                ? [...prev.branches.items, ...data.branches.items]
+                : type === "branches" || type === "all"
+                  ? data.branches.items
+                  : prev.branches.items,
+            nextCursor: data.branches.nextCursor,
+          },
+          services: {
+            items:
+              isLoadMore && type === "services"
+                ? [...prev.services.items, ...data.services.items]
+                : type === "services" || type === "all"
+                  ? data.services.items
+                  : prev.services.items,
+            nextCursor: data.services.nextCursor,
+          },
+          staff: {
+            items:
+              isLoadMore && type === "staff"
+                ? [...prev.staff.items, ...data.staff.items]
+                : type === "staff" || type === "all"
+                  ? data.staff.items
+                  : prev.staff.items,
+            nextCursor: data.staff.nextCursor,
+          },
+        }));
 
-        // 🔥 guardar en cache
-        cacheRef.current.set(key, data);
-
-        setResults(data);
-      } catch (e: any) {
-        if (e.name !== "AbortError") {
-          console.error("Search error:", e);
+        if (type !== "all") {
+          cursorsRef.current[type] = data[type].nextCursor ?? null;
         }
       } finally {
         setLoading(false);
-        setHasFetched(true); // 🔥 clave para evitar flicker
+        setLoadingMore(false);
       }
-    };
+    },
+    [query, type], // ✅ SOLO estos
+  );
 
-    fetchData();
+  useEffect(() => {
+    if (!open) return;
 
-    return () => controller.abort();
-  }, [debouncedQuery, open, type]);
+    fetchData(false);
+  }, [query, type, open]); // ❌ NO fetchData aquí
 
-  return { results, loading, hasFetched };
+  const loadMore = useCallback(() => {
+    if (type === "all") return;
+
+    const cursor = cursorsRef.current[type];
+    if (!cursor) return;
+
+    void fetchData(true);
+  }, [type, fetchData]);
+
+  return {
+    results,
+    loading,
+    loadingMore,
+    loadMore,
+  };
 }

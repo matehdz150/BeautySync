@@ -4,6 +4,7 @@ import { MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { CategoryIcon } from "@/components/shared/Icon";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCallback, useRef } from "react";
 
 const filters = [
   { label: "Todo", value: "all" },
@@ -15,53 +16,58 @@ const filters = [
 export default function SearchDropdown({
   results,
   loading,
+  loadingMore,
+  loadMore,
   type,
   setType,
-  hasFetched
 }: any) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
   const hasResults =
-    (type === "branches" && results.branches?.length > 0) ||
-    (type === "services" && results.services?.length > 0) ||
-    (type === "staff" && results.staff?.length > 0) ||
+    (type === "branches" && results.branches.items.length > 0) ||
+    (type === "services" && results.services.items.length > 0) ||
+    (type === "staff" && results.staff.items.length > 0) ||
     (type === "all" &&
-      (results.branches?.length ||
-        results.services?.length ||
-        results.staff?.length));
+      (results.branches.items.length ||
+        results.services.items.length ||
+        results.staff.items.length));
+
+  const hasNext =
+    (type === "branches" && results.branches.nextCursor) ||
+    (type === "services" && results.services.nextCursor) ||
+    (type === "staff" && results.staff.nextCursor);
+
+  const shouldShowLoadMore = type !== "all" && Boolean(hasNext);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || !shouldShowLoadMore || loadingMore) return;
+
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+
+    if (distanceToBottom < 120) {
+      loadMore();
+    }
+  }, [loadMore, loadingMore, shouldShowLoadMore]);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4 }}
-      transition={{ duration: 0.15, ease: "easeOut" }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-      className="
-        absolute top-full mt-2 w-full 
-        bg-white rounded-2xl shadow-xl border z-[9999]
-
-        h-155   /* 🔥 ALTURA FIJA */
-        flex flex-col
-        overflow-hidden
-      "
+      transition={{ duration: 0.15 }}
+      className="absolute top-full mt-2 w-full bg-white rounded-2xl shadow-xl border z-[9999] h-155 flex flex-col overflow-hidden"
     >
-      {/* ========================= */}
-      {/* HEADER (NO SCROLL) */}
-      {/* ========================= */}
-      <div className="p-4  bg-white">
+      <div className="p-4">
         <div className="flex gap-2 overflow-x-auto">
           {filters.map((f) => (
             <button
               key={f.value}
               onClick={() => setType(f.value)}
-              className={`
-                px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition
-                ${
-                  type === f.value
-                    ? "bg-black text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }
-              `}
+              className={`px-4 py-2 rounded-full text-xs font-medium transition ${
+                type === f.value
+                  ? "bg-black text-white"
+                  : "bg-gray-100 text-gray-600"
+              }`}
             >
               {f.label}
             </button>
@@ -69,119 +75,90 @@ export default function SearchDropdown({
         </div>
       </div>
 
-      {/* ========================= */}
-      {/* CONTENT SCROLL */}
-      {/* ========================= */}
-      <div className="relative flex-1 overflow-y-auto p-4 space-y-4">
-        {/* 🔥 CONTENT REAL */}
-        <div
-          className={`space-y-4 transition-opacity duration-200 ${
-            loading ? "opacity-60" : "opacity-100"
-          }`}
-        >
-          {(type === "all" || type === "branches") &&
-            results.branches?.length > 0 && (
-              <Section title="Lugares">
-                {results.branches.map((b: any) => (
-                  <Item
-                    key={`branch-${b.id}`}
-                    icon={
-                      b.coverImage ? (
-                        <img
-                          src={b.coverImage}
-                          className="w-10 h-10 rounded-md object-cover"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100">
-                          <MapPin className="w-4 h-4" />
-                        </div>
-                      )
-                    }
-                    title={b.name}
-                    subtitle={b.address}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+      >
+        {(type === "all" || type === "branches") &&
+          results.branches.items.map((b: any) => (
+            <Item
+              key={b.id}
+              icon={
+                b.coverImage ? (
+                  <img
+                    src={b.coverImage}
+                    className="w-10 h-10 rounded-md object-cover"
                   />
-                ))}
-              </Section>
+                ) : (
+                  <div className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-full">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                )
+              }
+              title={b.name}
+              subtitle={b.address}
+            />
+          ))}
+
+        {(type === "all" || type === "services") &&
+          results.services.items.map((s: any) => (
+            <Item
+              key={s.id}
+              icon={
+                <div className="w-10 h-10 flex items-center justify-center rounded-full border">
+                  <CategoryIcon name={s.icon} className="w-4 h-4" />
+                </div>
+              }
+              title={s.name}
+              subtitle={`${s.durationMin} min`}
+            />
+          ))}
+
+        {(type === "all" || type === "staff") &&
+          results.staff.items.map((s: any) => (
+            <Item
+              key={s.id}
+              icon={<StaffAvatar staff={s} />}
+              title={s.name}
+              subtitle={s.role}
+            />
+          ))}
+
+        {shouldShowLoadMore && (
+          <div className="h-10 flex items-center justify-center">
+            {loadingMore ? (
+              <Skeleton className="h-6 w-24" />
+            ) : (
+              <div className="h-6 w-24" />
             )}
+          </div>
+        )}
 
-          {(type === "all" || type === "services") &&
-            results.services?.length > 0 && (
-              <Section title="Servicios">
-                {results.services.map((s: any) => (
-                  <Item
-                    key={`service-${s.id}`}
-                    icon={
-                      <div className="w-10 h-10 flex items-center justify-center rounded-full bg-white border">
-                        <CategoryIcon
-                          name={s.icon}
-                          className="w-4 h-4 text-indigo-500"
-                        />
-                      </div>
-                    }
-                    title={s.name}
-                    subtitle={`${s.durationMin} min`}
-                  />
-                ))}
-              </Section>
-            )}
-
-          {(type === "all" || type === "staff") &&
-            results.staff?.length > 0 && (
-              <Section title="Profesionales">
-                {results.staff.map((s: any) => (
-                  <Item
-                    key={`staff-${s.id}`}
-                    icon={<StaffAvatar staff={s} />}
-                    title={s.name}
-                    subtitle={s.role}
-                  />
-                ))}
-              </Section>
-            )}
-
-          {/* EMPTY */}
-          {hasFetched && !loading && !hasResults && (
-            <div className="text-sm text-gray-400 text-center py-10">
-              No se encontraron resultados
-            </div>
-          )}
-        </div>
-
-        {/* ========================= */}
-        {/* 🔥 SKELETON OVERLAY */}
-        {/* ========================= */}
-        {loading && (
-          <div className="absolute inset-0 p-4 bg-white/60 backdrop-blur-[2px]">
-            <div className="space-y-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <SkeletonItem key={i} />
-              ))}
-            </div>
+        {!loading && !hasResults && (
+          <div className="text-sm text-gray-400 text-center py-10">
+            No se encontraron resultados
           </div>
         )}
       </div>
+
+      {loading && (
+        <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] p-4">
+          <div className="space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonItem key={i} />
+            ))}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
-
-/* ========================= */
-
-function Section({ title, children }: any) {
-  return (
-    <div>
-      <h4 className="text-sm font-medium text-black mb-2">{title}</h4>
-      <div className="space-y-2">{children}</div>
-    </div>
-  );
-}
-
-/* ========================= */
 
 function Item({ icon, title, subtitle }: any) {
   return (
     <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer transition">
       {icon}
-
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{title}</p>
         <p className="text-xs text-gray-500 truncate">{subtitle}</p>
@@ -189,8 +166,6 @@ function Item({ icon, title, subtitle }: any) {
     </div>
   );
 }
-
-/* ========================= */
 
 function StaffAvatar({ staff }: any) {
   if (staff.avatarUrl) {
@@ -220,15 +195,10 @@ function getInitials(name?: string) {
   return parts[0][0].toUpperCase() + parts[1][0].toUpperCase();
 }
 
-/* ========================= */
-/* 🔥 SKELETON */
-/* ========================= */
-
 function SkeletonItem() {
   return (
     <div className="flex items-center gap-3">
       <Skeleton className="w-10 h-10 rounded-md" />
-
       <div className="flex-1 space-y-2">
         <Skeleton className="h-10 w-[70%]" />
         <Skeleton className="h-2 w-[40%]" />
