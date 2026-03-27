@@ -244,100 +244,111 @@ export class BookingsCoreService {
     // TRANSACTION
     // =========================
 
-    const result = await this.db.transaction(async (tx) => {
-      const clientId = await getOrCreateClientForPublicUser({
-        tx,
-        publicUser,
-        branch,
-      });
+    let result: {
+      ok: true;
+      bookingId: string;
+      branchSlug: string;
+      date: string;
+      paymentMethod: CreatePublicBookingDto['paymentMethod'];
+      discountCode: string | null;
+      notes: string | null;
+      clientId: string;
+      appointments: (typeof appointments.$inferSelect)[];
+    };
 
-      // overlap protection
-      for (const a of normalized) {
-        const overlapping = await tx
-          .select()
-          .from(appointments)
-          .where(
-            buildAppointmentOverlapWhere({
-              branchId: a.branchId,
-              staffId: a.staffId,
-              startUtc: a.startUtc,
-              endUtc: a.endUtc,
-            }),
-          );
-
-        if (overlapping.length) {
-          throw new BadRequestException('Timeslot already booked');
-        }
-      }
-
-      await tx.insert(publicBookings).values({
-        id: bookingId,
-        branchId: branch.id,
-        publicUserId,
-        startsAt: bookingStartsAtUtc,
-        endsAt: bookingEndsAtUtc,
-        status: 'CONFIRMED',
-        paymentMethod: (dto.paymentMethod ?? 'ONSITE') as 'ONSITE' | 'ONLINE',
-        totalCents: bookingTotalCents,
-        notes: dto.notes ?? null,
-      });
-
-      const created = await Promise.all(
-        normalized.map(async (a) => {
-          const [row] = await tx
-            .insert(appointments)
-            .values({
-              publicBookingId: a.publicBookingId,
-              publicUserId,
-              clientId,
-              branchId: a.branchId,
-              staffId: a.staffId,
-              serviceId: a.serviceId,
-              start: a.startUtc.toJSDate(),
-              end: a.endUtc.toJSDate(),
-              status: 'CONFIRMED',
-              paymentStatus:
-                dto.paymentMethod === PublicPaymentMethodEnum.ONLINE
-                  ? 'PAID'
-                  : 'UNPAID',
-              notes: a.notes,
-              priceCents: a.priceCents,
-            })
-            .returning();
-
-          await tx.insert(appointmentStatusHistory).values({
-            appointmentId: row.id,
-            newStatus: 'CONFIRMED',
-            reason: 'Public booking',
-          });
-
-          return row;
-        }),
-      );
-
-      // 🔓 RELEASE LOCKS ONCE
-      for (const a of normalized) {
-        await this.slotLock.releaseRange({
-          branchId: a.branchId,
-          staffId: a.staffId,
-          startIso: a.startUtc.toISO()!,
-          endIso: a.endUtc.toISO()!,
-          ownerToken: dto.ownerToken,
+    try {
+      result = await this.db.transaction(async (tx) => {
+        const clientId = await getOrCreateClientForPublicUser({
+          tx,
+          publicUser,
+          branch,
         });
+
+        await tx.insert(publicBookings).values({
+          id: bookingId,
+          branchId: branch.id,
+          publicUserId,
+          startsAt: bookingStartsAtUtc,
+          endsAt: bookingEndsAtUtc,
+          status: 'CONFIRMED',
+          paymentMethod: (dto.paymentMethod ?? 'ONSITE') as 'ONSITE' | 'ONLINE',
+          totalCents: bookingTotalCents,
+          notes: dto.notes ?? null,
+        });
+
+        const created = await Promise.all(
+          normalized.map(async (a) => {
+            try {
+              const [row] = await tx
+                .insert(appointments)
+                .values({
+                  publicBookingId: a.publicBookingId,
+                  publicUserId,
+                  clientId,
+                  branchId: a.branchId,
+                  staffId: a.staffId,
+                  serviceId: a.serviceId,
+                  start: a.startUtc.toJSDate(),
+                  end: a.endUtc.toJSDate(),
+                  status: 'CONFIRMED',
+                  paymentStatus:
+                    dto.paymentMethod === PublicPaymentMethodEnum.ONLINE
+                      ? 'PAID'
+                      : 'UNPAID',
+                  notes: a.notes,
+                  priceCents: a.priceCents,
+                })
+                .returning();
+
+              await tx.insert(appointmentStatusHistory).values({
+                appointmentId: row.id,
+                newStatus: 'CONFIRMED',
+                reason: 'Public booking',
+              });
+
+              return row;
+            } catch (e: any) {
+              if (e?.code === '23P01') {
+                throw new BadRequestException('Timeslot already booked');
+              }
+
+              throw e;
+            }
+          }),
+        );
+
+        return {
+          ok: true as const,
+          bookingId,
+          branchSlug: dto.branchSlug,
+          date: dto.date,
+          paymentMethod: dto.paymentMethod,
+          discountCode: dto.discountCode ?? null,
+          notes: dto.notes ?? null,
+          clientId,
+          appointments: created,
+        };
+      });
+    } catch (e: any) {
+      // 🔥 fallback global (por si no cayó en el catch interno)
+      if (e?.code === '23P01') {
+        throw new BadRequestException('Timeslot already booked');
       }
 
-      return {
-        ok: true,
-        bookingId,
-        branchSlug: dto.branchSlug,
-        date: dto.date,
-        paymentMethod: dto.paymentMethod,
-        discountCode: dto.discountCode ?? null,
-        notes: dto.notes ?? null,
-        clientId,
-        appointments: created,
-      };
-    });
+      throw e;
+    } finally {
+      await Promise.allSettled(
+        normalized.map((a) =>
+          this.slotLock.releaseRange({
+            branchId: a.branchId,
+            staffId: a.staffId,
+            startIso: a.startUtc.toISO()!,
+            endIso: a.endUtc.toISO()!,
+            ownerToken: dto.ownerToken,
+          }),
+        ),
+      );
+    }
 
     // =========================
     // JOBS OUTSIDE TRANSACTION
