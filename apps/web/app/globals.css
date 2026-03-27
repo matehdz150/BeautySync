@@ -242,3 +242,16 @@ html, body{
   top: -6px;
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
 }
+
+/* 🔥 fuerza TODO leaflet debajo */
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom,
+.leaflet-control {
+  z-index: 0 !important;
+}
+
+/* opcional */
+.leaflet-container {
+  z-index: 0 !important;
+}

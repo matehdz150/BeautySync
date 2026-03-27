@@ -1,9 +1,24 @@
-import { getExploreBranches } from "@/lib/services/public/explore";
+"use client";
+
+import { useIsMobile } from "@/hooks/use-mobile";
+import ExploreMobile from "@/components/Explore/search/mobile/ExploreMobile";
 import PageWrapper from "./pageWrapper";
+import { ExploreFiltersProvider } from "@/context/public/ExploreFiltersContext";
 
-export default async function Page() {
-  // 🔥 solo fetch inicial (sin filtros)
-  const branches = await getExploreBranches();
+export default function PageClient({ branches }: any) {
+  const isMobile = useIsMobile();
 
-  return <PageWrapper branches={branches} />;
+  if (isMobile === null) return null;
+
+  // 🔥 MOBILE
+  if (isMobile) {
+    return <>
+    <ExploreFiltersProvider>
+      <ExploreMobile initialBranches={branches} />
+    </ExploreFiltersProvider>
+    </>;
+  }
+
+  // 🔥 DESKTOP
+  return <PageWrapper branches={branches ?? []} />;
 }
