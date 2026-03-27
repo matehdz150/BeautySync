@@ -168,14 +168,14 @@ export default function PublicBusinessMobilePage() {
   }, [filteredServices]);
 
   const minPriceCents = useMemo(() => {
-  const prices = services
-    .map((s) => s.priceCents)
-    .filter((p): p is number => typeof p === "number" && p > 0);
+    const prices = services
+      .map((s) => s.priceCents)
+      .filter((p): p is number => typeof p === "number" && p > 0);
 
-  if (prices.length === 0) return null;
+    if (prices.length === 0) return null;
 
-  return Math.min(...prices);
-}, [services]);
+    return Math.min(...prices);
+  }, [services]);
 
   return (
     <div className="min-h-dvh bg-gray-50">
@@ -209,7 +209,7 @@ export default function PublicBusinessMobilePage() {
                   "h-10 w-10 rounded-full",
                   "bg-white/90 backdrop-blur-md",
                   "border border-black/10",
-                  "flex items-center justify-center"
+                  "flex items-center justify-center",
                 )}
                 aria-label="Volver"
               >
@@ -223,7 +223,7 @@ export default function PublicBusinessMobilePage() {
                     "h-10 w-10 rounded-full",
                     "bg-white/90 backdrop-blur-md",
                     "border border-black/10",
-                    "flex items-center justify-center"
+                    "flex items-center justify-center",
                   )}
                   aria-label="Compartir"
                 >
@@ -236,7 +236,7 @@ export default function PublicBusinessMobilePage() {
                     "h-10 w-10 rounded-full",
                     "bg-white/90 backdrop-blur-md",
                     "border border-black/10",
-                    "flex items-center justify-center"
+                    "flex items-center justify-center",
                   )}
                   aria-label="Favorito"
                 >
@@ -275,7 +275,9 @@ export default function PublicBusinessMobilePage() {
               <span className="flex items-center gap-1 text-amber-500">
                 <Star className="h-4 w-4 fill-amber-500" />
                 <span className="text-black font-medium">
-                  {ratingValue.toFixed(1)}
+                  {typeof ratingValue === "number"
+                    ? ratingValue.toFixed(1)
+                    : "—"}
                 </span>
               </span>
 
@@ -320,7 +322,7 @@ export default function PublicBusinessMobilePage() {
                     "shrink-0 rounded-full px-4 py-2 text-sm font-medium transition flex items-center gap-2",
                     isActive
                       ? "bg-black text-white"
-                      : "bg-black/5 text-black hover:bg-black/10"
+                      : "bg-black/5 text-black hover:bg-black/10",
                   )}
                 >
                   <span className="whitespace-nowrap">{t.label}</span>
@@ -423,9 +425,7 @@ export default function PublicBusinessMobilePage() {
               {/* CTA */}
               <Button
                 size="lg"
-                className={cn(
-                  "rounded-full px-6 py-6 text-base font-semibold",
-                )}
+                className={cn("rounded-full px-6 py-6 text-base font-semibold")}
                 onClick={() => {
                   router.push(`/book/${branch?.slug}/b/services`);
                   window.scrollTo(0, 0);
