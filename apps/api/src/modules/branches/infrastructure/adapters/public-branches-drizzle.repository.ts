@@ -103,7 +103,7 @@ export class PublicBranchesDrizzleRepository implements PublicBranchesRepository
         count: ratingCount,
         reviews: latestReviews.map((r) => ({
           id: r.id,
-          rating: r.rating,
+          rating: Number(r.rating),
           comment: r.comment ?? null,
           createdAt: r.createdAt ? r.createdAt.toISOString() : null,
         })),

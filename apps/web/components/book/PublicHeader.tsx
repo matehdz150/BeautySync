@@ -30,7 +30,7 @@ export function PublicHeader() {
   const bookingsCount = 3;
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-transparent backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full bg-white">
       {/* DESKTOP */}
       <div className="hidden md:flex mx-auto px-15 py-2 h-20 items-center justify-between">
         <Link href="/" className="flex items-center gap-3 shrink-0">

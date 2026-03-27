@@ -138,6 +138,11 @@ export async function ensureBookingConstraints() {
       CREATE EXTENSION IF NOT EXISTS btree_gist;
     `);
 
+    // 🔍 para similarity search
+    await db.execute(sql`
+      CREATE EXTENSION IF NOT EXISTS pg_trgm;
+    `);
+
     // 🔥 Crear constraint si no existe
     await db.execute(sql`
       DO $$

@@ -75,7 +75,7 @@ function ExploreContent({ initialBranches }: any) {
       {/* 🔥 FLOAT BUTTON */}
       <button
         onClick={() => setShowMapFull((prev) => !prev)}
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-black text-white px-5 py-3 rounded-full shadow-lg flex items-center gap-2 hover:scale-105 transition"
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-10 bg-black text-white px-5 py-3 rounded-full shadow-lg flex items-center gap-2 hover:scale-105 transition"
       >
         <Map className="w-4 h-4" />
         {showMapFull ? "Ver lista" : "Ver mapa"}
