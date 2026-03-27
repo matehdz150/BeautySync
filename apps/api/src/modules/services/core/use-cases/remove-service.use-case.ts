@@ -19,6 +19,7 @@ export class RemoveServiceUseCase {
 
     await this.cache.delPattern('public:services:branch:*');
     await this.cache.del(`public:service:${id}:staff`);
+    await this.cache.delPattern('explore:*');
 
     return { success: true };
   }
