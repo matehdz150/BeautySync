@@ -170,6 +170,7 @@ export class ChatService {
     limit: number;
     organizationId: string;
   }) {
+    // 🔥 META (DEL REPO)
     const meta = await this.repo.getConversationMeta(params.conversationId);
 
     if (!meta) throw new Error('CONVERSATION_NOT_FOUND');
@@ -177,6 +178,7 @@ export class ChatService {
     if (meta.organizationId !== params.organizationId)
       throw new Error('FORBIDDEN');
 
+    // 🔥 MENSAJES (usa el método correcto)
     const page = await this.repo.getMessages({
       conversationId: params.conversationId,
       actor: params.actor,
@@ -184,10 +186,29 @@ export class ChatService {
       limit: params.limit,
     });
 
+    // 🔥 CLIENTE
+    const clientId = await this.repo.getConversationClient(
+      params.conversationId,
+    );
+
+    const client = clientId ? await this.repo.getClientBasic(clientId) : null;
+
+    // 🔥 APPOINTMENTS
+    const appointments = await this.repo.getAppointmentsByBooking(
+      meta.bookingId,
+    );
+
     return {
-      bookingId: meta.bookingId,
-      branchId: meta.branchId,
       ...page,
+
+      meta: {
+        bookingId: meta.bookingId,
+        branchId: meta.branchId,
+
+        client,
+
+        appointment: appointments.length > 0 ? appointments[0] : null,
+      },
     };
   }
 

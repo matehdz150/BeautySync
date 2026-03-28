@@ -16,7 +16,7 @@ type ChatScope = "manager" | "public";
 
 export function useChatMessages(
   conversationId: string | null,
-  scope: ChatScope = "manager" // 👈 default mantiene manager intacto
+  scope: ChatScope = "manager", // 👈 default mantiene manager intacto
 ) {
   const chat = useChat(conversationId ?? "__none__");
 
@@ -27,28 +27,23 @@ export function useChatMessages(
 
     async function load() {
       try {
-        const base =
-          scope === "manager" ? "/manager/chat" : "/public/chat";
+        const base = scope === "manager" ? "/manager/chat" : "/public/chat";
 
-        const data = await api(
-          `${base}/${conversationId}/messages?limit=50`
-        );
+        const data = await api(`${base}/${conversationId}/messages?limit=50`);
+
+        console.log(data, "desde usechat");
 
         if (cancelled) return;
 
-        chat.setMeta({
-          bookingId: data.bookingId,
-          branchId: data.branchId,
-        });
+        // 🔥 FIX REAL
+        chat.setMeta(data.meta);
 
-        const msgs: ChatMessage[] = data.items.map(
-          (m: ServerMessage) => ({
-            id: m.id,
-            body: m.body,
-            createdAt: m.createdAt,
-            from: m.from,
-          })
-        );
+        const msgs: ChatMessage[] = data.items.map((m: ServerMessage) => ({
+          id: m.id,
+          body: m.body,
+          createdAt: m.createdAt,
+          from: m.from,
+        }));
 
         msgs.forEach((m) => chat.pushIncomingMessage(m));
       } catch (err) {
