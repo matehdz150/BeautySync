@@ -311,11 +311,24 @@ export class AvailabilityCoreService {
       const durationMin = durationByService.get(step.serviceId)!;
 
       if (step.staffId !== 'ANY') {
+        const staffRow = await this.db.query.staff.findFirst({
+          where: and(
+            eq(staff.id, step.staffId),
+            eq(staff.branchId, branchId),
+            eq(staff.isActive, true),
+          ),
+        });
+
+        if (!staffRow) {
+          throw new BadRequestException(`Staff not available: ${step.staffId}`);
+        }
+
         steps.push({
           serviceId: step.serviceId,
           durationMin,
           candidates: [step.staffId],
         });
+
         continue;
       }
 

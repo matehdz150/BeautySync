@@ -150,6 +150,18 @@ export class BookingsCoreService {
           ),
         });
 
+        const staffRow = await this.db.query.staff.findFirst({
+          where: and(eq(staff.id, a.staffId), eq(staff.branchId, branch.id)),
+        });
+
+        if (!staffRow) {
+          throw new BadRequestException(`Staff not found: ${a.staffId}`);
+        }
+
+        if (!staffRow.isActive) {
+          throw new BadRequestException(`Staff is not available for booking`);
+        }
+
         if (!service) {
           throw new BadRequestException(`Service not found: ${a.serviceId}`);
         }
