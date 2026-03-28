@@ -30,13 +30,13 @@ export default function StaffInvitesPage() {
   const [staff, setStaff] = useState<StaffWithInvite[]>([]);
   const [query, setQuery] = useState("");
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [errorById, setErrorById] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!branch) return;
 
     async function load() {
       const data = await getStaffWithInvites(branch.id);
-      console.log(data)
       setStaff(data);
     }
 
@@ -90,6 +90,13 @@ export default function StaffInvitesPage() {
     try {
       setLoadingId(staffId);
 
+      // 🔥 limpiar error previo
+      setErrorById((prev) => {
+        const copy = { ...prev };
+        delete copy[staffId];
+        return copy;
+      });
+
       await reinviteStaff(staffId);
 
       // 🔥 update optimista
@@ -107,14 +114,32 @@ export default function StaffInvitesPage() {
             : s
         )
       );
-    } catch (err) {
-      console.error("Error reenviando invitación", err);
+    } catch (err: any) {
+      console.error(err);
+
+      let message =
+        err?.message ||
+        err?.response?.data?.message ||
+        "No se pudo reenviar la invitación";
+
+      // 🔥 traducción básica UX
+      if (message.includes("active invite")) {
+        message = "Ya existe una invitación activa";
+      }
+
+      if (message.includes("already accepted")) {
+        message = "El usuario ya aceptó la invitación";
+      }
+
+      setErrorById((prev) => ({
+        ...prev,
+        [staffId]: message,
+      }));
     } finally {
       setLoadingId(null);
     }
   }
 
-  // 🔥 filtro por búsqueda
   const filtered = staff.filter((s) =>
     s.name.toLowerCase().includes(query.toLowerCase())
   );
@@ -153,9 +178,9 @@ export default function StaffInvitesPage() {
           />
 
           <Button
-            onClick={() => {
-              router.push("/dashboard/staff/actions/new");
-            }}
+            onClick={() =>
+              router.push("/dashboard/staff/actions/new")
+            }
           >
             Agregar staff
             <Plus />
@@ -237,10 +262,10 @@ export default function StaffInvitesPage() {
 
                       {/* ACTIONS */}
                       <TableCell
-                        className="text-right"
+                        className="text-right space-y-1"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {(!s.invite || s.invite.status === "pending") && (
+                        {(!s.invite || s.invite.status === "expired" || s.invite.status === "pending") && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -249,6 +274,13 @@ export default function StaffInvitesPage() {
                           >
                             {loadingId === s.id ? "Enviando..." : "Reenviar"}
                           </Button>
+                        )}
+
+                        {/* 🔥 ERROR */}
+                        {errorById[s.id] && (
+                          <p className="text-xs text-red-500 mt-1">
+                            {errorById[s.id]}
+                          </p>
                         )}
                       </TableCell>
                     </TableRow>
