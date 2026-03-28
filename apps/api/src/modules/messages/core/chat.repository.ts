@@ -84,6 +84,40 @@ export abstract class ChatRepository {
     } | null;
     unread: boolean;
   }>;
+
+  // 🔥 NUEVOS MÉTODOS
+
+  abstract getClientBasic(clientId: string): Promise<{
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  } | null>;
+
+  abstract getAppointmentsByBooking(bookingId: string): Promise<
+    Array<{
+      id: string;
+      start: string;
+      end: string;
+      status: string;
+
+      service: {
+        id: string;
+        name: string;
+        durationMin: number;
+      } | null;
+
+      staff: {
+        id: string;
+        name: string;
+      } | null;
+
+      client: {
+        id: string;
+        name: string;
+        avatarUrl: string | null;
+      } | null;
+    }>
+  >;
 }
 
 export const CHAT_REPOSITORY = Symbol('CHAT_REPOSITORY');

@@ -14,6 +14,13 @@ type ChatItem = {
   lastMessage: string;
   time: string;
   unread?: number;
+  avatarUrl?: string | null;
+
+  appointment?: {
+    start: string;
+    serviceName: string;
+    staffName: string;
+  } | null;
 };
 
 function formatTime(date: string) {
@@ -30,6 +37,30 @@ function formatTime(date: string) {
   return d.toLocaleDateString();
 }
 
+function formatHour(date: string) {
+  return new Date(date).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDayLabel(date: string) {
+  const d = new Date(date);
+  const now = new Date();
+
+  const isToday = d.toDateString() === now.toDateString();
+
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+
+  if (isToday) return "Hoy";
+  if (isYesterday) return "Ayer";
+
+  return d.toLocaleDateString();
+}
+
 export default function MessagesListPage() {
   const params = useParams<{ chatId?: string }>();
   const [q, setQ] = useState("");
@@ -39,7 +70,7 @@ export default function MessagesListPage() {
 
   const { branch } = useBranch();
 
-  // 🔥 cargar inbox inicial
+  // 🔥 LOAD
   useEffect(() => {
     if (!branch?.id) return;
 
@@ -47,21 +78,36 @@ export default function MessagesListPage() {
 
     async function load() {
       try {
-        const data = await api(
-          `/manager/chat/inbox?branchId=${branch.id}`
-        );
+        const data = await api(`/manager/chat/inbox?branchId=${branch.id}`);
+
+        console.log(data)
 
         if (cancelled) return;
 
-        const mapped: ChatItem[] = data.map((c: any) => ({
-          id: c.conversationId,
-          name: c.client.name ?? "Cliente",
-          lastMessage: c.lastMessage?.body ?? "Sin mensajes",
-          time: c.lastMessage?.createdAt
-            ? formatTime(c.lastMessage.createdAt)
-            : "",
-          unread: c.unread ? 1 : 0,
-        }));
+        const mapped: ChatItem[] = data.map((c: any) => {
+          const appt = c.appointments?.[0];
+
+          return {
+            id: c.conversationId,
+            name: c.client.name ?? "Cliente",
+            avatarUrl: c.client.avatarUrl ?? null,
+
+            lastMessage: c.lastMessage?.body ?? "Sin mensajes",
+            time: c.lastMessage?.createdAt
+              ? formatTime(c.lastMessage.createdAt)
+              : "",
+
+            unread: c.unread ? 1 : 0,
+
+            appointment: appt
+              ? {
+                  start: appt.start,
+                  serviceName: appt.service?.name ?? "",
+                  staffName: appt.staff?.name ?? "",
+                }
+              : null,
+          };
+        });
 
         setChats(mapped);
       } finally {
@@ -76,13 +122,13 @@ export default function MessagesListPage() {
     };
   }, [branch?.id]);
 
-  // 🔥 SSE branch stream
+  // 🔥 SSE
   useEffect(() => {
     if (!branch?.id) return;
 
     const es = new EventSource(
       `${API_URL}/manager/chat/branch/${branch.id}/stream`,
-      { withCredentials: true }
+      { withCredentials: true },
     );
 
     esRef.current = es;
@@ -90,20 +136,16 @@ export default function MessagesListPage() {
     es.addEventListener("chat.message", (e: MessageEvent) => {
       const data = JSON.parse(e.data);
 
-      setChats((prev) => {
-        const index = prev.findIndex(
-          (c) => c.id === data.conversationId
-        );
 
+      setChats((prev) => {
+        const index = prev.findIndex((c) => c.id === data.conversationId);
         if (index === -1) return prev;
 
         const updated = [...prev];
         const existing = updated[index];
 
-        // remover del lugar actual
         updated.splice(index, 1);
 
-        // reinsertar arriba actualizado
         return [
           {
             ...existing,
@@ -119,12 +161,10 @@ export default function MessagesListPage() {
       });
     });
 
-    return () => {
-      es.close();
-    };
+    return () => es.close();
   }, [branch?.id, params?.chatId]);
 
-  // 🔎 filtro
+  // 🔎 FILTER
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     if (!query) return chats;
@@ -136,9 +176,25 @@ export default function MessagesListPage() {
     );
   }, [q, chats]);
 
+  // 🔥 GROUPING
+  const grouped = useMemo(() => {
+    const groups: Record<string, ChatItem[]> = {};
+
+    filtered.forEach((chat) => {
+      const baseDate = chat.appointment?.start ?? new Date().toISOString();
+
+      const label = formatDayLabel(baseDate);
+
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(chat);
+    });
+
+    return groups;
+  }, [filtered]);
+
   return (
     <div className="h-full overflow-y-auto">
-      {/* Header */}
+      {/* HEADER */}
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur">
         <div className="p-4 pb-3">
           <h2 className="text-2xl font-semibold tracking-tight">Chats</h2>
@@ -157,7 +213,7 @@ export default function MessagesListPage() {
       </div>
 
       {/* LIST */}
-      <div className="p-4 space-y-1">
+      <div className="p-4 space-y-6">
         {loading && (
           <div className="py-10 text-center text-muted-foreground text-sm">
             Cargando conversaciones...
@@ -165,54 +221,93 @@ export default function MessagesListPage() {
         )}
 
         {!loading &&
-          filtered.map((chat) => {
-            const active = params?.chatId === chat.id;
+          Object.entries(grouped).map(([label, chats]) => (
+            <div key={label}>
+              {/* GROUP LABEL */}
+              <p className="text-xs text-muted-foreground mb-2 px-1">{label}</p>
 
-            return (
-              <Link
-                key={chat.id}
-                href={`/dashboard/inbox/messages/${chat.id}`}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-3 transition",
-                  active ? "bg-muted" : "hover:bg-muted/50",
-                )}
-              >
-                <div className="h-10 w-10 rounded-full bg-black flex items-center justify-center text-sm font-medium text-white">
-                  {chat.name.slice(0, 2)}
-                </div>
+              <div className="space-y-1">
+                {chats.map((chat) => {
+                  const active = params?.chatId === chat.id;
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between">
-                    <p
+                  return (
+                    <Link
+                      key={chat.id}
+                      href={`/dashboard/inbox/messages/${chat.id}`}
                       className={cn(
-                        "text-sm truncate",
-                        active && "font-semibold",
+                        "flex items-center gap-3 rounded-xl px-3 py-3 transition",
+                        active ? "bg-muted" : "hover:bg-muted/50",
                       )}
                     >
-                      {chat.name}
-                    </p>
+                      {/* Avatar */}
+                      <div className="h-10 w-10 rounded-full overflow-hidden bg-black flex items-center justify-center text-sm font-medium text-white">
+                        {chat.avatarUrl ? (
+                          <img
+                            src={chat.avatarUrl}
+                            alt={chat.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          chat.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .slice(0, 2)
+                            .join("")
+                        )}
+                      </div>
 
-                    <span className="text-xs text-muted-foreground">
-                      {chat.time}
-                    </span>
-                  </div>
+                      <div className="flex-1 min-w-0">
+                        {/* TITLE */}
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="min-w-0">
+                            {chat.appointment ? (
+                              <>
+                                <p className="text-sm font-semibold truncate">
+                                  {formatHour(chat.appointment.start)} •{" "}
+                                  {chat.appointment.serviceName}
+                                </p>
 
-                  <div className="flex items-center gap-1">
-                    <CheckCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground truncate">
-                      {chat.lastMessage}
-                    </p>
-                  </div>
-                </div>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  con {chat.appointment.staffName}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-sm font-semibold truncate">
+                                {chat.name}
+                              </p>
+                            )}
+                          </div>
 
-                {chat.unread > 0 && !active && (
-                  <div className="h-6 min-w-6 px-2 rounded-full bg-green-500 text-white text-xs flex items-center justify-center">
-                    {chat.unread}
-                  </div>
-                )}
-              </Link>
-            );
-          })}
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {chat.time}
+                          </span>
+                        </div>
+
+                        {/* MESSAGE */}
+                        <div className="flex items-center gap-1 mt-1">
+                          <CheckCheck className="h-3.5 w-3.5 text-muted-foreground" />
+
+                          <p className="text-sm text-muted-foreground truncate">
+                            <span className="font-medium text-black/70">
+                              {chat.name}:
+                            </span>{" "}
+                            {chat.lastMessage}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* UNREAD */}
+                      {chat.unread > 0 && !active && (
+                        <div className="h-6 min-w-6 px-2 rounded-full bg-green-500 text-white text-xs flex items-center justify-center">
+                          {chat.unread}
+                        </div>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
 
         {!loading && filtered.length === 0 && (
           <div className="py-10 text-center text-sm text-muted-foreground">
