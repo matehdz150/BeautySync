@@ -32,6 +32,7 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { GraphqlModule } from './graphql.module';
 import { ExploreModule } from './modules/explore/explore.module';
 import { ConfigModule } from '@nestjs/config';
+import { FavoritesModule } from './modules/favorites/favorites.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { ConfigModule } from '@nestjs/config';
     CalendarModule,
     GraphqlModule,
     ExploreModule,
+    FavoritesModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

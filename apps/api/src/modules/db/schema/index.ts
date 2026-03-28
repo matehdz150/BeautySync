@@ -11,3 +11,4 @@ export * from './users';
 export * from './public';
 export *from './rankings'
 export * from './conversations';
+export * from './favorites';

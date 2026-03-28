@@ -119,7 +119,7 @@ export function RatingPanelReview({
           <div className="mt-6">
             <StarsRow value={rating} />
             <p className="mt-1 text-sm font-medium text-muted-foreground">
-              {rating.toFixed(1)} / 5
+              {Number(rating || 0).toFixed(1)}
             </p>
           </div>
 
