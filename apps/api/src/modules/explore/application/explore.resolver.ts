@@ -2,7 +2,12 @@ import { Resolver, Query, Args } from '@nestjs/graphql';
 import { ExploreBranchGql, ExploreSort } from './dto/explore-branch.dto';
 import { GetExploreBranchesUseCase } from '../core/use-cases/get-explore-branches.use-case';
 
+import { GqlPublicAuthGuard } from 'src/modules/auth/application/guards/gql-publicAuth.guard';
+import { GqlPublicUser } from 'src/modules/auth/application/decorators/gql-publicUser.decorator';
+import { UseGuards } from '@nestjs/common';
+
 @Resolver(() => ExploreBranchGql)
+@UseGuards(GqlPublicAuthGuard) // 🔥 clave
 export class ExploreResolver {
   constructor(private readonly useCase: GetExploreBranchesUseCase) {}
 
@@ -17,6 +22,8 @@ export class ExploreResolver {
     @Args('rating', { nullable: true }) rating?: number,
     @Args('sort', { type: () => ExploreSort, nullable: true })
     sort?: ExploreSort,
+
+    @GqlPublicUser() userId?: string, // 🔥 limpio
   ) {
     const filters = {
       lat,
@@ -29,6 +36,6 @@ export class ExploreResolver {
       sort,
     };
 
-    return this.useCase.execute(filters);
+    return this.useCase.execute(filters, userId);
   }
 }

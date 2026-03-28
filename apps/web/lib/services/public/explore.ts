@@ -36,7 +36,8 @@ export type ExploreBranch = {
     categoryName?: string; // 👈 nuevo
   }[];
 
-  distanceKm?: number; // 👈 nuevo
+  distanceKm?: number;
+  isFavorite?: boolean;
 };
 
 export async function getExploreBranches(filters?: ExploreFilters) {
@@ -81,6 +82,7 @@ export async function getExploreBranches(filters?: ExploreFilters) {
         ratingCount
         servicesCount
         distanceKm
+        isFavorite
         servicesPreview {
           name
           priceCents

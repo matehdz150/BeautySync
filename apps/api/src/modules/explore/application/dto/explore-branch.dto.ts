@@ -38,6 +38,9 @@ export class ExploreBranchGql {
   name!: string;
 
   @Field({ nullable: true })
+  isFavorite?: boolean;
+
+  @Field({ nullable: true })
   address?: string;
 
   @Field(() => Float, { nullable: true })

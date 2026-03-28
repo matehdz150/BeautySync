@@ -48,9 +48,11 @@ import { PublicBranchesDrizzleRepository } from './infrastructure/adapters/publi
 import { GetPublicBranchUseCase } from './core/use-cases/public/get-public-branch.use-case';
 import { BranchesPublicController } from './application/controllers/branches.public.controller';
 import { CacheModule } from '../cache/cache.module';
+import { GetPublicBranchSummaryUseCase } from './core/use-cases/public/get-public-summary.use-case';
+import { FavoritesModule } from '../favorites/favorites.module';
 
 @Module({
-  imports: [AuthModule, CacheModule],
+  imports: [AuthModule, CacheModule, FavoritesModule],
   controllers: [
     BranchesController,
     BranchImagesController,
@@ -82,6 +84,8 @@ import { CacheModule } from '../cache/cache.module';
     UpdateBranchImageUseCase,
     DeleteBranchImageUseCase,
     GetBranchForAiUseCase,
+
+    GetPublicBranchSummaryUseCase,
 
     /* REPOSITORY ADAPTERS */
 

@@ -4,7 +4,8 @@ import { MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { CategoryIcon } from "@/components/shared/Icon";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const filters = [
   { label: "Todo", value: "all" },
@@ -22,6 +23,7 @@ export default function SearchDropdown({
   setType,
 }: any) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const isMobile = useIsMobile();
 
   const hasResults =
     (type === "branches" && results.branches.items.length > 0) ||
@@ -41,29 +43,46 @@ export default function SearchDropdown({
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
-    if (!el || !shouldShowLoadMore || loadingMore) return;
+    if (!el || !shouldShowLoadMore || loadingMore || loading) return;
 
     const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
 
-    if (distanceToBottom < 120) {
+    if (distanceToBottom < 140) {
       loadMore();
     }
-  }, [loadMore, loadingMore, shouldShowLoadMore]);
+  }, [loadMore, loadingMore, loading, shouldShowLoadMore]);
+
+  // 🔥 fix mobile: si todavía no hay suficiente contenido para scrollear,
+  // dispara más páginas automáticamente
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !shouldShowLoadMore || loading || loadingMore) return;
+
+    const notScrollableYet = el.scrollHeight <= el.clientHeight + 40;
+
+    if (notScrollableYet) {
+      loadMore();
+    }
+  }, [results, shouldShowLoadMore, loading, loadingMore, loadMore]);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -6 }}
+      initial={{ opacity: 0, y: isMobile ? 20 : -6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.15 }}
-      className="absolute top-full mt-2 w-full bg-white rounded-2xl shadow-xl border z-[9999] h-155 flex flex-col overflow-hidden"
+      transition={{ duration: 0.2 }}
+      className={
+        isMobile
+          ? "fixed inset-0 z-[9999] bg-white flex flex-col"
+          : "absolute top-full mt-2 w-full bg-white rounded-2xl shadow-xl border z-[9999] h-155 flex flex-col overflow-hidden"
+      }
     >
-      <div className="p-4">
+      <div className={`p-4 ${isMobile ? "border-b" : ""}`}>
         <div className="flex gap-2 overflow-x-auto">
           {filters.map((f) => (
             <button
               key={f.value}
               onClick={() => setType(f.value)}
-              className={`px-4 py-2 rounded-full text-xs font-medium transition ${
+              className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition ${
                 type === f.value
                   ? "bg-black text-white"
                   : "bg-gray-100 text-gray-600"
@@ -78,7 +97,13 @@ export default function SearchDropdown({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        className={`flex-1 overflow-y-auto space-y-4 ${
+          isMobile ? "p-4 pb-10" : "p-4"
+        }`}
+        style={{
+          WebkitOverflowScrolling: "touch",
+          overscrollBehavior: "contain",
+        }}
       >
         {(type === "all" || type === "branches") &&
           results.branches.items.map((b: any) => (
@@ -126,11 +151,13 @@ export default function SearchDropdown({
           ))}
 
         {shouldShowLoadMore && (
-          <div className="h-10 flex items-center justify-center">
+          <div className="flex justify-center py-3">
             {loadingMore ? (
-              <Skeleton className="h-6 w-24" />
+              <div className="text-xs text-gray-400 animate-pulse">
+                Cargando más...
+              </div>
             ) : (
-              <div className="h-6 w-24" />
+              <div className="h-5" />
             )}
           </div>
         )}
@@ -142,7 +169,7 @@ export default function SearchDropdown({
         )}
       </div>
 
-      {loading && (
+      {loading && !loadingMore && (
         <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] p-4">
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (

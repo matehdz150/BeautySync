@@ -1,21 +1,30 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import Image from "next/image";
 import Link from "next/link";
-import { X, Heart, MapPin, Calendar } from "lucide-react";
+import { X, Heart, MapPin, Calendar, Star } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type Favorite = {
+import { getPublicBranchSummary } from "@/lib/services/public/favorites";
+
+type Branch = {
   id: string;
   name: string;
-  category: string;
-  locationLabel: string;
-  coverUrl?: string | null;
+  address: string | null;
+  slug: string | null;
+  lat: string | null;
+  lng: string | null;
+  coverUrl: string | null;
+  rating: {
+    average: number | null;
+    count: number;
+  };
+  isFavorite: boolean;
 };
 
 function ActionRow({
@@ -37,7 +46,6 @@ function ActionRow({
       className={cn(
         "flex items-center gap-4 rounded-2xl px-2 py-3 transition",
         "hover:bg-black/[0.03] active:scale-[0.99]",
-        "will-change-transform"
       )}
       style={{
         animation: "bsRowIn 320ms ease-out both",
@@ -59,26 +67,42 @@ function ActionRow({
 export default function FavoriteDetailPage() {
   const router = useRouter();
   const params = useParams<{ favoriteId: string }>();
-  const favoriteId = params?.favoriteId;
+  const branchId = params?.favoriteId;
 
-  const favorite = useMemo<Favorite>(() => {
-    return {
-      id: favoriteId ?? "unknown",
-      name: "Acetone Nail Bar",
-      category: "Uñas",
-      locationLabel: "Providencia",
-      coverUrl:
-        "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?q=80&w=1600&auto=format&fit=crop",
-    };
-  }, [favoriteId]);
+  const [branch, setBranch] = useState<Branch | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!branchId) return;
+
+    async function fetchData() {
+      setLoading(true);
+      try {
+        const data = await getPublicBranchSummary(branchId);
+        setBranch(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [branchId]);
 
   function handleClose() {
     router.push("/me/favorites");
   }
 
+  if (loading || !branch) {
+    return <div className="p-10">Loading...</div>;
+  }
+
   return (
-    <div className="w-full" key={favorite.id}>
-      {/* Animations */}
+    <div className="w-full" key={branch.id}>
+      {/* ========================= */}
+      {/* ANIMATIONS (igual) */}
+      {/* ========================= */}
       <style jsx global>{`
         @keyframes bsCoverIn {
           from {
@@ -134,18 +158,18 @@ export default function FavoriteDetailPage() {
         }
       `}</style>
 
-      {/* Cover */}
+      {/* ========================= */}
+      {/* COVER */}
+      {/* ========================= */}
       <div
-        className="relative h-[280px] w-full overflow-hidden bg-black/[0.02]"
-        style={{
-          animation: "bsCoverIn 420ms ease-out both",
-        }}
+        className="relative h-[240px] md:h-[280px] w-full overflow-hidden bg-black/[0.02]"
+        style={{ animation: "bsCoverIn 420ms ease-out both" }}
       >
-        {favorite.coverUrl ? (
+        {branch.coverUrl && (
           <>
             <Image
-              src={favorite.coverUrl}
-              alt={favorite.name}
+              src={branch.coverUrl}
+              alt={branch.name}
               fill
               className="object-cover"
               priority
@@ -159,67 +183,72 @@ export default function FavoriteDetailPage() {
               }}
             />
           </>
-        ) : null}
+        )}
 
-        {/* Close */}
+        {/* CLOSE */}
         <div
-          className="absolute right-5 top-5 z-10"
+          className="absolute right-4 md:right-5 top-4 md:top-5 z-10"
           style={{
             animation: "bsCloseIn 260ms ease-out both",
             animationDelay: "120ms",
           }}
         >
           <Button
-            type="button"
             size="icon"
             variant="outline"
             onClick={handleClose}
-            className={cn(
-              "h-10 w-10 rounded-full border"
-            )}
+            className="h-9 w-9 md:h-10 md:w-10 rounded-full"
           >
             <X className="h-5 w-5" />
           </Button>
         </div>
 
+        {/* TITLE */}
         <div
-          className="absolute bottom-6 left-6 right-6"
+          className="absolute bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6"
           style={{
             animation: "bsBodyIn 320ms ease-out both",
             animationDelay: "160ms",
           }}
         >
-          <h1 className="text-4xl font-semibold tracking-tight text-white drop-shadow">
-            {favorite.name}
+          <h1 className="text-2xl md:text-4xl font-semibold text-white drop-shadow">
+            {branch.name}
           </h1>
 
-          <p className="mt-1 text-sm text-white/85">
-            {favorite.category} • {favorite.locationLabel}
+          <p className="mt-1 text-xs md:text-sm text-white/85 flex items-center gap-1">
+            <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+            {branch.rating.average?.toFixed(1) ?? "0.0"} • {branch.rating.count}{" "}
+            reseñas
           </p>
         </div>
       </div>
 
-      {/* Body */}
+      {/* ========================= */}
+      {/* BODY */}
+      {/* ========================= */}
       <div
-        className="p-8"
+        className="p-5 md:p-8"
         style={{
           animation: "bsBodyIn 380ms ease-out both",
           animationDelay: "120ms",
         }}
       >
+        {/* FAVORITE BADGE */}
         <div
-          className="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white"
+          className="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 md:px-5 py-2 text-xs md:text-sm font-semibold text-white"
           style={{
             animation: "bsRowIn 320ms ease-out both",
             animationDelay: "160ms",
           }}
         >
-          <Heart className="h-4 w-4" />
-          Guardado en favoritos
+          <Heart
+            className={cn("h-4 w-4", branch.isFavorite ? "fill-white" : "")}
+          />
+          {branch.isFavorite ? "Guardado en favoritos" : "No es favorito"}
         </div>
 
         <h2
-          className="mt-6 text-2xl font-semibold tracking-tight text-black"
+          className="mt-5 md:mt-6 text-xl md:text-2xl font-semibold"
           style={{
             animation: "bsRowIn 320ms ease-out both",
             animationDelay: "220ms",
@@ -229,7 +258,7 @@ export default function FavoriteDetailPage() {
         </h2>
 
         <p
-          className="mt-2 text-base text-muted-foreground"
+          className="mt-2 text-sm md:text-base text-muted-foreground"
           style={{
             animation: "bsRowIn 320ms ease-out both",
             animationDelay: "280ms",
@@ -238,12 +267,12 @@ export default function FavoriteDetailPage() {
           Puedes reservar, ver ubicación o explorar el perfil del lugar.
         </p>
 
-        <div className="mt-8 space-y-1">
+        <div className="mt-6 md:mt-8 space-y-1">
           <ActionRow
             icon={<Calendar className="h-5 w-5" />}
             title="Reservar cita"
             subtitle="Ver disponibilidad"
-            href="/explore"
+            href={`/book/${branch.slug}`}
             delayMs={340}
           />
 
@@ -258,8 +287,8 @@ export default function FavoriteDetailPage() {
           <ActionRow
             icon={<MapPin className="h-5 w-5" />}
             title="Ver ubicación"
-            subtitle={favorite.locationLabel}
-            href="/explore"
+            subtitle={branch.address ?? "Sin dirección"}
+            href={`/book/${branch.slug}`}
             delayMs={460}
           />
         </div>

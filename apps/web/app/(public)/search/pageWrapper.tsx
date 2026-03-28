@@ -11,9 +11,11 @@ import {
   useExploreFilters,
 } from "@/context/public/ExploreFiltersContext";
 import { getExploreBranches } from "@/lib/services/public/explore";
+import { usePublicAuth } from "@/context/public/PublicAuthContext";
 
 function ExploreContent({ initialBranches }: any) {
   const { filters } = useExploreFilters();
+  const { user, loading: authLoading } = usePublicAuth();
 
   const [branches, setBranches] = useState(initialBranches);
   const [loading, setLoading] = useState(false);
@@ -33,6 +35,7 @@ function ExploreContent({ initialBranches }: any) {
               ? filters.categories.join(",")
               : undefined,
         });
+        console.log(data)
 
         setBranches(data);
       } catch (e) {

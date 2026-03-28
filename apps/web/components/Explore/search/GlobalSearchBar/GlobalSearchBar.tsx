@@ -9,6 +9,7 @@ export default function GlobalSearchBar() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<SearchType>("all");
+  
 
   const containerRef = useRef<HTMLDivElement>(null);
 

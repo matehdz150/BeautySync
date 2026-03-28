@@ -38,3 +38,19 @@ export interface PublicBranch {
     } | null;
   }[];
 }
+
+export interface PublicBranchSummary {
+  id: string;
+  name: string;
+  address: string | null;
+  slug: string | null;
+  lat: string | null;
+  lng: string | null;
+
+  coverUrl: string | null;
+
+  rating: {
+    average: number | null;
+    count: number;
+  };
+}
