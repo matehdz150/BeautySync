@@ -1,6 +1,6 @@
 "use client";
 
-import { Star } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ExploreToolbar } from "./ExploreToolbar";
 import { motion } from "framer-motion";
@@ -8,6 +8,9 @@ import { motion } from "framer-motion";
 // 🔥 IMPORTS IMPORTANTES
 import ExploreListSkeleton from "./ListSkeleton";
 import ExploreEmptyState from "./ExploreEmptystate";
+import { toggleFavorite } from "@/lib/services/public/favorites";
+import { useEffect, useState } from "react";
+import { usePublicAuth } from "@/context/public/PublicAuthContext";
 
 export default function ExploreList({ branches, loading, onHover }: any) {
   const router = useRouter();
@@ -59,6 +62,10 @@ export default function ExploreList({ branches, loading, onHover }: any) {
             >
               {/* IMAGE */}
               <div className="relative w-full h-48 overflow-hidden">
+                <FavoriteButton
+                  branchId={b.id}
+                  initialFavorite={b.isFavorite}
+                />
                 {b.coverImage ? (
                   <img
                     src={b.coverImage}
@@ -113,5 +120,65 @@ export default function ExploreList({ branches, loading, onHover }: any) {
         </motion.div>
       )}
     </div>
+  );
+}
+
+function FavoriteButton({
+  branchId,
+  initialFavorite,
+}: {
+  branchId: string;
+  initialFavorite?: boolean;
+}) {
+  const { user, loading: authLoading } = usePublicAuth();
+
+  const [isFavorite, setIsFavorite] = useState(initialFavorite ?? false);
+  const [loading, setLoading] = useState(false);
+
+  const isDisabled = !user || authLoading;
+
+  useEffect(() => {
+    setIsFavorite(initialFavorite ?? false);
+  }, [initialFavorite]);
+
+  const handleClick = async (e: any) => {
+    e.stopPropagation();
+
+    if (isDisabled || loading) return;
+
+    setLoading(true);
+
+    // 🔥 optimistic
+    setIsFavorite((prev) => !prev);
+
+    try {
+      const res = await toggleFavorite(branchId);
+      setIsFavorite(res.isFavorite);
+    } catch {
+      // rollback
+      setIsFavorite((prev) => !prev);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      title={isDisabled ? "Inicia sesión" : ""}
+      className={`
+        absolute top-3 right-3 z-10
+        w-9 h-9 flex items-center justify-center
+        rounded-full backdrop-blur bg-white/80
+        shadow transition
+        ${isDisabled ? "opacity-50 cursor-not-allowed" : "hover:scale-105"}
+      `}
+    >
+      <Heart
+        className={`w-5 h-5 transition ${
+          isFavorite ? "fill-red-500 text-red-500" : "text-gray-600"
+        }`}
+      />
+    </button>
   );
 }

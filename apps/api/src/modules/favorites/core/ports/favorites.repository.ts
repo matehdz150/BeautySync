@@ -7,4 +7,5 @@ export interface FavoritesRepository {
   removeFavorite(userId: string, branchId: string): Promise<void>;
   isFavorite(userId: string, branchId: string): Promise<boolean>;
   getUserFavorites(userId: string): Promise<FavoriteBranch[]>;
+  getUserFavoriteIds(userId: string): Promise<string[]>;
 }

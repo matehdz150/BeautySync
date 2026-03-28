@@ -91,4 +91,15 @@ export class DrizzleFavoritesRepository implements FavoritesRepository {
       ratingAvg: Number(r.ratingAvg ?? 0),
     }));
   }
+
+  async getUserFavoriteIds(userId: string): Promise<string[]> {
+    const res = await db
+      .select({
+        branchId: publicUserFavorites.branchId,
+      })
+      .from(publicUserFavorites)
+      .where(eq(publicUserFavorites.userId, userId));
+
+    return res.map((r) => r.branchId);
+  }
 }

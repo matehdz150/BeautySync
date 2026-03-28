@@ -50,6 +50,7 @@ import { AuthModule } from '../auth/auth.module';
     // 🔥 opcional (por si lo usas en otros módulos)
     ToggleFavoriteUseCase,
     GetUserFavoritesUseCase,
+    FAVORITES_REPOSITORY,
   ],
 })
 export class FavoritesModule {}

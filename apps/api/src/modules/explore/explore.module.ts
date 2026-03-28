@@ -12,9 +12,11 @@ import { CacheModule } from '../cache/cache.module';
 import { DrizzleGlobalSearchRepository } from './infrasructure/adapters/drizzle-global-search.repository';
 import { GlobalSearchUseCase } from './core/use-cases/global-search.use-case';
 import { GlobalSearchController } from './application/controllers/global-search.controller';
+import { FavoritesModule } from '../favorites/favorites.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [CacheModule],
+  imports: [CacheModule, FavoritesModule, AuthModule],
   controllers: [GlobalSearchController],
   providers: [
     ExploreResolver,

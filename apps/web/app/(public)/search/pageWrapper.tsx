@@ -33,6 +33,7 @@ function ExploreContent({ initialBranches }: any) {
               ? filters.categories.join(",")
               : undefined,
         });
+        console.log(data)
 
         setBranches(data);
       } catch (e) {

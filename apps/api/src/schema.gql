@@ -13,6 +13,7 @@ type ServicePreviewGql {
 type ExploreBranchGql {
   id: String!
   name: String!
+  isFavorite: Boolean
   address: String
   lat: Float
   lng: Float

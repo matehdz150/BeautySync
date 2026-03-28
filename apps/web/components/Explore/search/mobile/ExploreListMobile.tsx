@@ -1,18 +1,20 @@
 "use client";
 
-import { Star } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
 import ExploreListSkeleton from "../ListSkeleton";
 import ExploreEmptyState from "../ExploreEmptystate";
+import { toggleFavorite } from "@/lib/services/public/favorites";
+import { useEffect, useState } from "react";
+import { usePublicAuth } from "@/context/public/PublicAuthContext";
 
 export default function ExploreListMobile({ branches = [], loading }: any) {
   const router = useRouter();
 
   return (
     <div className="px-4 pb-10">
-      
       {/* 🔥 LOADING */}
       {loading && <ExploreListSkeleton />}
 
@@ -45,6 +47,10 @@ export default function ExploreListMobile({ branches = [], loading }: any) {
             >
               {/* IMAGE */}
               <div className="relative w-full h-40 overflow-hidden">
+                <FavoriteButton
+                  branchId={b.id}
+                  initialFavorite={b.isFavorite}
+                />
                 {b.coverImage ? (
                   <img
                     src={b.coverImage}
@@ -59,17 +65,13 @@ export default function ExploreListMobile({ branches = [], loading }: any) {
                 {/* RATING */}
                 <div className="absolute top-3 left-3 flex items-center gap-1 bg-black text-white text-xs px-3 py-1 rounded-full shadow">
                   <Star className="w-3.5 h-3.5 fill-white" />
-                  <span className="font-medium">
-                    {b.ratingAvg.toFixed(1)}
-                  </span>
+                  <span className="font-medium">{b.ratingAvg.toFixed(1)}</span>
                 </div>
               </div>
 
               {/* INFO */}
               <div className="p-3 space-y-1.5">
-                <h2 className="font-semibold text-sm line-clamp-1">
-                  {b.name}
-                </h2>
+                <h2 className="font-semibold text-sm line-clamp-1">{b.name}</h2>
 
                 <p className="text-xs text-gray-500 line-clamp-1">
                   {b.address || "Sin dirección"}
@@ -104,5 +106,67 @@ export default function ExploreListMobile({ branches = [], loading }: any) {
         </motion.div>
       )}
     </div>
+  );
+}
+
+function FavoriteButton({
+  branchId,
+  initialFavorite,
+}: {
+  branchId: string;
+  initialFavorite?: boolean;
+}) {
+  const { user, loading: authLoading } = usePublicAuth();
+
+  const [isFavorite, setIsFavorite] = useState(initialFavorite ?? false);
+  const [loading, setLoading] = useState(false);
+
+  const isDisabled = !user || authLoading;
+
+  // 🔥 sync cuando cambian branches
+  useEffect(() => {
+    setIsFavorite(initialFavorite ?? false);
+  }, [initialFavorite]);
+
+  const handleClick = async (e: any) => {
+    e.stopPropagation();
+
+    if (isDisabled || loading) return;
+
+    setLoading(true);
+
+    // 🔥 optimistic
+    setIsFavorite((prev) => !prev);
+
+    try {
+      const res = await toggleFavorite(branchId);
+      setIsFavorite(res.isFavorite);
+    } catch {
+      // rollback
+      setIsFavorite((prev) => !prev);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      title={isDisabled ? "Inicia sesión" : ""}
+      className={`
+        absolute top-3 right-3 z-10
+        w-10 h-10 flex items-center justify-center
+        rounded-full bg-white
+        shadow-md
+        active:scale-90 transition
+        ${isDisabled ? "opacity-50" : ""}
+      `}
+    >
+      <Heart
+        className={`w-5 h-5 transition ${
+          isFavorite ? "fill-red-500 text-red-500" : "text-gray-600"
+        }`}
+      />
+    </button>
   );
 }

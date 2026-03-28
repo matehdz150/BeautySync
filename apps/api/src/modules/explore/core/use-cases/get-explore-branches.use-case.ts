@@ -6,9 +6,17 @@ import { ExploreFilters } from '../entities/explore-branch.entity';
 import { CACHE_PORT } from 'src/modules/cache/core/ports/tokens';
 import { CachePort } from 'src/modules/cache/core/ports/cache.port';
 
+import { FAVORITES_REPOSITORY } from 'src/modules/favorites/core/ports/tokens';
+import { FavoritesRepository } from 'src/modules/favorites/core/ports/favorites.repository';
+
 type ExploreBranchResult = Awaited<
   ReturnType<ExploreRepository['findExploreBranches']>
 >;
+
+// 👇 extendemos el resultado con favoritos
+type ExploreBranchWithFavorite = ExploreBranchResult[number] & {
+  isFavorite?: boolean;
+};
 
 @Injectable()
 export class GetExploreBranchesUseCase {
@@ -18,9 +26,15 @@ export class GetExploreBranchesUseCase {
 
     @Inject(CACHE_PORT)
     private readonly cache: CachePort,
+
+    @Inject(FAVORITES_REPOSITORY)
+    private readonly favoritesRepo: FavoritesRepository,
   ) {}
 
-  async execute(filters: ExploreFilters = {}) {
+  async execute(
+    filters: ExploreFilters = {},
+    userId?: string,
+  ): Promise<ExploreBranchWithFavorite[]> {
     // =========================
     // VALIDACIONES
     // =========================
@@ -80,25 +94,40 @@ export class GetExploreBranchesUseCase {
     };
 
     // =========================
-    // 🔥 CACHE KEY
+    // 🔥 CACHE KEY (NO userId)
     // =========================
     const key = this.buildCacheKey(normalizedFilters);
 
+    let baseResult: ExploreBranchResult;
+
     const cached = await this.cache.get<ExploreBranchResult>(key);
 
-    if (cached) return cached;
+    if (cached) {
+      baseResult = cached;
+    } else {
+      baseResult = await this.repo.findExploreBranches(normalizedFilters);
+
+      await this.cache.set(key, baseResult, 60);
+    }
 
     // =========================
-    // FETCH
+    // 🔥 SIN USUARIO → sin favoritos
     // =========================
-    const result = await this.repo.findExploreBranches(normalizedFilters);
+    if (!userId) {
+      return baseResult;
+    }
 
     // =========================
-    // 🔥 CACHE SET
+    // 🔥 FAVORITES MERGE
     // =========================
-    await this.cache.set(key, result, 60); // 1 min (ajustable)
+    const favoriteIds = await this.favoritesRepo.getUserFavoriteIds(userId);
 
-    return result;
+    const favoriteSet = new Set(favoriteIds);
+
+    return baseResult.map((b) => ({
+      ...b,
+      isFavorite: favoriteSet.has(b.id),
+    }));
   }
 
   // =========================
