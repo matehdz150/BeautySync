@@ -6,6 +6,7 @@ export interface StaffInvite {
   staffId: string;
   expiresAt: Date;
   accepted: boolean;
+  status: 'pending' | 'accepted' | 'expired';
 }
 
 export interface InvitesRepositoryPort {

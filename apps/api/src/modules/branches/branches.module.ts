@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 
 /* CONTROLLERS */
 
@@ -52,7 +52,7 @@ import { GetPublicBranchSummaryUseCase } from './core/use-cases/public/get-publi
 import { FavoritesModule } from '../favorites/favorites.module';
 
 @Module({
-  imports: [AuthModule, CacheModule, FavoritesModule],
+  imports: [forwardRef(() => AuthModule), CacheModule, FavoritesModule],
   controllers: [
     BranchesController,
     BranchImagesController,
@@ -108,6 +108,6 @@ import { FavoritesModule } from '../favorites/favorites.module';
       useClass: PublicBranchesDrizzleRepository,
     },
   ],
-  exports: [GetBranchForAiUseCase],
+  exports: [GetBranchForAiUseCase, PUBLIC_BRANCHES_REPOSITORY],
 })
 export class BranchesModule {}

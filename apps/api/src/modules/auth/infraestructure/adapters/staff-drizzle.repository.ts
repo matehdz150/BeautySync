@@ -15,6 +15,8 @@ export class StaffDrizzleRepository implements StaffRepositoryPort {
     id: string;
     email: string | null;
     branchId: string;
+    name: string;
+    avatarUrl: string | null;
   } | null> {
     const row = await this.db.query.staff.findFirst({
       where: eq(staff.id, id),
@@ -22,6 +24,8 @@ export class StaffDrizzleRepository implements StaffRepositoryPort {
         id: true,
         email: true,
         branchId: true,
+        name: true,
+        avatarUrl: true,
       },
     });
 

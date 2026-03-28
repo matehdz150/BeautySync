@@ -25,10 +25,7 @@ export default function StaffLayout({
 
   const nav = [
     { label: "Catálogo de staff", href: `${BASE}` },
-    { label: "Horarios", href: `${BASE}/schedules` },
-    { label: "Especialidades", href: `${BASE}/services` },
     { label: "Invitaciones", href: `${BASE}/invitations` },
-    { label: "Rendimiento", href: `${BASE}/metrics` },
     { label: "Auscencias y vacaciones", href: `${BASE}/blockedtimes` },
     { label: "Equipo no activo", href: `${BASE}/unactive` },
   ];

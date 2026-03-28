@@ -3,6 +3,8 @@ export interface StaffRepositoryPort {
     id: string;
     email: string | null;
     branchId: string;
+    name: string;
+    avatarUrl: string | null;
   } | null>;
 
   linkUser(staffId: string, userId: string): Promise<void>;

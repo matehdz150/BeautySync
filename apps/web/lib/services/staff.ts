@@ -22,6 +22,7 @@ export type Staff = {
   invited?: boolean;
   services: StaffService[];
   jobRole?: string;
+  isActive: boolean;
 };
 
 // lib/services/staff.ts
@@ -127,5 +128,35 @@ export async function updateStaff(
 export async function deleteStaff(staffId: string) {
   return api<{ ok: true }>(`/staff/${staffId}`, {
     method: "DELETE",
+  });
+}
+
+export type StaffWithInvite = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  avatarUrl: string | null;
+
+  status: "pending" | "active" | "disabled";
+  jobRole: string | null;
+  isActive: boolean;
+
+  invite: {
+    status: "pending" | "accepted" | "expired";
+    expiresAt: string | null;
+    createdAt: string | null;
+  } | null;
+};
+
+export async function getStaffWithInvites(branchId: string) {
+  return api<StaffWithInvite[]>(
+    `/staff/branch/${branchId}/with-invites`
+  );
+}
+
+export async function reinviteStaff(staffId: string) {
+  return api<{ ok: true }>(`/staff/${staffId}/reinvite`, {
+    method: "POST",
   });
 }

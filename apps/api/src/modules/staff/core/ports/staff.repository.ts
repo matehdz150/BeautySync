@@ -1,5 +1,10 @@
 import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
-import { Staff, StaffDetails, StaffListItem } from '../entities/staff.entity';
+import {
+  Staff,
+  StaffDetails,
+  StaffListItem,
+  StaffWithInvite,
+} from '../entities/staff.entity';
 
 export interface CreateStaffInput {
   branchId: string;
@@ -16,10 +21,20 @@ export interface UpdateStaffInput {
   jobRole?: string;
 }
 
+export type StaffInviteInfo = {
+  id: string;
+  staffId: string;
+  email: string;
+  role: 'staff' | 'manager';
+  status: 'pending' | 'accepted' | 'expired';
+  expiresAt: Date;
+  createdAt: Date;
+};
+
 export interface StaffRepository {
   findAll(): Promise<Staff[]>;
 
-  findById(id: string, user: AuthenticatedUser): Promise<StaffDetails | null>;
+  findById(id: string, user?: AuthenticatedUser): Promise<StaffDetails | null>;
   findByBranch(
     branchId: string,
     user: AuthenticatedUser,
@@ -49,4 +64,7 @@ export interface StaffRepository {
   ): Promise<{ ok: boolean }>;
 
   reinviteStaff(staffId: string): Promise<{ ok: boolean }>;
+
+  findByBranchWithInvites(branchId: string): Promise<StaffWithInvite[]>;
+  findLatestInviteByStaffId(staffId: string): Promise<StaffInviteInfo | null>;
 }

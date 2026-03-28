@@ -2,6 +2,8 @@ import { BadRequestException, Inject, NotFoundException } from '@nestjs/common';
 import * as invitesRepository from '../../ports/invites.repository';
 import * as staffRepository from '../../ports/staff.repository';
 import { INVITES_REPOSITORY, STAFF_REPOSITORY } from '../../ports/tokens';
+import { PUBLIC_BRANCHES_REPOSITORY } from 'src/modules/branches/core/ports/tokens';
+import { PublicBranchesRepository } from 'src/modules/branches/core/ports/public-branches.repository';
 
 export class ValidateInviteUseCase {
   constructor(
@@ -9,6 +11,8 @@ export class ValidateInviteUseCase {
     private invitesRepo: invitesRepository.InvitesRepositoryPort,
     @Inject(STAFF_REPOSITORY)
     private staffRepo: staffRepository.StaffRepositoryPort,
+    @Inject(PUBLIC_BRANCHES_REPOSITORY)
+    private publicBranchesRepo: PublicBranchesRepository,
   ) {}
 
   async execute(token: string) {
@@ -32,10 +36,26 @@ export class ValidateInviteUseCase {
       throw new NotFoundException('Staff not found');
     }
 
+    const branch = await this.publicBranchesRepo.getSummaryById(staff.branchId);
+
     return {
       email: invite.email,
-      staffName: staff.id,
       role: invite.role,
+
+      staff: {
+        name: staff.name,
+        avatarUrl: staff.avatarUrl ?? null,
+      },
+
+      branch: {
+        name: branch.name,
+        coverUrl: branch.coverUrl ?? null,
+
+        rating: {
+          average: branch.rating.average,
+          count: branch.rating.count,
+        },
+      },
     };
   }
 }

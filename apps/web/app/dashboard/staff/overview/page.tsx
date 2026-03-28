@@ -33,14 +33,13 @@ import { StaffActionsDropdown } from "@/components/staff/StaffActionsDropdown";
 export type StaffRow = {
   id: string;
   name: string;
-  role: string;
+  role?: string;
   email: string | null;
   avatar: string | null;
   schedule: string;
   status: "pending" | "active" | "inactive";
-  appointmentsToday: number;
   rating: number;
-  totalClients: number;
+  isActive: boolean;
 };
 
 export default function StaffSchedulesPage() {
@@ -65,6 +64,8 @@ export default function StaffSchedulesPage() {
         avatar: s.avatarUrl ?? null,
         schedule: s.schedule ?? "no definido",
         status: s.status ?? "active",
+        rating: s.rating ?? 0,
+        isActive: s.isActive,
       }));
 
       setStaff(mapped);

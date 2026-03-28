@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
 /* CONTROLLERS */
@@ -55,6 +55,7 @@ import { RefreshJwtGuard } from './application/guards/refresh-jwt.guard';
 import { RolesGuard } from './application/guards/roles.guard';
 import { ValidateBranchAccessUseCase } from './core/use-cases/manager/validate-branch-access.use-case';
 import { JwtRefreshStrategy } from './infraestructure/strategies/jwt-refresh.strategy';
+import { BranchesModule } from '../branches/branches.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { JwtRefreshStrategy } from './infraestructure/strategies/jwt-refresh.str
       secret: process.env.JWT_ACCESS_SECRET,
       signOptions: { expiresIn: '1h' },
     }),
+    forwardRef(() => BranchesModule),
   ],
 
   controllers: [AuthController, PublicAuthController],

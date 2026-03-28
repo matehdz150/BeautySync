@@ -19,6 +19,7 @@ import { DeleteStaffUseCase } from './core/use-cases/delete-staff.use-case';
 import { InviteStaffUseCase } from './core/use-cases/invite-staff.use-case';
 import { ReinviteStaffUseCase } from './core/use-cases/reinvite-staff.use-case';
 import { CacheModule } from '../cache/cache.module';
+import { GetStaffWithInvitesUseCase } from './core/use-cases/find-staff-invites-by-branch.use-case';
 
 @Module({
   imports: [AuthModule, CacheModule],
@@ -37,6 +38,7 @@ import { CacheModule } from '../cache/cache.module';
     GetStaffsUseCase,
     GetStaffByBranchUseCase,
     FindStaffForServiceUseCase,
+    GetStaffWithInvitesUseCase,
 
     CreateStaffUseCase,
     UpdateStaffUseCase,
