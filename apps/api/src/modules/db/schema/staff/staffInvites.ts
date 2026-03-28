@@ -13,6 +13,11 @@ export const staffInvites = pgTable('staff_invites', {
 
   accepted: boolean('accepted').default(false),
 
+  status: text('status')
+    .$type<'pending' | 'accepted' | 'expired'>()
+    .notNull()
+    .default('pending'),
+
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),

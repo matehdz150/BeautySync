@@ -32,6 +32,7 @@ import { DeleteStaffUseCase } from '../core/use-cases/delete-staff.use-case';
 
 import { InviteStaffUseCase } from '../core/use-cases/invite-staff.use-case';
 import { ReinviteStaffUseCase } from '../core/use-cases/reinvite-staff.use-case';
+import { GetStaffWithInvitesUseCase } from '../core/use-cases/find-staff-invites-by-branch.use-case';
 
 @Controller('staff')
 export class StaffController {
@@ -47,6 +48,7 @@ export class StaffController {
 
     private readonly inviteStaff: InviteStaffUseCase,
     private readonly reinviteStaff: ReinviteStaffUseCase,
+    private readonly getStaffWithInvites: GetStaffWithInvitesUseCase,
   ) {}
 
   @Get('for-service')
@@ -75,6 +77,11 @@ export class StaffController {
   @Roles('owner', 'manager')
   findAll() {
     return this.getStaffs.execute();
+  }
+
+  @Get('/branch/:branchId/with-invites')
+  findWithInvites(@Param('branchId') branchId: string) {
+    return this.getStaffWithInvites.execute(branchId);
   }
 
   @Get('branch/:branchId')

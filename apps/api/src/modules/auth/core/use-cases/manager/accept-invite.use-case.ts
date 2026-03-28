@@ -9,13 +9,13 @@ import {
   BRANCHES_REPOSITORY,
   INVITES_REPOSITORY,
   PASSWORD_HASHER,
-  PUBLIC_USERS_REPOSITORY,
   STAFF_REPOSITORY,
+  USERS_REPOSITORY,
 } from '../../ports/tokens';
 
 export class AcceptInviteUseCase {
   constructor(
-    @Inject(PUBLIC_USERS_REPOSITORY)
+    @Inject(USERS_REPOSITORY)
     private usersRepo: usersRepository.UsersRepositoryPort,
     @Inject(INVITES_REPOSITORY)
     private invitesRepo: invitesRepository.InvitesRepositoryPort,
@@ -60,23 +60,24 @@ export class AcceptInviteUseCase {
       throw new NotFoundException('Branch not found');
     }
 
-    const existing = await this.usersRepo.findByEmail(invite.email);
+    // 🔥 FIX IMPORTANTE
+    let user = await this.usersRepo.findByEmail(invite.email);
 
-    if (existing) {
-      throw new BadRequestException('Email already registered');
+    if (!user) {
+      const passwordHash = await this.hasher.hash(input.password);
+
+      user = await this.usersRepo.create({
+        email: invite.email,
+        passwordHash,
+        role: invite.role,
+        organizationId: branch.organizationId,
+      });
     }
 
-    const passwordHash = await this.hasher.hash(input.password);
-
-    const user = await this.usersRepo.create({
-      email: invite.email,
-      passwordHash,
-      role: invite.role,
-      organizationId: branch.organizationId,
-    });
-
+    // 🔥 LINK
     await this.staffRepo.linkUser(staff.id, user.id);
 
+    // 🔥 MARCAR INVITE
     await this.invitesRepo.markAccepted(invite.id);
 
     return { ok: true };

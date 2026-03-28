@@ -10,18 +10,20 @@ import * as client from 'src/modules/db/client';
 
 import {
   branches,
+  organizations,
   staff,
   staffInvites,
   staffServices,
   users,
 } from 'src/modules/db/schema';
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 
 import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
 
 import {
   CreateStaffInput,
+  StaffInviteInfo,
   StaffRepository,
   UpdateStaffInput,
 } from '../../core/ports/staff.repository';
@@ -30,6 +32,15 @@ import { resumirHorario } from '../../util';
 import { Staff, StaffDetails } from '../../core/entities/staff.entity';
 import { mailQueue } from 'src/modules/queues/mail/mail.queue';
 import { randomUUID } from 'crypto';
+
+function toIso(value: unknown): string {
+  if (!value) return new Date().toISOString();
+
+  if (value instanceof Date) return value.toISOString();
+
+  // postgres-js devuelve string
+  return new Date(value as string).toISOString();
+}
 
 @Injectable()
 export class StaffDrizzleRepository implements StaffRepository {
@@ -60,6 +71,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       email: person.email,
       avatarUrl: person.avatarUrl,
       jobRole: person.jobRole,
+      userId: person.id,
 
       schedules: person.schedules.map((s) => ({
         dayOfWeek: s.dayOfWeek,
@@ -106,25 +118,33 @@ export class StaffDrizzleRepository implements StaffRepository {
   }
 
   async delete(id: string): Promise<Staff> {
-    const [deleted] = await this.db
-      .delete(staff)
+    const [updated] = await this.db
+      .update(staff)
+      .set({
+        isActive: false,
+        status: 'disabled',
+      })
       .where(eq(staff.id, id))
       .returning();
 
-    if (!deleted) {
+    if (!updated) {
       throw new NotFoundException('Staff not found');
     }
 
+    if (!staff.isActive) {
+      throw new BadRequestException('Staff already disabled');
+    }
+
     return new Staff(
-      deleted.id,
-      deleted.branchId,
-      deleted.userId,
-      deleted.name,
-      deleted.email,
-      deleted.avatarUrl,
-      deleted.jobRole,
-      deleted.status,
-      deleted.isActive,
+      updated.id,
+      updated.branchId,
+      updated.userId,
+      updated.name,
+      updated.email,
+      updated.avatarUrl,
+      updated.jobRole,
+      updated.status,
+      updated.isActive,
     );
   }
 
@@ -157,6 +177,25 @@ export class StaffDrizzleRepository implements StaffRepository {
       },
     });
 
+    const ratings = await this.db.execute<{
+      staffId: string;
+      avgRating: number | null;
+    }>(sql`
+  SELECT 
+    prs.staff_id as "staffId",
+    AVG(pbr.rating)::float as "avgRating"
+  FROM public_booking_rating_staff prs
+  JOIN public_booking_ratings pbr 
+    ON pbr.id = prs.rating_id
+  GROUP BY prs.staff_id
+`);
+
+    const ratingMap = new Map<string, number>();
+
+    for (const r of ratings) {
+      ratingMap.set(r.staffId, r.avgRating ?? 0);
+    }
+
     return rows.map((s) => ({
       id: s.id,
       name: s.name,
@@ -165,6 +204,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       status: s.status,
       jobRole: s.jobRole,
       schedule: resumirHorario(s.schedules),
+      isActive: s.isActive,
 
       services: s.services.map((ss) => ({
         id: ss.service.id,
@@ -177,9 +217,8 @@ export class StaffDrizzleRepository implements StaffRepository {
         categoryIcon: ss.service.category?.icon ?? null,
       })),
 
-      rating: 5,
-      totalClients: 0,
-      appointmentsToday: 0,
+      // 🔥 REAL
+      rating: ratingMap.get(s.id) ?? 0,
     }));
   }
   async update(
@@ -324,7 +363,10 @@ export class StaffDrizzleRepository implements StaffRepository {
 
       await tx
         .update(staffInvites)
-        .set({ expiresAt: new Date() })
+        .set({
+          expiresAt: new Date(),
+          status: 'expired',
+        })
         .where(eq(staffInvites.staffId, staffId));
 
       const token = randomUUID();
@@ -344,12 +386,27 @@ export class StaffDrizzleRepository implements StaffRepository {
         .set({ status: 'pending' })
         .where(eq(staff.id, staffId));
 
+      const baseUrl = process.env.PUBLIC_APP_URL;
+      const inviteLink = `${baseUrl}/accept-invite?token=${token}`;
+
+      const organization = await tx.query.organizations.findFirst({
+        where: eq(organizations.id, branchRow.organizationId),
+      });
+
+      if (!organization) {
+        throw new NotFoundException('Organization not found');
+      }
+
       await mailQueue.add('invite-staff', {
         to: email,
-        inviteLink: `http://localhost:3000/accept-invite?token=${token}`,
-        invitedBy: user.id,
-        organization: 'BeautySync',
-        branch: 'Sucursal',
+        inviteLink,
+
+        organization: organization.name, // luego puedes mapear a nombre
+        branch: branchRow.name,
+
+        staffName: staffRow.name,
+        avatarUrl: staffRow.avatarUrl,
+
         role,
       });
 
@@ -375,17 +432,34 @@ export class StaffDrizzleRepository implements StaffRepository {
         throw new BadRequestException('Staff already accepted invite');
       }
 
+      // ❌ ya NO usamos userId como truth absoluto
+      // (esto lo valida el use case con invites)
+
+      const branchRow = await tx.query.branches.findFirst({
+        where: eq(branches.id, staffRow.branchId),
+      });
+
+      if (!branchRow) {
+        throw new NotFoundException('Branch not found');
+      }
+
+      // 🔥 1. EXPIRAR TODAS LAS INVITES ANTERIORES
       await tx
         .update(staffInvites)
-        .set({ expiresAt: new Date() })
+        .set({
+          expiresAt: new Date(),
+          status: 'expired',
+        })
         .where(eq(staffInvites.staffId, staffId));
 
-      const token = randomUUID();
-
+      // 🔥 2. TOMAR ROLE DE LA ÚLTIMA INVITE
       const lastInvite = await tx.query.staffInvites.findFirst({
         where: eq(staffInvites.staffId, staffId),
         orderBy: desc(staffInvites.createdAt),
       });
+
+      const token = randomUUID();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       const [invite] = await tx
         .insert(staffInvites)
@@ -394,20 +468,119 @@ export class StaffDrizzleRepository implements StaffRepository {
           staffId,
           role: lastInvite?.role ?? 'staff',
           token,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          expiresAt,
+          status: 'pending',
         })
         .returning();
 
+      // 🔥 3. MISMO BASE URL QUE inviteStaff
+      const baseUrl = process.env.PUBLIC_APP_URL;
+      const inviteLink = `${baseUrl}/accept-invite?token=${token}`;
+
+      const organization = await tx.query.organizations.findFirst({
+        where: eq(organizations.id, branchRow.organizationId),
+      });
+
+      if (!organization) {
+        throw new NotFoundException('Organization not found');
+      }
+
+      // 🔥 4. MISMO PAYLOAD QUE inviteStaff
       await mailQueue.add('invite-staff', {
         to: staffRow.email,
-        inviteLink: `http://localhost:3000/accept-invite?token=${token}`,
-        invitedBy: 'System',
-        organization: 'BeautySync',
-        branch: 'Sucursal',
+        inviteLink,
+
+        organization: organization.name, // igual que invite
+        branch: branchRow.name,
+
+        staffName: staffRow.name,
+        avatarUrl: staffRow.avatarUrl,
+
         role: invite.role,
       });
 
       return { ok: true };
     });
+  }
+  async findByBranchWithInvites(branchId: string) {
+    const result = await this.db.execute<{
+      id: string;
+      name: string;
+      email: string | null;
+      phone: string | null;
+      avatarUrl: string | null;
+      status: 'pending' | 'active' | 'disabled';
+      jobRole: string | null;
+      isActive: boolean;
+
+      inviteStatus: 'pending' | 'accepted' | 'expired' | null;
+      inviteExpiresAt: Date | null;
+      inviteCreatedAt: Date | null;
+    }>(sql`
+    SELECT DISTINCT ON (s.id)
+      s.id,
+      s.name,
+      s.email,
+      s.phone,
+      s.avatar_url as "avatarUrl",
+      s.status,
+      s."jobRole",
+      s.is_active as "isActive",
+
+      si.status as "inviteStatus",
+      si.expires_at as "inviteExpiresAt",
+      si.created_at as "inviteCreatedAt"
+
+    FROM staff s
+
+    LEFT JOIN staff_invites si
+      ON si.staff_id = s.id
+
+    WHERE s.branch_id = ${branchId}
+
+    ORDER BY s.id, si.created_at DESC
+  `);
+
+    const rows = Array.from(result);
+
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      phone: r.phone,
+      avatarUrl: r.avatarUrl,
+      status: r.status,
+      jobRole: r.jobRole,
+      isActive: r.isActive,
+
+      invite: r.inviteStatus
+        ? {
+            status: r.inviteStatus,
+            expiresAt: r.inviteExpiresAt ? toIso(r.inviteExpiresAt) : null,
+            createdAt: r.inviteCreatedAt ? toIso(r.inviteCreatedAt) : null,
+          }
+        : null,
+    }));
+  }
+
+  async findLatestInviteByStaffId(
+    staffId: string,
+  ): Promise<StaffInviteInfo | null> {
+    const invite = await this.db.query.staffInvites.findFirst({
+      where: eq(staffInvites.staffId, staffId),
+      orderBy: desc(staffInvites.createdAt),
+    });
+
+    if (!invite) return null;
+
+    return {
+      id: invite.id,
+      staffId: invite.staffId,
+      email: invite.email,
+      role: invite.role,
+      status: invite.status,
+      expiresAt: invite.expiresAt,
+      createdAt: invite.createdAt ?? new Date(),
+    };
   }
 }

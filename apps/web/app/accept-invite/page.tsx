@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, Star } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 
 export default function AcceptInvitePage() {
   const params = useSearchParams();
@@ -13,14 +15,34 @@ export default function AcceptInvitePage() {
 
   const token = params.get("token");
 
+  type InviteData = {
+    email: string;
+    role: string;
+    staff: {
+      name: string;
+      avatarUrl?: string | null;
+    };
+    branch: {
+      name: string;
+      coverUrl?: string | null;
+      rating?: {
+        average: number | null;
+        count: number;
+      };
+    };
+  };
+
+  const [invite, setInvite] = useState<InviteData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [invite, setInvite] = useState<{ email: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  // 1️⃣ validar token al cargar
+  // 🔥 VALIDACIONES
+  const isPasswordValid = password.length >= 6;
+  const passwordsMatch = password === confirmPassword;
+
   useEffect(() => {
     if (!token) {
       setError("Invalid invite link");
@@ -41,6 +63,16 @@ export default function AcceptInvitePage() {
   async function submit() {
     if (!token) return;
 
+    if (!isPasswordValid) {
+      setError("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    if (!passwordsMatch) {
+      setError("Las contraseñas no coinciden");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -50,8 +82,7 @@ export default function AcceptInvitePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token,
-          name,
-          password,
+          password, // 👈 solo esto
         }),
       });
 
@@ -59,8 +90,6 @@ export default function AcceptInvitePage() {
         const e = await res.json().catch(() => ({}));
         throw new Error(e.message ?? "Could not complete invite");
       }
-
-      alert("Account created — you can login now!");
 
       router.replace("/login");
     } catch (err: any) {
@@ -71,44 +100,125 @@ export default function AcceptInvitePage() {
   }
 
   return (
-    <div className="flex justify-center p-8">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Accept Invitation</CardTitle>
-        </CardHeader>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+      <h1 className="text-5xl font-bold tracking-tight mb-6">Belza</h1>
 
-        <CardContent className="space-y-4">
+      <Card className="w-full max-w-md rounded-2xl shadow-sm">
+        <CardContent className="space-y-6 p-6">
+          {/* LOADING */}
           {loading && (
-            <p className="flex gap-2 items-center text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" /> Checking your invite…
+            <p className="flex gap-2 items-center text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Verificando invitación...
             </p>
           )}
 
-          {error && <p className="text-red-500">{error}</p>}
+          {/* ERROR */}
+          {error && <p className="text-sm text-red-500">{error}</p>}
 
+          {/* FORM */}
           {invite && !loading && (
             <>
-              <p className="text-sm">
-                You are accepting the invitation for:
+              {/* 🔥 BRANCH */}
+              <div className="rounded-xl overflow-hidden border bg-white">
+                {invite.branch.coverUrl && (
+                  <img
+                    src={invite.branch.coverUrl}
+                    className="w-full h-32 object-cover"
+                  />
+                )}
+
+                <div className="p-4 space-y-1">
+                  <p className="font-semibold text-base">
+                    {invite.branch.name}
+                  </p>
+
+                  {invite.branch.rating && (
+                    <div className="flex items-center gap-1 text-sm">
+                      <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                      <span className="font-medium">
+                        {invite.branch.rating.average ?? "Nuevo"}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        ({invite.branch.rating.count})
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 🔥 STAFF */}
+              <div className="flex items-center gap-3 mt-2">
+                {invite.staff.avatarUrl && (
+                  <img
+                    src={invite.staff.avatarUrl}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                )}
+
+                <div>
+                  <p className="font-semibold text-sm">
+                    {invite.staff.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Te invitó a unirte
+                  </p>
+                </div>
+              </div>
+
+              {/* 🔥 EMAIL */}
+              <div className="text-sm text-muted-foreground mt-2">
+                Estás aceptando la invitación para:
                 <br />
-                <b>{invite.email}</b>
-              </p>
+                <span className="font-medium text-black">
+                  {invite.email}
+                </span>
+              </div>
 
-              <Input
-                placeholder="Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+              {/* PASSWORD */}
+              <div className="space-y-1">
+                <Label>Contraseña</Label>
+                <Input
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                {!isPasswordValid && password.length > 0 && (
+                  <p className="text-xs text-red-500">
+                    Debe tener al menos 6 caracteres
+                  </p>
+                )}
+              </div>
 
-              <Input
-                placeholder="Choose a password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              {/* CONFIRM PASSWORD */}
+              <div className="space-y-1">
+                <Label>Confirmar contraseña</Label>
+                <Input
+                  type="password"
+                  placeholder="Repite tu contraseña"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+                {!passwordsMatch && confirmPassword.length > 0 && (
+                  <p className="text-xs text-red-500">
+                    Las contraseñas no coinciden
+                  </p>
+                )}
+              </div>
 
-              <Button disabled={!name || !password} onClick={submit}>
-                Create account
+              <Button
+                className="w-full rounded-xl"
+                disabled={
+                  !password ||
+                  !confirmPassword ||
+                  !isPasswordValid ||
+                  !passwordsMatch ||
+                  loading
+                }
+                onClick={submit}
+              >
+                Crear cuenta
               </Button>
             </>
           )}

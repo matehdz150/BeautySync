@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import nodemailer from 'nodemailer';
+import nodemailer, { Transporter } from 'nodemailer';
 import { Worker as BullWorker } from 'bullmq';
 import 'dotenv/config';
 
@@ -9,9 +11,12 @@ import type { BookingMailPayload } from '../mail/types/mail.types';
 import type { BookingMailName } from '../mail/types/mail.types';
 
 import { buildBookingMail } from '../mail/booking/booking-mail.router';
+import {
+  buildStaffInviteMail,
+  StaffInviteMailPayload,
+} from '../mail/staff/staff-mail.builder';
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-const transporter = nodemailer.createTransport({
+const transporter: Transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
   secure: false,
@@ -42,25 +47,18 @@ export const mailWorker = new BullWorker(
     // STAFF INVITE
     // =============================
     if (job.name === 'invite-staff') {
-      const { to, inviteLink, invitedBy, organization, branch } = job.data;
+      const data = job.data as StaffInviteMailPayload;
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      const { subject, html } = await buildStaffInviteMail(data);
+
       await transporter.sendMail({
-        from: '"BeautySync" <no-reply@beautysync.com>',
-        to,
-        subject: `${invitedBy} te invitó a unirte a ${organization}`,
-        html: `
-          <h2>Te invitaron a ${organization}</h2>
-          <p><strong>${invitedBy}</strong> te invitó ${
-            branch ? `a la sucursal <strong>${branch}</strong>` : ''
-          }.</p>
-          <p>Da clic aquí para aceptar:</p>
-          <a href="${inviteLink}">${inviteLink}</a>
-          <p>Este enlace expira en 24 horas.</p>
-        `,
+        from: '"Belza" <no-reply@belza.com>',
+        to: data.to,
+        subject,
+        html,
       });
 
-      console.log('📨 Email sent →', to);
+      console.log('📨 Invite email sent →', data.to);
       return;
     }
 
@@ -75,9 +73,8 @@ export const mailWorker = new BullWorker(
       console.log('HTML type:', typeof html);
       console.log('HTML preview:', html?.slice?.(0, 80));
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await transporter.sendMail({
-        from: '"BeautySync" <no-reply@beautysync.com>',
+        from: '"Belza" <no-reply@belza.com>',
         to: data.to,
         subject,
         html,

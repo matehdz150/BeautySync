@@ -18,6 +18,7 @@ export interface StaffDetails {
   email: string | null;
   avatarUrl: string | null;
   jobRole: string | null;
+  userId: string | null;
 
   schedules: {
     dayOfWeek: number;
@@ -34,6 +35,7 @@ export interface StaffListItem {
   email: string | null;
   avatarUrl: string | null;
   jobRole: string | null;
+  isActive: boolean;
 
   services: {
     id: string;
@@ -42,3 +44,20 @@ export interface StaffListItem {
     priceCents?: number | null;
   }[];
 }
+
+export type StaffWithInvite = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  avatarUrl: string | null;
+  status: 'pending' | 'active' | 'disabled';
+  jobRole: string | null;
+  isActive: boolean;
+
+  invite: {
+    status: 'pending' | 'accepted' | 'expired';
+    expiresAt: string | null;
+    createdAt: string | null;
+  } | null;
+};

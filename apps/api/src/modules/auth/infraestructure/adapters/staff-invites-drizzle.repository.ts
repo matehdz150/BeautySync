@@ -28,13 +28,17 @@ export class StaffInvitesDrizzleRepository implements InvitesRepositoryPort {
       staffId: invite.staffId,
       expiresAt: invite.expiresAt,
       accepted: invite.accepted ?? false,
+      status: invite.status,
     };
   }
 
   async markAccepted(inviteId: string): Promise<void> {
     await this.db
       .update(staffInvites)
-      .set({ accepted: true })
+      .set({
+        accepted: true,
+        status: 'accepted',
+      })
       .where(eq(staffInvites.id, inviteId));
   }
 }

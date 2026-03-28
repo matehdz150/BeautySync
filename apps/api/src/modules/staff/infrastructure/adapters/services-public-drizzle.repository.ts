@@ -99,15 +99,14 @@ export class ServicesPublicDrizzleRepository implements ServicePublicRepository 
         avatarUrl: staff.avatarUrl,
       })
       .from(staffServices)
-      .innerJoin(
-        staff,
+      .innerJoin(staff, eq(staff.id, staffServices.staffId))
+      .where(
         and(
-          eq(staff.id, staffServices.staffId),
+          eq(staffServices.serviceId, serviceId),
           eq(staff.branchId, branch.id),
-          eq(staff.isActive, true),
+          eq(staff.isActive, true), // 🔥 AQUÍ TAMBIÉN
         ),
       )
-      .where(eq(staffServices.serviceId, serviceId))
       .orderBy(staff.name);
 
     return rows;
