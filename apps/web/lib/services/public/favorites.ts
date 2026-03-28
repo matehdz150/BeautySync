@@ -48,3 +48,35 @@ export async function removeFavorite(branchId: string) {
     method: "DELETE",
   });
 }
+
+/* =====================
+   TYPES
+===================== */
+
+export type PublicBranchSummary = {
+  id: string;
+  name: string;
+  address: string | null;
+  slug: string | null;
+  lat: string | null;
+  lng: string | null;
+
+  coverUrl: string | null;
+
+  rating: {
+    average: number | null;
+    count: number;
+  };
+
+  isFavorite: boolean;
+};
+
+/* =====================
+   GET BRANCH SUMMARY
+===================== */
+
+export async function getPublicBranchSummary(branchId: string) {
+  return publicFetch<PublicBranchSummary>(
+    `/branches/${branchId}/summary`
+  );
+}

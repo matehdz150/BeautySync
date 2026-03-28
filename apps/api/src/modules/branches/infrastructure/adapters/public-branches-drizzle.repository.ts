@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import * as client from 'src/modules/db/client';
 import { PublicBranchesRepository } from '../../core/ports/public-branches.repository';
-import { PublicBranch } from '../../core/entities/public-branch.entity';
+import {
+  PublicBranch,
+  PublicBranchSummary,
+} from '../../core/entities/public-branch.entity';
 import { and, eq, sql, desc } from 'drizzle-orm';
 import { branches } from 'src/modules/db/schema/branches/branches';
 import {
@@ -15,6 +18,7 @@ import {
   publicBookings,
   services,
 } from 'src/modules/db/schema';
+import { branchImages } from 'src/modules/db/schema/branches';
 
 @Injectable()
 export class PublicBranchesDrizzleRepository implements PublicBranchesRepository {
@@ -130,6 +134,74 @@ export class PublicBranchesDrizzleRepository implements PublicBranchesRepository
             }
           : null,
       })),
+    };
+  }
+
+  async getSummaryById(id: string): Promise<PublicBranchSummary> {
+    if (!id) {
+      throw new BadRequestException('Id requerido');
+    }
+
+    const branch = await this.db.query.branches.findFirst({
+      where: eq(branches.id, id),
+    });
+
+    if (!branch) {
+      throw new NotFoundException('Sucursal no encontrada');
+    }
+
+    if (!branch.publicPresenceEnabled) {
+      throw new ForbiddenException('Sucursal no pública');
+    }
+
+    /* ========================= */
+    /* COVER */
+    /* ========================= */
+
+    const cover = await this.db.query.branchImages.findFirst({
+      where: and(
+        eq(branchImages.branchId, branch.id),
+        eq(branchImages.isCover, true),
+      ),
+    });
+
+    /* ========================= */
+    /* RATING */
+    /* ========================= */
+
+    const ratingAgg = await this.db
+      .select({
+        average: sql<number>`AVG(${publicBookingRatings.rating})`,
+        count: sql<number>`COUNT(${publicBookingRatings.id})`,
+      })
+      .from(publicBookingRatings)
+      .innerJoin(
+        publicBookings,
+        eq(publicBookings.id, publicBookingRatings.bookingId),
+      )
+      .where(eq(publicBookings.branchId, branch.id));
+
+    const ratingCount = Number(ratingAgg[0]?.count ?? 0);
+
+    const ratingAverage =
+      ratingCount > 0 && ratingAgg[0]?.average !== null
+        ? Number(Number(ratingAgg[0].average).toFixed(1))
+        : null;
+
+    return {
+      id: branch.id,
+      name: branch.name,
+      address: branch.address,
+      slug: branch.publicSlug,
+      lat: branch.lat,
+      lng: branch.lng,
+
+      coverUrl: cover?.url ?? null,
+
+      rating: {
+        average: ratingAverage,
+        count: ratingCount,
+      },
     };
   }
 }
