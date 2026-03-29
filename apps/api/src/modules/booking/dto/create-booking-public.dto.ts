@@ -49,6 +49,12 @@ export class CreatePublicBookingDto {
   @IsString()
   notes?: string | null;
 
+  @IsOptional()
+  giftCardCode?: string;
+
+  @IsOptional()
+  giftCardAmountCents?: number;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PublicAppointmentDraftDto)

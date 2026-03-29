@@ -34,6 +34,7 @@ import { ExploreModule } from './modules/explore/explore.module';
 import { ConfigModule } from '@nestjs/config';
 import { FavoritesModule } from './modules/favorites/favorites.module';
 import { ProductsModule } from './modules/products/products.module';
+import { GiftCardsModule } from './modules/gift-cards/gift-cards.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { ProductsModule } from './modules/products/products.module';
     ExploreModule,
     FavoritesModule,
     ProductsModule,
+    GiftCardsModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

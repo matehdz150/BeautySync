@@ -25,6 +25,8 @@ import {
   branchSettings,
   branches,
   clients,
+  giftCardTransactions,
+  giftCards,
   payments,
   publicBookings,
   publicUserClients,
@@ -276,6 +278,60 @@ export class BookingsCoreService {
           branch,
         });
 
+        let giftCardUsed = 0;
+
+        if (dto.giftCardCode && dto.giftCardAmountCents) {
+          const giftCard = await tx.query.giftCards.findFirst({
+            where: eq(giftCards.code, dto.giftCardCode),
+          });
+
+          if (!giftCard) {
+            throw new BadRequestException('Gift card not found');
+          }
+
+          if (giftCard.branchId !== branch.id) {
+            throw new ForbiddenException(
+              'Gift card no pertenece a esta sucursal',
+            );
+          }
+
+          if (giftCard.status !== 'active') {
+            throw new BadRequestException('Gift card no válida');
+          }
+
+          if (giftCard.expiresAt && giftCard.expiresAt < new Date()) {
+            throw new BadRequestException('Gift card expirada');
+          }
+
+          if (giftCard.balanceCents < dto.giftCardAmountCents) {
+            throw new BadRequestException('Saldo insuficiente');
+          }
+
+          // 🔥 aplicar descuento
+          giftCardUsed = Math.min(dto.giftCardAmountCents, bookingTotalCents);
+
+          const newBalance = giftCard.balanceCents - giftCardUsed;
+
+          // 🔥 update balance
+          await tx
+            .update(giftCards)
+            .set({
+              balanceCents: newBalance,
+              updatedAt: new Date(),
+            })
+            .where(eq(giftCards.id, giftCard.id));
+
+          // 🔥 transaction con referencia a booking
+          await tx.insert(giftCardTransactions).values({
+            giftCardId: giftCard.id,
+            type: 'redeem',
+            amountCents: giftCardUsed,
+            referenceType: 'booking',
+            referenceId: bookingId, // 🔥 CLAVE
+            createdAt: new Date(),
+          });
+        }
+
         await tx.insert(publicBookings).values({
           id: bookingId,
           branchId: branch.id,
@@ -284,6 +340,8 @@ export class BookingsCoreService {
           endsAt: bookingEndsAtUtc,
           status: 'CONFIRMED',
           paymentMethod: (dto.paymentMethod ?? 'ONSITE') as 'ONSITE' | 'ONLINE',
+          paidWithGiftCardCents: giftCardUsed,
+          remainingToPayCents: bookingTotalCents - giftCardUsed,
           totalCents: bookingTotalCents,
           notes: dto.notes ?? null,
         });
