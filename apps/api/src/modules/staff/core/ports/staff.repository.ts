@@ -67,4 +67,7 @@ export interface StaffRepository {
 
   findByBranchWithInvites(branchId: string): Promise<StaffWithInvite[]>;
   findLatestInviteByStaffId(staffId: string): Promise<StaffInviteInfo | null>;
+  findInactiveByBranch(branchId: string): Promise<Staff[]>;
+
+  activate(staffId: string): Promise<Staff>;
 }

@@ -51,4 +51,6 @@ export interface BranchesRepository {
     branch: Branch;
     services: { name: string }[];
   }>;
+
+  findById(branchId: string): Promise<Branch | null>;
 }

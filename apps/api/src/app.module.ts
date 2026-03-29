@@ -33,6 +33,7 @@ import { GraphqlModule } from './graphql.module';
 import { ExploreModule } from './modules/explore/explore.module';
 import { ConfigModule } from '@nestjs/config';
 import { FavoritesModule } from './modules/favorites/favorites.module';
+import { ProductsModule } from './modules/products/products.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { FavoritesModule } from './modules/favorites/favorites.module';
     GraphqlModule,
     ExploreModule,
     FavoritesModule,
+    ProductsModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

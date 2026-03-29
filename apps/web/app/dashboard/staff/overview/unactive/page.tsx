@@ -1,17 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  ArrowUpDown,
-  Plus,
-  Search,
-  SlidersVertical,
-  Star,
-} from "lucide-react";
+import { ArrowUpDown, Plus, Search, SlidersVertical } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { useBranch } from "@/context/BranchContext";
-import { getStaffByBranch } from "@/lib/services/staff";
+import { getInactiveStaff, activateStaff, Staff } from "@/lib/services/staff";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,74 +17,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 import { useRouter } from "next/navigation";
-import { EmptyStaffState } from "./EmptyStaffState";
-import { StaffActionsDropdown } from "@/components/staff/StaffActionsDropdown";
+import { EmptyStaffState } from "../EmptyStaffState";
 
-export type StaffRow = {
-  id: string;
-  name: string;
-  role?: string;
-  email: string | null;
-  avatar: string | null;
-  schedule: string;
-  status: "pending" | "active" | "inactive";
-  rating: number;
-  isActive: boolean;
-};
-
-export default function StaffSchedulesPage() {
+export default function InactiveStaffPage() {
   const { branch } = useBranch();
   const router = useRouter();
 
-  const [staff, setStaff] = useState<StaffRow[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
   const [query, setQuery] = useState("");
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [errorById, setErrorById] = useState<Record<string, string>>({});
 
-  // 🔥 trigger de recarga
-  const [reloadKey, setReloadKey] = useState(0);
-
-  // =========================
-  // 🔥 LOAD DATA
-  // =========================
   useEffect(() => {
     if (!branch) return;
 
     async function load() {
-      const data = await getStaffByBranch(branch.id);
-
-      const mapped: StaffRow[] = data.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        email: s.email ?? "—",
-        avatar: s.avatarUrl ?? null,
-        schedule: s.schedule ?? "no definido",
-        status: s.status ?? "active",
-        rating: s.rating ?? 0,
-        isActive: s.isActive,
-      }));
-
-      setStaff(mapped);
+      const data = await getInactiveStaff(branch.id);
+      setStaff(data);
     }
 
     load();
-  }, [branch, reloadKey]); // 🔥 clave
+  }, [branch]);
 
-  // =========================
-  // 🔥 LISTENER GLOBAL
-  // =========================
-  useEffect(() => {
-    function handleReload() {
-      setReloadKey((k) => k + 1);
-    }
-
-    window.addEventListener("staff:updated", handleReload);
-
-    return () => {
-      window.removeEventListener("staff:updated", handleReload);
-    };
-  }, []);
-
-  function shortEmail(email?: string, max = 22) {
+  function shortEmail(email?: string | null, max = 22) {
     if (!email) return "—";
     return email.length > max ? email.slice(0, max) + "…" : email;
   }
@@ -98,18 +50,53 @@ export default function StaffSchedulesPage() {
     router.push(`/dashboard/staff/actions/edit/${id}`);
   }
 
-  // 🔥 filtro
+  async function handleActivate(staffId: string) {
+    try {
+      setLoadingId(staffId);
+
+      // limpiar error previo
+      setErrorById((prev) => {
+        const copy = { ...prev };
+        delete copy[staffId];
+        return copy;
+      });
+
+      await activateStaff(staffId);
+
+      // 🔥 update optimista → lo quitamos de la lista
+      setStaff((prev) => prev.filter((s) => s.id !== staffId));
+    } catch (err: any) {
+      console.error(err);
+
+      let message =
+        err?.message ||
+        err?.response?.data?.message ||
+        "No se pudo activar el staff";
+
+      if (message.includes("already active")) {
+        message = "El staff ya está activo";
+      }
+
+      setErrorById((prev) => ({
+        ...prev,
+        [staffId]: message,
+      }));
+    } finally {
+      setLoadingId(null);
+    }
+  }
+
   const filtered = staff.filter((s) =>
-    s.name.toLowerCase().includes(query.toLowerCase())
+    s.name.toLowerCase().includes(query.toLowerCase()),
   );
 
   return (
     <div className="space-y-6 px-3 py-5">
       {/* TITLE */}
       <div>
-        <h2 className="text-2xl font-semibold">Catalogo de staff</h2>
+        <h2 className="text-2xl font-semibold">Staff inactivo</h2>
         <p className="text-sm text-muted-foreground">
-          Encuentra a los miembros de tu staff facilmente
+          Reactiva miembros del staff deshabilitados
         </p>
       </div>
 
@@ -129,7 +116,6 @@ export default function StaffSchedulesPage() {
 
         <div className="flex gap-2 relative">
           <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-
           <Input
             placeholder="Buscar por nombre…"
             className="pl-11 shadow-none w-100 bg-white rounded-2xl"
@@ -137,11 +123,7 @@ export default function StaffSchedulesPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
 
-          <Button
-            onClick={() => {
-              router.push("/dashboard/staff/actions/new");
-            }}
-          >
+          <Button onClick={() => router.push("/dashboard/staff/actions/new")}>
             Agregar staff
             <Plus />
           </Button>
@@ -157,15 +139,15 @@ export default function StaffSchedulesPage() {
             <Table className="table-fixed">
               <colgroup>
                 <col className="w-[30%]" />
+                <col className="w-[20%]" />
                 <col className="w-[30%]" />
-                <col className="w-[26%]" />
-                <col className="w-[30%]" />
+                <col className="w-[20%]" />
               </colgroup>
 
               <TableHeader>
                 <TableRow>
                   <TableHead className="px-5">Staff</TableHead>
-                  <TableHead>Rating</TableHead>
+                  <TableHead>Estado</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead className="text-right pr-6"></TableHead>
                 </TableRow>
@@ -176,56 +158,45 @@ export default function StaffSchedulesPage() {
             <div className="overflow-y-auto flex-1 min-h-0">
               <Table className="table-fixed">
                 <colgroup>
-                  <col className="w-[32%]" />
-                  <col className="w-[24%]" />
-                  <col className="w-[26%]" />
                   <col className="w-[30%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[30%]" />
+                  <col className="w-[20%]" />
                 </colgroup>
 
                 <TableBody>
                   {filtered.map((s) => (
                     <TableRow
                       key={s.id}
-                      className="hover:bg-indigo-50 cursor-pointer w-full"
+                      className="hover:bg-indigo-50 cursor-pointer"
                       onClick={() => goToEdit(s.id)}
                     >
                       {/* STAFF */}
                       <TableCell className="px-5 py-5">
                         <div className="flex items-center gap-4">
-                          <div className="relative">
-                            <Avatar className="h-12 w-12">
-                              <AvatarImage src={s.avatar ?? undefined} />
-                              <AvatarFallback className="bg-black text-lg text-white">
-                                {s.name.charAt(0).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-
-                            {s.status === "active" && (
-                              <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-green-500 border border-white" />
-                            )}
-
-                            {s.status === "pending" && (
-                              <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-indigo-400 border border-white" />
-                            )}
-                          </div>
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={s.avatarUrl ?? undefined} />
+                            <AvatarFallback className="bg-black text-lg text-white">
+                              {s.name.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
 
                           <div>
-                            <p className="font-semibold text-[15px] leading-tight">
+                            <p className="font-semibold text-[15px]">
                               {s.name}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {s.role ?? "Staff"}
+                              {s.jobRole ?? "Staff"}
                             </p>
                           </div>
                         </div>
                       </TableCell>
 
-                      {/* RATING */}
+                      {/* STATUS */}
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                          <span className="font-medium">{s.rating ?? 5}</span>
-                        </div>
+                        <span className="text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-700">
+                          Inactivo
+                        </span>
                       </TableCell>
 
                       {/* EMAIL */}
@@ -235,10 +206,24 @@ export default function StaffSchedulesPage() {
 
                       {/* ACTIONS */}
                       <TableCell
-                        className="text-right"
+                        className="text-right space-y-1"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <StaffActionsDropdown staffId={s.id} />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={loadingId === s.id}
+                          onClick={() => handleActivate(s.id)}
+                        >
+                          {loadingId === s.id ? "Activando..." : "Reactivar"}
+                        </Button>
+
+                        {/* ERROR */}
+                        {errorById[s.id] && (
+                          <p className="text-xs text-red-500 mt-1">
+                            {errorById[s.id]}
+                          </p>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

@@ -177,4 +177,12 @@ export class BranchesDrizzleRepository implements BranchesRepository {
       services: branchServices,
     };
   }
+
+  async findById(branchId: string): Promise<Branch | null> {
+    const row = await this.db.query.branches.findFirst({
+      where: eq(branches.id, branchId),
+    });
+
+    return row ?? null;
+  }
 }

@@ -1,201 +1,271 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  ArrowLeft,
-  Clock,
-  Phone,
-  CheckCircle,
-  AlertCircle,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { DateTime } from "luxon";
+import { useBranch } from "@/context/BranchContext";
+import { api } from "@/lib/services/api";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 type Appointment = {
   id: string;
-  date: string;
-  time: string;
-  durationMin: number;
-  clientName: string;
-  service: string;
-  phone: string;
-  status: "confirmed" | "pending";
+  title: string;
+  start: string;
+  end: string;
 };
 
-const STAFF = {
-  name: "Maria Santos",
-  role: "Estilista Senior",
-  initials: "MS",
-  schedule: "9:00 – 18:00",
-  phone: "+1 555–0101",
-};
+const DAYS = 5;
 
-const WEEK = [
-  { label: "JUE", day: 26, date: "2025-12-26" },
-  { label: "VIE", day: 27, date: "2025-12-27" },
-  { label: "SAB", day: 28, date: "2025-12-28" },
-  { label: "DOM", day: 29, date: "2025-12-29" },
-  { label: "LUN", day: 30, date: "2025-12-30" },
-  { label: "MAR", day: 31, date: "2025-12-31" },
-  { label: "MIE", day: 1, date: "2026-01-01" },
-];
+export default function CalendarPage() {
+  const { branch } = useBranch();
 
-const APPTS: Appointment[] = [
-  {
-    id: "1",
-    date: "2025-12-26",
-    time: "09:00",
-    durationMin: 90,
-    clientName: "Emma Wilson",
-    service: "Corte + Styling",
-    phone: "+1 555–1001",
-    status: "confirmed",
-  },
-  {
-    id: "2",
-    date: "2025-12-26",
-    time: "12:30",
-    durationMin: 120,
-    clientName: "Michael Brown",
-    service: "Color Completo",
-    phone: "+1 555–1002",
-    status: "pending",
-  },
-];
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export default function Page() {
-  const [selected, setSelected] = useState(0);
-  const day = WEEK[selected];
+  const [currentWeekStart, setCurrentWeekStart] = useState(
+    DateTime.now().startOf("week")
+  );
 
-  const appointments = APPTS.filter(a => a.date === day.date);
-  const totalMinutes = appointments.reduce((a,b)=>a+b.durationMin,0);
+  // =========================
+  // FETCH
+  // =========================
+  useEffect(() => {
+    if (!branch) return;
 
-  const confirmed = appointments.filter(a => a.status==="confirmed").length;
-  const pending = appointments.filter(a => a.status==="pending").length;
+    async function load() {
+      try {
+        setLoading(true);
+
+        const start = currentWeekStart.toISODate();
+        const end = currentWeekStart.plus({ days: DAYS - 1 }).toISODate();
+
+        const data = await api<any[]>(
+          `/appointments?branchId=${branch.id}&start=${start}&end=${end}`
+        );
+
+        const mapped: Appointment[] = data.map((a) => ({
+          id: a.id,
+          title: a.serviceName ?? "Cita",
+          start: a.start,
+          end: a.end,
+        }));
+
+        setAppointments(mapped);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, [branch, currentWeekStart]);
+
+  // =========================
+  // DAYS
+  // =========================
+  const days = Array.from({ length: DAYS }).map((_, i) =>
+    currentWeekStart.plus({ days: i })
+  );
+
+  // =========================
+  // GROUP BY DAY
+  // =========================
+  const byDay = useMemo(() => {
+    const map: Record<string, Appointment[]> = {};
+
+    for (const d of days) {
+      map[d.toISODate()!] = [];
+    }
+
+    for (const a of appointments) {
+      const date = DateTime.fromISO(a.start).toISODate();
+      if (date && map[date]) {
+        map[date].push(a);
+      }
+    }
+
+    Object.keys(map).forEach((key) => {
+      map[key].sort((a, b) => a.start.localeCompare(b.start));
+    });
+
+    return map;
+  }, [appointments, days]);
+
+  // =========================
+  // NAVIGATION (🔥 corregido)
+  // =========================
+  function goPrevWeek() {
+    setCurrentWeekStart((prev) => prev.minus({ days: DAYS }));
+  }
+
+  function goNextWeek() {
+    setCurrentWeekStart((prev) => prev.plus({ days: DAYS }));
+  }
+
+  if (loading) {
+    return <div className="p-6">Cargando calendario...</div>;
+  }
 
   return (
-    <main className="min-h-screen flex justify-center py-10">
-      <div className="w-full max-w-5xl space-y-6">
+    <div className="p-6 flex gap-6 h-[90vh]">
+      {/* ========================= */}
+      {/* 🔥 SIDEBAR */}
+      {/* ========================= */}
+      <div className="w-[260px] flex flex-col gap-4">
+        {(() => {
+          const today = DateTime.now();
+          const todayKey = today.toISODate()!;
+          const todayAppointments = byDay[todayKey] ?? [];
 
-        {/* ===== HEADER CARD WITH GRADIENT ===== */}
-        <section className="rounded-3xl overflow-hidden shadow-sm">
-          <div className="bg-gradient-to-r from-black to-neutral-800 px-6 py-6 flex items-center gap-4">
+          return (
+            <>
+              <h1 className="text-2xl font-semibold">Hoy</h1>
 
-            <div className="flex items-center gap-4 text-white ml-2">
-              <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center font-semibold">
-                {STAFF.initials}
+              <div className="bg-[#f7f7f7] rounded-3xl p-6 text-center">
+                <p className="text-5xl font-bold">{today.day}</p>
+                <p className="text-sm text-muted-foreground capitalize">
+                  {today.setLocale("es").toFormat("cccc")}
+                </p>
               </div>
 
-              <div>
-                <p className="text-lg font-semibold">{STAFF.name}</p>
-                <p className="text-sm opacity-90">{STAFF.role}</p>
+              <div className="bg-gray-50 rounded-2xl p-4 text-sm">
+                Tienes {todayAppointments.length} citas hoy
               </div>
-            </div>
-          </div>
 
-          {/* Info bar */}
-          <div className="bg-white px-6 py-4 grid grid-cols-3 gap-4 text-sm text-neutral-700">
-            <div className="bg-neutral-100 rounded-xl p-3 flex flex-col items-center">
-              <Clock className="h-4 w-4 mb-1 opacity-70" />
-              {STAFF.schedule}
-            </div>
+              <div className="flex flex-col gap-2">
+                <StatCard
+                  color="bg-gray-50"
+                  value={todayAppointments.length}
+                  label="Citas hoy"
+                />
 
-            <div className="bg-neutral-100 rounded-xl p-3 flex flex-col items-center">
-              <Phone className="h-4 w-4 mb-1 opacity-70" />
-              {STAFF.phone}
-            </div>
+                <StatCard
+                  color="bg-gray-50"
+                  value={
+                    appointments.filter(
+                      (a) => DateTime.fromISO(a.start) > DateTime.now()
+                    ).length
+                  }
+                  label="Próximas"
+                />
 
-            <div className="bg-neutral-100 rounded-xl p-3 flex flex-col items-center">
-              <span>Esta semana</span>
-              <strong>6 citas</strong>
-            </div>
-          </div>
-        </section>
+                <StatCard
+                  color="bg-gray-50"
+                  value={
+                    appointments.filter(
+                      (a) => DateTime.fromISO(a.start) < DateTime.now()
+                    ).length
+                  }
+                  label="Completadas"
+                />
+              </div>
+            </>
+          );
+        })()}
+      </div>
 
-        {/* ===== WEEK STRIP ===== */}
-        <section className="bg-white rounded-2xl shadow-sm border px-3 py-3 flex items-center justify-between">
-          <button>{"<"}</button>
+      {/* ========================= */}
+      {/* 🔥 CALENDARIO */}
+      {/* ========================= */}
+      <div className="flex-1 flex flex-col gap-6">
+        {/* HEADER */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-4xl font-semibold">
+            {(() => {
+              const lastDay = days.at(-1)!;
+
+              const text =
+                days[0].month === lastDay.month
+                  ? days[0].setLocale("es").toFormat("LLLL yyyy")
+                  : `${days[0].setLocale("es").toFormat("LLL")} - ${lastDay
+                      .setLocale("es")
+                      .toFormat("LLL yyyy")}`;
+
+              return text.charAt(0).toUpperCase() + text.slice(1);
+            })()}
+          </h1>
 
           <div className="flex gap-3">
-            {WEEK.map((d,i)=>(
-              <button
-                key={d.date}
-                onClick={()=>setSelected(i)}
-                className={cn(
-                  "rounded-xl px-3 py-2 flex flex-col items-center",
-                  i===selected && "bg-emerald-600 text-white"
-                )}
-              >
-                <span className="text-[11px]">{d.label}</span>
-                <span className="font-semibold">{d.day}</span>
-              </button>
-            ))}
-          </div>
+            <Button
+              variant="primary"
+              onClick={goPrevWeek}
+              className="rounded-full w-12 h-12"
+            >
+              <ChevronLeft />
+            </Button>
 
-          <button>{">"}</button>
-        </section>
-
-        {/* ===== SUMMARY ===== */}
-        <div className="flex justify-between text-sm text-neutral-600">
-          <span>
-            Hoy, {day.day} de Dic — {appointments.length} citas • {totalMinutes/60}h {totalMinutes%60}min
-          </span>
-
-          <div className="flex gap-3">
-            <span className="flex items-center gap-1 text-emerald-700">
-              <CheckCircle className="h-4 w-4" /> {confirmed}
-            </span>
-            <span className="flex items-center gap-1 text-amber-600">
-              <AlertCircle className="h-4 w-4" /> {pending}
-            </span>
+            <Button
+              variant="primary"
+              onClick={goNextWeek}
+              className="rounded-full w-12 h-12"
+            >
+              <ChevronRight />
+            </Button>
           </div>
         </div>
 
-        {/* ===== LISTA ===== */}
-        <section className="space-y-3">
-          {appointments.map(a=>(
-            <div key={a.id} className="bg-white rounded-2xl shadow-sm border p-5 flex gap-5">
-              
-              {/* Time */}
-              <div className="w-20">
-                <p className="font-semibold">{a.time}</p>
-                <p className="text-xs text-neutral-500">{a.durationMin} min</p>
-              </div>
+        {/* GRID (🔥 dinámico correcto) */}
+        <div
+          className="grid gap-4 flex-1"
+          style={{
+            gridTemplateColumns: `repeat(${DAYS}, minmax(0, 1fr))`,
+          }}
+        >
+          {days.map((day) => {
+            const dayKey = day.toISODate()!;
+            const items = byDay[dayKey];
 
-              {/* Info */}
-              <div className="flex-1 border-l pl-5">
-                <div className="flex justify-between">
-                  <p className="font-medium">{a.clientName}</p>
-
-                  {a.status==="confirmed" && (
-                    <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded-full">
-                      Confirmada
-                    </span>
-                  )}
-
-                  {a.status==="pending" && (
-                    <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-full">
-                      Pendiente
-                    </span>
-                  )}
+            return (
+              <div
+                key={dayKey}
+                className="bg-[#f7f7f7] rounded-2xl p-4 flex flex-col"
+              >
+                <div className="text-center mb-3">
+                  <p className="text-2xl font-semibold">{day.day}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {day.setLocale("es").toFormat("ccc")}
+                  </p>
                 </div>
 
-                <p className="text-xs text-neutral-500 mt-1">{a.service}</p>
-
-                <button className="text-xs text-emerald-700 mt-2 flex gap-1">
-                  <Phone className="h-3.5 w-3.5" /> {a.phone}
-                </button>
+                <div className="flex-1 overflow-y-auto space-y-2">
+                  {items.map((a) => (
+                    <div
+                      key={a.id}
+                      className="bg-white rounded-lg p-2 text-xs shadow-sm"
+                    >
+                      <p className="font-medium">{a.title}</p>
+                      <p className="opacity-60">
+                        {DateTime.fromISO(a.start).toFormat("HH:mm")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </section>
-
-        {/* ===== FOOTER ===== */}
-        <section className="bg-neutral-200 rounded-xl px-6 py-2 flex justify-between">
-          <span>Tiempo total ocupado</span>
-          <strong>{totalMinutes} minutos</strong>
-        </section>
+            );
+          })}
+        </div>
       </div>
-    </main>
+    </div>
+  );
+}
+
+// =========================
+// 🔥 COMPONENTE STAT
+// =========================
+function StatCard({
+  color,
+  value,
+  label,
+}: {
+  color: string;
+  value: number;
+  label: string;
+}) {
+  return (
+    <div className={`${color} rounded-xl px-4 py-3 flex justify-between`}>
+      <span className="text-xl font-bold">{value}</span>
+      <span className="text-xs self-center">{label}</span>
+    </div>
   );
 }
