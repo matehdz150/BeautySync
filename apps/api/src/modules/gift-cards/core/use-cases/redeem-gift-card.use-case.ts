@@ -12,7 +12,6 @@ import { GIFT_CARD_REPOSITORY } from '../ports/tokens';
 import * as repo from '../ports/gift-card.repository';
 import { BRANCHES_REPOSITORY } from 'src/modules/branches/core/ports/tokens';
 import { BranchesRepository } from 'src/modules/branches/core/ports/branches.repository';
-import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
 
 @Injectable()
 export class RedeemGiftCardUseCase {
