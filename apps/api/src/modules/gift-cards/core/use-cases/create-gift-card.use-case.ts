@@ -120,7 +120,7 @@ export class CreateGiftCardUseCase {
           amountCents: input.initialAmountCents,
           organization: branch.organizationId,
           branch: branch.name,
-          claimLink: `${process.env.PUBLIC_APP_URL}/gift-card/claim?code=${code}`,
+          claimLink: `${process.env.PUBLIC_APP_URL}/gift-card/claim/${code}`,
           coverUrl,
         })
         .catch((e) => {

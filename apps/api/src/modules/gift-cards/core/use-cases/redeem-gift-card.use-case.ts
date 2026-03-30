@@ -28,7 +28,7 @@ export class RedeemGiftCardUseCase {
     code: string;
     amountCents: number;
     branchId: string;
-    user: AuthenticatedUser;
+    publicUserId: string;
   }) {
     // =========================
     // VALIDATIONS
@@ -54,10 +54,6 @@ export class RedeemGiftCardUseCase {
       throw new NotFoundException('Branch not found');
     }
 
-    if (!input.user.belongsToOrg(branch.organizationId)) {
-      throw new ForbiddenException('No tienes acceso a esta sucursal');
-    }
-
     // =========================
     // 🔥 BUSINESS VALIDATION
     // =========================
@@ -71,6 +67,11 @@ export class RedeemGiftCardUseCase {
       throw new ForbiddenException(
         'Esta gift card no pertenece a esta sucursal',
       );
+    }
+
+    // 🔥 OWNER VALIDATION
+    if (giftCard.ownerUserId !== input.publicUserId) {
+      throw new ForbiddenException('No puedes usar esta gift card');
     }
 
     if (giftCard.status !== 'active') {

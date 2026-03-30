@@ -116,3 +116,35 @@ export async function unassignGiftCard(input: {
     body: JSON.stringify(input),
   });
 }
+
+/* =========================
+   RESEND GIFT CARD
+========================= */
+
+export async function resendGiftCard(input: {
+  giftCardId: string;
+  email?: string; // opcional override
+}) {
+  return api<{ success: boolean }>(
+    `/gift-cards/${input.giftCardId}/resend`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        email: input.email,
+      }),
+    }
+  );
+}
+
+/* =========================
+   CANCEL GIFT CARD
+========================= */
+
+export async function cancelGiftCard(giftCardId: string) {
+  return api<{ success: boolean }>(
+    `/gift-cards/${giftCardId}/cancel`,
+    {
+      method: "POST",
+    }
+  );
+}

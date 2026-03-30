@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { GiftCardActionsDropdown } from "@/components/giftCards/ GiftCardActionsDropdown";
 
 /* =========================
    MAIN PAGE
@@ -245,54 +246,7 @@ function GiftCardsPage() {
                 </div>
 
                 {/* ACTIONS */}
-                <div className="flex">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="p-2 rounded-md hover:bg-muted">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => navigator.clipboard.writeText(card.code)}
-                      >
-                        Copiar código
-                      </DropdownMenuItem>
-
-                      <DropdownMenuItem
-                        onClick={() => console.log("ver detalle", card.id)}
-                      >
-                        Ver detalle
-                      </DropdownMenuItem>
-
-                      {!card.ownerUser && (
-                        <DropdownMenuItem
-                          onClick={() =>
-                            console.log("asignar cliente", card.id)
-                          }
-                        >
-                          Asignar cliente
-                        </DropdownMenuItem>
-                      )}
-
-                      {card.ownerUser && (
-                        <DropdownMenuItem
-                          onClick={() => console.log("desasignar", card.id)}
-                        >
-                          Desasignar
-                        </DropdownMenuItem>
-                      )}
-
-                      <DropdownMenuItem
-                        onClick={() => console.log("cancelar", card.id)}
-                        className="text-red-600"
-                      >
-                        Cancelar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                <GiftCardActionsDropdown card={card} onReload={load} />
               </div>
             );
           })}

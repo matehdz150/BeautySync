@@ -33,6 +33,9 @@ import { PublicAuthGuard } from 'src/modules/auth/application/guards/public-auth
 import { PublicUser } from 'src/modules/auth/application/decorators/public-user.decorator';
 import { ClaimGiftCardUseCase } from '../core/use-cases/claim-gift-card.use-case';
 import { GetGiftCardByCodeUseCase } from '../core/use-cases/get-gift-card-by-code.use-case';
+import { ResendGiftCardUseCase } from '../core/use-cases/resend-gift-card.use-case';
+import { CancelGiftCardUseCase } from '../core/use-cases/cancel-gift-card.use-casse';
+import { RedeemGiftCardUseCase } from '../core/use-cases/redeem-gift-card.use-case';
 
 @Controller('gift-cards')
 export class GiftCardsController {
@@ -47,6 +50,9 @@ export class GiftCardsController {
     private readonly unassign: UnassignGiftCardFromUserUseCase,
     private readonly claimUseCase: ClaimGiftCardUseCase,
     private readonly getByCode: GetGiftCardByCodeUseCase,
+    private readonly resendGiftCard: ResendGiftCardUseCase,
+    private readonly cancelGiftCard: CancelGiftCardUseCase,
+    private readonly redeemUseCase: RedeemGiftCardUseCase,
   ) {}
 
   @Get('by-code')
@@ -106,6 +112,23 @@ export class GiftCardsController {
     return this.getUserGiftCards.execute({
       userId,
       requester: req.user,
+    });
+  }
+
+  @Post('redeem')
+  @UseGuards(PublicAuthGuard)
+  redeem(
+    @Body()
+    body: {
+      code: string;
+      amountCents: number;
+      branchId: string;
+    },
+    @PublicUser() user: { publicUserId: string },
+  ) {
+    return this.redeemUseCase.execute({
+      ...body,
+      publicUserId: user.publicUserId,
     });
   }
 
@@ -180,6 +203,37 @@ export class GiftCardsController {
     return this.claimUseCase.execute({
       code: body.code,
       publicUserId: user.publicUserId,
+    });
+  }
+
+  // =========================
+  // RESEND
+  // =========================
+  @Post('/:id/resend')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  resend(
+    @Param('id') id: string,
+    @Body() body: { email?: string },
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.resendGiftCard.execute({
+      giftCardId: id,
+      email: body.email, // opcional override
+      user: req.user,
+    });
+  }
+
+  // =========================
+  // CANCEL
+  // =========================
+  @Post('/:id/cancel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  cancel(@Param('id') id: string, @Req() req: { user: AuthenticatedUser }) {
+    return this.cancelGiftCard.execute({
+      giftCardId: id,
+      user: req.user,
     });
   }
 }
