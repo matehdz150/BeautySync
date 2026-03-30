@@ -22,6 +22,7 @@ import { CreateClientUseCase } from '../../core/use-cases/create-client.use-case
 import { UpdateClientUseCase } from '../../core/use-cases/update-client.use-case';
 import { DeleteClientUseCase } from '../../core/use-cases/delete-client.use-case';
 import { GetClientEditUseCase } from '../../core/use-cases/get-client-edit.use-case';
+import { GetPublicClientsByOrganizationUseCase } from '../../core/use-cases/get-public-clients.use-case';
 
 @Controller('clients')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -31,6 +32,7 @@ export class ClientsController {
     private readonly getClients: GetClientsUseCase,
     private readonly getClient: GetClientUseCase,
     private readonly getClientEdit: GetClientEditUseCase,
+    private readonly getPublicClientsByOrg: GetPublicClientsByOrganizationUseCase,
     private readonly getClientsByOrg: GetClientsByOrganizationUseCase,
     private readonly createClient: CreateClientUseCase,
     private readonly updateClient: UpdateClientUseCase,
@@ -53,6 +55,12 @@ export class ClientsController {
   @Get('organization/:orgId')
   findByOrganization(@Param('orgId') orgId: string) {
     return this.getClientsByOrg.execute(orgId);
+  }
+
+  @UseGuards(OrganizationAccessGuard)
+  @Get('organization/:orgId/public')
+  findPublicByOrganization(@Param('orgId') orgId: string) {
+    return this.getPublicClientsByOrg.execute(orgId);
   }
 
   @Get(':id')

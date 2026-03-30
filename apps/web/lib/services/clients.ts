@@ -233,3 +233,19 @@ export async function deleteClient(id: string) {
     method: "DELETE",
   });
 }
+
+export type PublicClient = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  avatarUrl: string | null;
+
+  publicUserId: string; // 🔥 clave para gift cards
+};
+
+export async function getPublicClients(orgId: string) {
+  return api<PublicClient[]>(
+    `/clients/organization/${orgId}/public`
+  );
+}

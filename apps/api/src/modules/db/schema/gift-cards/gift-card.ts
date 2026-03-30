@@ -8,6 +8,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { branches } from '../branches';
 import { publicUsers } from '../public';
+import { relations } from 'drizzle-orm';
 
 export const giftCards = pgTable('gift_cards', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -36,6 +37,16 @@ export const giftCards = pgTable('gift_cards', {
 
   note: text('note'),
 
+  issuedToEmail: text('issuedToEmail'),
+  claimedAt: timestamp('claimed_at').defaultNow(),
+
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
+
+export const giftCardsRelations = relations(giftCards, ({ one }) => ({
+  ownerUser: one(publicUsers, {
+    fields: [giftCards.ownerUserId],
+    references: [publicUsers.id],
+  }),
+}));

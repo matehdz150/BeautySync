@@ -18,6 +18,7 @@ import { CLIENTS_REPOSITORY } from './core/ports/tokens';
 /* INFRA */
 import { ClientsDrizzleRepository } from './infrastructure/adapters/clients-drizzle.repository';
 import { GetClientEditUseCase } from './core/use-cases/get-client-edit.use-case';
+import { GetPublicClientsByOrganizationUseCase } from './core/use-cases/get-public-clients.use-case';
 
 @Module({
   imports: [AuthModule],
@@ -33,6 +34,7 @@ import { GetClientEditUseCase } from './core/use-cases/get-client-edit.use-case'
     UpdateClientUseCase,
     DeleteClientUseCase,
     GetClientEditUseCase,
+    GetPublicClientsByOrganizationUseCase,
 
     /* REPOSITORY BINDING */
     {

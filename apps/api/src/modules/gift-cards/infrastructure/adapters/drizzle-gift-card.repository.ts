@@ -41,6 +41,7 @@ export class DrizzleGiftCardRepository implements GiftCardRepository {
       row.expiresAt ?? null,
       row.createdAt ?? new Date(),
       row.updatedAt ?? new Date(),
+      row.issuedToEmail ?? null,
     );
   }
 
@@ -72,8 +73,7 @@ export class DrizzleGiftCardRepository implements GiftCardRepository {
         status: 'active',
         expiresAt: data.expiresAt ?? null,
         ownerUserId: data.ownerUserId ?? null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        issuedToEmail: data.issuedToEmail ?? null, // 🔥 importante
       })
       .returning();
 
@@ -103,13 +103,28 @@ export class DrizzleGiftCardRepository implements GiftCardRepository {
     return row ? this.toGiftCard(row) : null;
   }
 
-  async findByBranch(branchId: string): Promise<GiftCard[]> {
+  async findByBranch(branchId: string): Promise<any[]> {
     const rows = await this.db.query.giftCards.findMany({
       where: eq(giftCards.branchId, branchId),
       orderBy: (gc, { desc }) => [desc(gc.createdAt)],
+
+      with: {
+        ownerUser: true, // 🔥 JOIN automático
+      },
     });
 
-    return rows.map((r) => this.toGiftCard(r));
+    return rows.map((r) => ({
+      ...this.toGiftCard(r),
+
+      ownerUser: r.ownerUser
+        ? {
+            id: r.ownerUser.id,
+            name: r.ownerUser.name,
+            avatarUrl: r.ownerUser.avatarUrl,
+            email: r.ownerUser.email,
+          }
+        : null,
+    }));
   }
 
   async findByUser(userId: string): Promise<GiftCard[]> {

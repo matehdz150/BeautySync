@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -28,6 +29,10 @@ import { CreateGiftCardDto } from './dto/create-gift-card.dto';
 import { AssignGiftCardDto } from './dto/assign-gift-card.dto';
 import { UnAssignGiftCardDto } from './dto/unassign-gift-card.dto';
 import { GetMyGiftCardsUseCase } from '../core/use-cases/get-my-gift-cards.use-case';
+import { PublicAuthGuard } from 'src/modules/auth/application/guards/public-auth.guard';
+import { PublicUser } from 'src/modules/auth/application/decorators/public-user.decorator';
+import { ClaimGiftCardUseCase } from '../core/use-cases/claim-gift-card.use-case';
+import { GetGiftCardByCodeUseCase } from '../core/use-cases/get-gift-card-by-code.use-case';
 
 @Controller('gift-cards')
 export class GiftCardsController {
@@ -40,7 +45,14 @@ export class GiftCardsController {
     private readonly getTransactions: GetGiftCardTransactionsUseCase,
     private readonly assign: AssignGiftCardToUserUseCase,
     private readonly unassign: UnassignGiftCardFromUserUseCase,
+    private readonly claimUseCase: ClaimGiftCardUseCase,
+    private readonly getByCode: GetGiftCardByCodeUseCase,
   ) {}
+
+  @Get('by-code')
+  async getByCodeQuery(@Query('code') code: string) {
+    return this.getByCode.execute(code);
+  }
 
   // =========================
   // CREATE
@@ -156,6 +168,18 @@ export class GiftCardsController {
     return this.unassign.execute({
       giftCardId: dto.giftCardId,
       user: req.user,
+    });
+  }
+
+  @Post('claim')
+  @UseGuards(PublicAuthGuard)
+  claim(
+    @Body() body: { code: string },
+    @PublicUser() user: { publicUserId: string },
+  ) {
+    return this.claimUseCase.execute({
+      code: body.code,
+      publicUserId: user.publicUserId,
     });
   }
 }

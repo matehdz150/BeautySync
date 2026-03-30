@@ -1,11 +1,16 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import * as client from 'src/modules/db/client';
-import { clientProfiles, clients } from 'src/modules/db/schema';
+import {
+  clientProfiles,
+  clients,
+  publicUserClients,
+} from 'src/modules/db/schema';
 import { eq, sql } from 'drizzle-orm';
 
 import {
   ClientsRepository,
   CreateClientInput,
+  PublicClient,
   UpdateClientInput,
 } from '../../core/ports/clients.repository';
 import {
@@ -482,5 +487,24 @@ export class ClientsDrizzleRepository implements ClientsRepository {
     }
 
     return { ok: true };
+  }
+
+  async findPublicClientsByOrganization(
+    orgId: string,
+  ): Promise<PublicClient[]> {
+    const rows = await this.db
+      .select({
+        id: clients.id,
+        name: clients.name,
+        email: clients.email,
+        phone: clients.phone,
+        avatarUrl: clients.avatarUrl,
+        publicUserId: publicUserClients.publicUserId,
+      })
+      .from(clients)
+      .innerJoin(publicUserClients, eq(publicUserClients.clientId, clients.id))
+      .where(eq(clients.organizationId, orgId));
+
+    return rows;
   }
 }

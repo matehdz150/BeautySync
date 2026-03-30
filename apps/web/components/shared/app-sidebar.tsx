@@ -149,23 +149,10 @@ export function AppSidebar() {
       }}
     >
       {/* HEADER */}
-      <SidebarHeader className="p-6 pb-8 bg-[#111113]">
+      <SidebarHeader className="pl-3 pt-7 bg-[#111113]">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-11 rounded-sm bg-indigo-400 flex items-center justify-center">
-            <Hash className="text-white" />
-          </div>
-
-          {!collapsed && (
-            <div className="flex flex-col leading-tight w-full">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-lg text-white">Lumia</span>
-                <ChevronsUpDown size={15} />
-              </div>
-              <span className="text-xs text-muted-foreground">
-                Manager Dashboard
-              </span>
-            </div>
-          )}
+          
+          <h1 className="text-white font-semibold text-lg">Belza</h1>
         </div>
       </SidebarHeader>
 
