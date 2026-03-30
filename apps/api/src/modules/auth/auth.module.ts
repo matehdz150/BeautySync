@@ -151,6 +151,7 @@ import { BranchesModule } from '../branches/branches.module';
     RefreshJwtGuard,
     RolesGuard,
     JwtModule,
+    PUBLIC_USERS_REPOSITORY,
   ],
 })
 export class AuthModule {}

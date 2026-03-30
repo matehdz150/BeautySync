@@ -12,3 +12,5 @@ export * from './public';
 export *from './rankings'
 export * from './conversations';
 export * from './favorites';
+export * from './products';
+export * from './gift-cards';

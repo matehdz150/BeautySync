@@ -72,7 +72,7 @@ export default function StaffInvitesPage() {
     if (invite.status === "accepted") {
       return (
         <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-600">
-          Activo
+          Invitacion aceptada
         </span>
       );
     }

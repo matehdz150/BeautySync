@@ -29,11 +29,18 @@ export default function ManagerLogin() {
 
     try {
       const user = await login(email, password);
-      console.log(user)
+      console.log(user);
 
-      if (user.role === "owner" && user.needsOnboarding) {
+      // 🔥 STAFF primero
+      if (user.role === "staff") {
+        router.push("/dashboard/staff-cita");
+      }
+      // 🔥 OWNER onboarding
+      else if (user.role === "owner" && user.needsOnboarding) {
         router.push("/onboarding");
-      } else {
+      }
+      // 🔥 default
+      else {
         router.push("/dashboard");
       }
     } catch (err: any) {

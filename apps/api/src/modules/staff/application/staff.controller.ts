@@ -33,6 +33,8 @@ import { DeleteStaffUseCase } from '../core/use-cases/delete-staff.use-case';
 import { InviteStaffUseCase } from '../core/use-cases/invite-staff.use-case';
 import { ReinviteStaffUseCase } from '../core/use-cases/reinvite-staff.use-case';
 import { GetStaffWithInvitesUseCase } from '../core/use-cases/find-staff-invites-by-branch.use-case';
+import { GetInactiveStaffUseCase } from '../core/use-cases/get-inactive-staff.use-case';
+import { ActivateStaffUseCase } from '../core/use-cases/activate-staff.use-case';
 
 @Controller('staff')
 export class StaffController {
@@ -49,6 +51,8 @@ export class StaffController {
     private readonly inviteStaff: InviteStaffUseCase,
     private readonly reinviteStaff: ReinviteStaffUseCase,
     private readonly getStaffWithInvites: GetStaffWithInvitesUseCase,
+    private readonly getInactiveStaff: GetInactiveStaffUseCase,
+    private readonly activateStaff: ActivateStaffUseCase,
   ) {}
 
   @Get('for-service')
@@ -92,6 +96,20 @@ export class StaffController {
     @Req() req: { user: AuthenticatedUser },
   ) {
     return this.getStaffByBranch.execute(branchId, req.user);
+  }
+
+  @Get('branch/:branchId/inactive')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  findInactive(@Param('branchId') branchId: string) {
+    return this.getInactiveStaff.execute(branchId);
+  }
+
+  @Patch(':id/activate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  activate(@Param('id') id: string) {
+    return this.activateStaff.execute(id);
   }
 
   @Post()

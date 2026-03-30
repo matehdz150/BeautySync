@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import {
   pgTable,
   uuid,
@@ -29,8 +28,9 @@ export const publicBookings = pgTable(
       .notNull()
       .references(() => branches.id, { onDelete: 'cascade' }),
 
-    publicUserId: uuid('public_user_id')
-      .references(() => publicUsers.id, { onDelete: 'cascade' }),
+    publicUserId: uuid('public_user_id').references(() => publicUsers.id, {
+      onDelete: 'cascade',
+    }),
 
     // rango completo del booking
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
@@ -47,6 +47,12 @@ export const publicBookings = pgTable(
       .default('ONSITE'),
 
     totalCents: integer('total_cents').notNull().default(0),
+
+    paidWithGiftCardCents: integer('paid_with_gift_card_cents')
+      .notNull()
+      .default(0),
+
+    remainingToPayCents: integer('remaining_to_pay_cents').notNull().default(0),
 
     notes: text('notes'),
 

@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  ArrowDownUp,
   ArrowUpDown,
-  ChevronDown,
-  Ellipsis,
-  Filter,
   Plus,
   Search,
   SlidersVertical,
@@ -49,13 +45,17 @@ export default function StaffSchedulesPage() {
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [query, setQuery] = useState("");
 
+  // 🔥 trigger de recarga
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // =========================
+  // 🔥 LOAD DATA
+  // =========================
   useEffect(() => {
     if (!branch) return;
 
     async function load() {
       const data = await getStaffByBranch(branch.id);
-
-      console.log(data);
 
       const mapped: StaffRow[] = data.map((s: any) => ({
         id: s.id,
@@ -72,7 +72,22 @@ export default function StaffSchedulesPage() {
     }
 
     load();
-  }, [branch]);
+  }, [branch, reloadKey]); // 🔥 clave
+
+  // =========================
+  // 🔥 LISTENER GLOBAL
+  // =========================
+  useEffect(() => {
+    function handleReload() {
+      setReloadKey((k) => k + 1);
+    }
+
+    window.addEventListener("staff:updated", handleReload);
+
+    return () => {
+      window.removeEventListener("staff:updated", handleReload);
+    };
+  }, []);
 
   function shortEmail(email?: string, max = 22) {
     if (!email) return "—";
@@ -82,6 +97,11 @@ export default function StaffSchedulesPage() {
   function goToEdit(id: string) {
     router.push(`/dashboard/staff/actions/edit/${id}`);
   }
+
+  // 🔥 filtro
+  const filtered = staff.filter((s) =>
+    s.name.toLowerCase().includes(query.toLowerCase())
+  );
 
   return (
     <div className="space-y-6 px-3 py-5">
@@ -94,23 +114,25 @@ export default function StaffSchedulesPage() {
       </div>
 
       {/* SEARCH */}
-      <div className=" flex items-center gap-5 w-full justify-between py-5 px-3 bg-gray-50">
+      <div className="flex items-center gap-5 w-full justify-between py-5 px-3 bg-gray-50">
         <div className="flex gap-2">
-          <Button variant={"outline"} className=" shadow-none px-4 rounded-2xl">
+          <Button variant="outline" className="shadow-none px-4 rounded-2xl">
             Ordenar
             <ArrowUpDown />
           </Button>
 
-          <Button variant={"outline"} className=" shadow-none px-4 rounded-2xl">
+          <Button variant="outline" className="shadow-none px-4 rounded-2xl">
             Filtros
             <SlidersVertical />
           </Button>
         </div>
+
         <div className="flex gap-2 relative">
           <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+
           <Input
             placeholder="Buscar por nombre…"
-            className="pl-11 shadow-none  w-100 bg-white rounded-2xl"
+            className="pl-11 shadow-none w-100 bg-white rounded-2xl"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -126,12 +148,12 @@ export default function StaffSchedulesPage() {
         </div>
       </div>
 
-      {staff.length === 0 ? (
+      {filtered.length === 0 ? (
         <EmptyStaffState />
       ) : (
-        <div className="rounded-md  bg-white overflow-hidden">
+        <div className="rounded-md bg-white overflow-hidden">
           <div className="h-[65vh] flex flex-col min-h-0">
-            {/* TABLE HEADER (NO SCROLL) */}
+            {/* HEADER */}
             <Table className="table-fixed">
               <colgroup>
                 <col className="w-[30%]" />
@@ -150,7 +172,7 @@ export default function StaffSchedulesPage() {
               </TableHeader>
             </Table>
 
-            {/* 👇 SCROLLABLE BODY */}
+            {/* BODY */}
             <div className="overflow-y-auto flex-1 min-h-0">
               <Table className="table-fixed">
                 <colgroup>
@@ -161,7 +183,7 @@ export default function StaffSchedulesPage() {
                 </colgroup>
 
                 <TableBody>
-                  {staff.map((s) => (
+                  {filtered.map((s) => (
                     <TableRow
                       key={s.id}
                       className="hover:bg-indigo-50 cursor-pointer w-full"
@@ -212,7 +234,10 @@ export default function StaffSchedulesPage() {
                       </TableCell>
 
                       {/* ACTIONS */}
-                      <TableCell className="text-right">
+                      <TableCell
+                        className="text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <StaffActionsDropdown staffId={s.id} />
                       </TableCell>
                     </TableRow>

@@ -108,6 +108,10 @@ import { FavoritesModule } from '../favorites/favorites.module';
       useClass: PublicBranchesDrizzleRepository,
     },
   ],
-  exports: [GetBranchForAiUseCase, PUBLIC_BRANCHES_REPOSITORY],
+  exports: [
+    GetBranchForAiUseCase,
+    PUBLIC_BRANCHES_REPOSITORY,
+    BRANCHES_REPOSITORY,
+  ],
 })
 export class BranchesModule {}

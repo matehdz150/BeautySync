@@ -160,3 +160,20 @@ export async function reinviteStaff(staffId: string) {
     method: "POST",
   });
 }
+
+/* ===== GET INACTIVE STAFF ===== */
+
+export async function getInactiveStaff(branchId: string) {
+  return api<Staff[]>(`/staff/branch/${branchId}/inactive`, {
+    method: "GET",
+  });
+}
+
+/* ===== ACTIVATE STAFF ===== */
+
+export async function activateStaff(staffId: string) {
+  return api<{ ok: true }>(`/staff/${staffId}/activate`, {
+    method: "PATCH",
+  });
+}
+

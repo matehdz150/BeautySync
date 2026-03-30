@@ -19,6 +19,8 @@ export interface StaffDetails {
   avatarUrl: string | null;
   jobRole: string | null;
   userId: string | null;
+  branchId: string;
+  isActive: boolean;
 
   schedules: {
     dayOfWeek: number;

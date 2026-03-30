@@ -71,7 +71,9 @@ export class StaffDrizzleRepository implements StaffRepository {
       email: person.email,
       avatarUrl: person.avatarUrl,
       jobRole: person.jobRole,
-      userId: person.id,
+      userId: person.userId,
+      branchId: person.branchId,
+      isActive: person.isActive,
 
       schedules: person.schedules.map((s) => ({
         dayOfWeek: s.dayOfWeek,
@@ -162,7 +164,7 @@ export class StaffDrizzleRepository implements StaffRepository {
     }
 
     const rows = await this.db.query.staff.findMany({
-      where: eq(staff.branchId, branchId),
+      where: and(eq(staff.branchId, branchId), eq(staff.isActive, true)),
       with: {
         schedules: true,
         services: {
@@ -221,6 +223,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       rating: ratingMap.get(s.id) ?? 0,
     }));
   }
+
   async update(
     id: string,
     data: UpdateStaffInput,
@@ -582,5 +585,24 @@ export class StaffDrizzleRepository implements StaffRepository {
       expiresAt: invite.expiresAt,
       createdAt: invite.createdAt ?? new Date(),
     };
+  }
+
+  async findInactiveByBranch(branchId: string) {
+    return this.db.query.staff.findMany({
+      where: and(eq(staff.branchId, branchId), eq(staff.isActive, false)),
+    });
+  }
+
+  async activate(staffId: string) {
+    const [updated] = await this.db
+      .update(staff)
+      .set({
+        isActive: true,
+        status: 'active', // si usas status también
+      })
+      .where(eq(staff.id, staffId))
+      .returning();
+
+    return updated;
   }
 }
