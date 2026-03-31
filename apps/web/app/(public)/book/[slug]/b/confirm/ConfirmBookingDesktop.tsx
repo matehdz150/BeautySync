@@ -1,29 +1,62 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { usePublicBooking } from "@/context/PublicBookingContext";
 import { cn } from "@/lib/utils";
 import { CreditCard, Store } from "lucide-react";
 import { motion } from "framer-motion";
+import {
+  getPaymentBenefits,
+  PaymentBenefits,
+} from "@/lib/services/public/payments";
 
 type PaymentMethod = "ONSITE" | "ONLINE";
 
 export function ConfirmBookingDesktopPage() {
   const router = useRouter();
   const booking = usePublicBooking();
+  const { dispatch } = booking;
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("ONSITE");
   const [discountCode, setDiscountCode] = useState("");
   const [notes, setNotes] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
 
-  const canReserve = useMemo(() => {
-    return Boolean(
-      booking.branch && booking.date && booking.appointmentsDraft.length > 0
-    );
-  }, [booking.branch, booking.date, booking.appointmentsDraft]);
+  useEffect(() => {
+    async function loadBenefits() {
+      if (!booking.branch?.id) return;
+
+      try {
+        dispatch({
+          type: "SET_BENEFITS_LOADING",
+          payload: true,
+        });
+        const data = await getPaymentBenefits(booking.branch.id);
+
+        dispatch({
+          type: "SET_BENEFITS",
+          payload: data,
+        });
+        dispatch({
+          type: "SET_BENEFITS_LOADING",
+          payload: false,
+        });
+      } catch {
+        dispatch({
+          type: "SET_BENEFITS",
+          payload: {
+            isAuthenticated: false,
+            coupons: [],
+            giftCards: [],
+          },
+        });
+      }
+    }
+
+    loadBenefits();
+  }, [booking.branch?.id, dispatch]);
 
   if (!booking.date || booking.appointmentsDraft.length === 0) {
     return (
@@ -85,7 +118,7 @@ export function ConfirmBookingDesktopPage() {
               "w-full rounded-2xl border p-4 text-left transition flex items-start gap-3",
               paymentMethod === "ONSITE"
                 ? "border-indigo-500 bg-indigo-50"
-                : "hover:bg-gray-50"
+                : "hover:bg-gray-50",
             )}
           >
             <div
@@ -93,7 +126,7 @@ export function ConfirmBookingDesktopPage() {
                 "mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
                 paymentMethod === "ONSITE"
                   ? "bg-indigo-500 text-white"
-                  : "bg-gray-100 text-gray-700"
+                  : "bg-gray-100 text-gray-700",
               )}
             >
               <Store className="w-5 h-5" />
@@ -115,7 +148,7 @@ export function ConfirmBookingDesktopPage() {
               "w-full rounded-2xl border p-4 text-left transition flex items-start gap-3",
               paymentMethod === "ONLINE"
                 ? "border-indigo-500 bg-indigo-50"
-                : "hover:bg-gray-50"
+                : "hover:bg-gray-50",
             )}
           >
             <div
@@ -123,7 +156,7 @@ export function ConfirmBookingDesktopPage() {
                 "mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
                 paymentMethod === "ONLINE"
                   ? "bg-indigo-500 text-white"
-                  : "bg-gray-100 text-gray-700"
+                  : "bg-gray-100 text-gray-700",
               )}
             >
               <CreditCard className="w-5 h-5" />
@@ -176,6 +209,156 @@ export function ConfirmBookingDesktopPage() {
             {applyingDiscount ? "Aplicando..." : "Aplicar"}
           </Button>
         </div>
+        {/* BENEFICIOS */}
+        <section className="space-y-2">
+          <h2 className="text-lg font-semibold">Tus beneficios</h2>
+
+          {booking.benefitsLoading && (
+            <div className="text-sm text-muted-foreground">
+              Cargando beneficios...
+            </div>
+          )}
+
+          {!booking.benefitsLoading && booking.benefits && (
+            <div className="space-y-0">
+              {/* ========================= */}
+              {/* GIFT CARDS */}
+              {/* ========================= */}
+              {/* ========================= */}
+              {/* GIFT CARDS */}
+              {/* ========================= */}
+              {booking.benefits.giftCards.length > 0 && (
+                <div className="rounded-3xl">
+                  <div className="space-y-4 max-w-[900px] mx-auto">
+                    <p className="text-sm font-medium text-black/90">
+                      Gift cards
+                    </p>
+
+                    <div className="flex gap-4 overflow-x-auto pb-2">
+                      {booking.benefits.giftCards.map((gc) => {
+                        const isSelected = booking.selectedGiftCardId === gc.id;
+
+                        return (
+                          <button
+                            key={gc.id}
+                            type="button"
+                            onClick={() =>
+                              dispatch({
+                                type: "SELECT_GIFT_CARD",
+                                payload: {
+                                  id: gc.id,
+                                },
+                              })
+                            }
+                            className="min-w-[280px] focus:outline-none"
+                          >
+                            <div
+                              className={cn(
+                                "relative w-full h-[160px] rounded-2xl p-5 text-white flex flex-col justify-between border",
+                                isSelected ? "border-white" : "border-white/30",
+                              )}
+                              style={{
+                                background:
+                                  "linear-gradient(135deg, #5b5bf7, #c14ef0)",
+                              }}
+                            >
+                              {/* INDICADOR */}
+                              <div className="absolute top-4 right-4">
+                                <div
+                                  className={cn(
+                                    "w-5 h-5 rounded-full border flex items-center justify-center",
+                                    isSelected
+                                      ? "bg-white border-white"
+                                      : "border-white/70",
+                                  )}
+                                >
+                                  {isSelected && (
+                                    <div className="w-2 h-2 bg-indigo-600 rounded-full" />
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* CONTENT */}
+                              <p className="text-sm font-medium truncate">
+                                {booking.branch?.name ?? "Tu negocio"}
+                              </p>
+
+                              <p className="text-2xl font-semibold">
+                                ${(gc.balanceCents / 100).toFixed(0)}
+                              </p>
+
+                              <p className="text-xs font-mono opacity-80">
+                                {gc.code}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ========================= */}
+              {/* COUPONS */}
+              {/* ========================= */}
+              {booking.benefits.coupons.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Cupones</p>
+
+                  {booking.benefits.coupons.map((c) => {
+                    const selected = booking.selectedCouponId === c.id;
+
+                    const discount =
+                      c.type === "percentage"
+                        ? `${c.value}%`
+                        : `$${(c.value / 100).toFixed(0)}`;
+
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() =>
+                          dispatch({
+                            type: "SELECT_COUPON",
+                            payload: c.id,
+                          })
+                        }
+                        className={cn(
+                          "w-full rounded-2xl border p-4 flex justify-between",
+                          selected
+                            ? "border-indigo-500 bg-indigo-50"
+                            : "hover:bg-gray-50",
+                        )}
+                      >
+                        <div>
+                          <p className="font-medium">{c.code}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Cupón disponible
+                          </p>
+                        </div>
+
+                        <p className="font-semibold text-indigo-600">
+                          {discount}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ========================= */}
+              {/* EMPTY STATE */}
+              {/* ========================= */}
+              {booking.benefits.giftCards.length === 0 &&
+                booking.benefits.coupons.length === 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    No tienes beneficios disponibles.
+                  </div>
+                )}
+            </div>
+          )}
+        </section>
       </section>
 
       {/* NOTAS */}

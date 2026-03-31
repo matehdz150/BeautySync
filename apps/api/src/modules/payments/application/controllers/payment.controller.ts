@@ -25,6 +25,7 @@ import { GetPaymentUseCase } from '../../core/use-cases/get-payment.use-case';
 import { FinalizePaymentDto } from '../dto/finalize-payment.dto';
 import { AssignClientToPaymentUseCase } from '../../core/use-cases/assign-client-to-payment.use-case';
 import { GetClientPaymentsUseCase } from '../../core/use-cases/get-client-payments.use-case';
+import { GetAvailablePaymentBenefitsUseCase } from '../../core/use-cases/get-available-benefits.use-case';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('payments')
@@ -39,6 +40,7 @@ export class PaymentsController {
     private readonly getPayment: GetPaymentUseCase,
     private readonly assignClientToPayment: AssignClientToPaymentUseCase,
     private readonly getClientPayments: GetClientPaymentsUseCase,
+    private readonly getAvailableBenefits: GetAvailablePaymentBenefitsUseCase,
   ) {}
 
   /* =====================

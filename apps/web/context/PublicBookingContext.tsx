@@ -31,7 +31,7 @@ export type Branch = {
   services?: any[];
   lat?: string;
   lng?: string;
-  description? :string;
+  description?: string;
   rating?: BranchRating;
 };
 
@@ -75,7 +75,30 @@ type BookingState = {
     startIso: string;
     endIso: string;
     durationMin: number;
+    priceCents: number;
   }[];
+
+  benefits: {
+    isAuthenticated: boolean;
+    giftCards: {
+      id: string;
+      code: string;
+      balanceCents: number;
+      expiresAt?: string | null;
+    }[];
+    coupons: {
+      id: string;
+      code: string;
+      type: "percentage" | "fixed";
+      value: number;
+      expiresAt?: string | null;
+    }[];
+  };
+
+  benefitsLoading: boolean;
+  selectedCouponId: string | null;
+  selectedGiftCardId: string | null;
+  giftCardAmountCents: number;
 };
 
 type BookingAction =
@@ -104,6 +127,11 @@ type BookingAction =
       type: "SET_STAFF_CATALOG";
       payload: { id: string; name: string; avatarUrl?: string }[];
     }
+  | { type: "SET_BENEFITS"; payload: BookingState["benefits"] }
+  | { type: "SELECT_GIFT_CARD"; payload: { id: string; amount: number } }
+  | { type: "SET_GIFT_CARD_AMOUNT"; payload: number }
+  | { type: "SELECT_COUPON"; payload: string | null }
+  | { type: "SET_BENEFITS_LOADING"; payload: boolean }
   | { type: "RESET_BOOKING" };
 
 /* =====================
@@ -130,6 +158,16 @@ const initialState: BookingState = {
   canContinue: false,
   selectedPlan: null,
   appointmentsDraft: [],
+
+  benefits: {
+    isAuthenticated: false,
+    giftCards: [],
+    coupons: [],
+  },
+  benefitsLoading: false,
+  selectedCouponId: null,
+  selectedGiftCardId: null,
+  giftCardAmountCents: 0,
 };
 
 /* =====================
@@ -147,7 +185,7 @@ function computeCanContinue(state: BookingState): boolean {
 
       if (state.assignmentMode === "BY_SERVICE")
         return state.services.every(
-          (id) => !!state.staffByService[id] // "ANY" o staffId
+          (id) => !!state.staffByService[id], // "ANY" o staffId
         );
 
       return false;
@@ -169,7 +207,7 @@ function computeCanContinue(state: BookingState): boolean {
 
 function bookingReducer(
   state: BookingState,
-  action: BookingAction
+  action: BookingAction,
 ): BookingState {
   let nextState: BookingState;
 
@@ -303,6 +341,44 @@ function bookingReducer(
       };
       break;
 
+    case "SET_BENEFITS":
+      nextState = {
+        ...state,
+        benefits: action.payload,
+      };
+      break;
+
+    case "SET_BENEFITS_LOADING":
+      nextState = {
+        ...state,
+        benefitsLoading: action.payload,
+      };
+      break;
+
+    case "SELECT_GIFT_CARD":
+      nextState = {
+        ...state,
+        selectedGiftCardId: action.payload.id,
+        selectedCouponId: null,
+      };
+      break;
+
+    case "SET_GIFT_CARD_AMOUNT":
+      nextState = {
+        ...state,
+        giftCardAmountCents: action.payload,
+      };
+      break;
+
+    case "SELECT_COUPON":
+      nextState = {
+        ...state,
+        selectedCouponId: action.payload,
+        selectedGiftCardId: null,
+        giftCardAmountCents: 0,
+      };
+      break;
+
     default:
       nextState = state;
   }
@@ -352,7 +428,7 @@ export function usePublicBooking() {
 
   if (!ctx) {
     throw new Error(
-      "usePublicBooking must be used inside PublicBookingProvider"
+      "usePublicBooking must be used inside PublicBookingProvider",
     );
   }
 

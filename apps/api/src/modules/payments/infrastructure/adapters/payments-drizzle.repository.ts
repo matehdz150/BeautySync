@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, and, or, isNull, gt } from 'drizzle-orm';
 
-import { payments, paymentItems, PaymentMethod } from 'src/modules/db/schema';
+import {
+  payments,
+  paymentItems,
+  PaymentMethod,
+  giftCards,
+  coupons,
+} from 'src/modules/db/schema';
 import type { DB } from 'src/modules/db/client';
 
 import { PaymentsRepositoryPort } from '../../core/ports/payment.repository';
@@ -228,5 +234,65 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
           row.notes,
         ),
     );
+  }
+
+  async getAvailableBenefits(input: {
+    branchId: string;
+    publicUserId: string;
+  }) {
+    const now = new Date();
+
+    // =========================
+    // 🎁 GIFT CARDS
+    // =========================
+    const giftCardsRows = await this.db
+      .select({
+        id: giftCards.id,
+        code: giftCards.code,
+        balanceCents: giftCards.balanceCents,
+        expiresAt: giftCards.expiresAt,
+      })
+      .from(giftCards)
+      .where(
+        and(
+          eq(giftCards.branchId, input.branchId),
+          eq(giftCards.ownerUserId, input.publicUserId),
+          eq(giftCards.status, 'active'),
+          gt(giftCards.balanceCents, 0),
+
+          // 🔥 no expiradas
+          or(isNull(giftCards.expiresAt), gt(giftCards.expiresAt, now)),
+        ),
+      );
+
+    // =========================
+    // 🎟 COUPONS
+    // =========================
+    const couponsRows = await this.db
+      .select({
+        id: coupons.id,
+        code: coupons.code,
+        type: coupons.type,
+        value: coupons.value,
+        expiresAt: coupons.expiresAt,
+      })
+      .from(coupons)
+      .where(
+        and(
+          eq(coupons.branchId, input.branchId),
+          eq(coupons.isActive, true),
+
+          // 🔥 solo asignados a user (puedes expandir luego)
+          eq(coupons.assignedToUserId, input.publicUserId),
+
+          // 🔥 no expirados
+          or(isNull(coupons.expiresAt), gt(coupons.expiresAt, now)),
+        ),
+      );
+
+    return {
+      giftCards: giftCardsRows,
+      coupons: couponsRows,
+    };
   }
 }

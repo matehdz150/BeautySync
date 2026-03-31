@@ -22,6 +22,8 @@ export type CreatePublicBookingPayload = {
   paymentMethod: PublicPaymentMethod;
   discountCode?: string | null;
   notes?: string | null;
+  giftCardCode: string;
+  giftCardAmountCents: number;
   appointments: PublicAppointmentDraft[];
 };
 
