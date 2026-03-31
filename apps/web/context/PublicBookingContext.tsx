@@ -95,6 +95,12 @@ type BookingState = {
     }[];
   };
 
+  validatedCoupon: {
+    id: string;
+    discountCents: number;
+    code: string;
+  } | null;
+
   benefitsLoading: boolean;
   selectedCouponId: string | null;
   selectedGiftCardId: string | null;
@@ -126,6 +132,14 @@ type BookingAction =
   | {
       type: "SET_STAFF_CATALOG";
       payload: { id: string; name: string; avatarUrl?: string }[];
+    }
+  | {
+      type: "SET_VALIDATED_COUPON";
+      payload: {
+        id: string;
+        code: string;
+        discountCents: number;
+      } | null;
     }
   | { type: "SET_BENEFITS"; payload: BookingState["benefits"] }
   | { type: "SELECT_GIFT_CARD"; payload: { id: string; amount: number } }
@@ -163,6 +177,11 @@ const initialState: BookingState = {
     isAuthenticated: false,
     giftCards: [],
     coupons: [],
+  },
+  validatedCoupon: {
+    id: "",
+    code: "",
+    discountCents: 0,
   },
   benefitsLoading: false,
   selectedCouponId: null,
@@ -367,6 +386,16 @@ function bookingReducer(
       nextState = {
         ...state,
         giftCardAmountCents: action.payload,
+      };
+      break;
+
+    case "SET_VALIDATED_COUPON":
+      nextState = {
+        ...state,
+        validatedCoupon: action.payload,
+        selectedCouponId: action.payload?.id ?? null,
+        selectedGiftCardId: null,
+        giftCardAmountCents: 0,
       };
       break;
 

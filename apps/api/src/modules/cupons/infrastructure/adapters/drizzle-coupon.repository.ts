@@ -3,6 +3,7 @@
 import { Injectable } from '@nestjs/common';
 import { db } from 'src/modules/db/client'; // ajusta a tu path
 import { coupons, couponServices } from 'src/modules/db/schema';
+import * as schema from 'src/modules/db/schema';
 
 import {
   CouponRepository,
@@ -10,9 +11,11 @@ import {
 } from '../../core/ports/coupon.repository';
 
 import { Coupon } from '../../core/entities/coupon.entity';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
+import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 type DbCoupon = typeof coupons.$inferSelect;
+type DbExecutor = PostgresJsDatabase<typeof schema>;
 
 @Injectable()
 export class DrizzleCouponRepository implements CouponRepository {
@@ -77,15 +80,16 @@ export class DrizzleCouponRepository implements CouponRepository {
     return this.map(row);
   }
 
-  async incrementUsage(id: string): Promise<void> {
-    await db.execute(
-      `
-      UPDATE coupons
-      SET used_count = used_count + 1,
-          updated_at = NOW()
-      WHERE id = ${id}
-      `,
-    );
+  async incrementUsage(id: string, tx?: DbExecutor): Promise<void> {
+    const executor: DbExecutor = tx ?? db;
+
+    await executor
+      .update(coupons)
+      .set({
+        usedCount: sql`${coupons.usedCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(coupons.id, id));
   }
 
   private map = (row: DbCoupon): Coupon => {
@@ -129,8 +133,7 @@ export class DrizzleCouponRepository implements CouponRepository {
     const rows = await db
       .select({ serviceId: couponServices.serviceId })
       .from(couponServices)
-      .where(eq(couponServices.couponId, couponId))
-      .orderBy(desc(coupons.createdAt));
+      .where(eq(couponServices.couponId, couponId));
 
     return rows.map((r) => r.serviceId);
   }

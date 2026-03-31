@@ -32,7 +32,7 @@ export interface CouponRepository {
 
   update(id: string, data: Partial<Coupon>): Promise<Coupon>;
 
-  incrementUsage(id: string): Promise<void>;
+  incrementUsage(id: string, tx?: any): Promise<void>;
 
   getServices(couponId: string): Promise<string[]>;
 
