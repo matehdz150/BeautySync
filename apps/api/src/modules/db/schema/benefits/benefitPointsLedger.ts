@@ -5,6 +5,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { benefitPointsSourceEnum } from './benefits-enums';
@@ -33,6 +34,8 @@ export const benefitPointsLedger = pgTable(
     metadata: jsonb('metadata'),
 
     createdAt: timestamp('created_at').defaultNow().notNull(),
+
+    idempotencyKey: text('idempotency_key').notNull(),
   },
   (t) => ({
     userIdx: index('benefit_points_user_idx').on(t.userId),
@@ -49,5 +52,9 @@ export const benefitPointsLedger = pgTable(
 
     // 🔥 auditoría por referencia (booking, etc)
     referenceIdx: index('benefit_points_reference_idx').on(t.referenceId),
+
+    idempotencyIdx: uniqueIndex('benefit_points_ledger_idempotency_unique').on(
+      t.idempotencyKey,
+    ),
   }),
 );
