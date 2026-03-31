@@ -11,7 +11,7 @@ export class ApplyCouponUseCase {
     private readonly repo: CouponRepository,
   ) {}
 
-  async execute(couponId: string) {
-    await this.repo.incrementUsage(couponId);
+  async execute(couponId: string, tx?: any) {
+    await this.repo.incrementUsage(couponId, tx);
   }
 }

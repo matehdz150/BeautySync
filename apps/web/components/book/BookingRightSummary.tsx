@@ -50,7 +50,7 @@ export function BookingRightSummary({
 
   const {
     selectedGiftCardId,
-    giftCardAmountCents,
+    validatedCoupon,
     selectedCouponId,
     benefits,
   } = booking as any;
@@ -139,19 +139,7 @@ export function BookingRightSummary({
 
   const subtotalCents = confirmTotalCents;
 
-  const selectedCoupon = benefits?.coupons?.find(
-    (c: any) => c.id === selectedCouponId,
-  );
-
-  const couponDiscount = useMemo(() => {
-    if (!selectedCoupon) return 0;
-
-    if (selectedCoupon.type === "percentage") {
-      return Math.floor(subtotalCents * (selectedCoupon.value / 100));
-    }
-
-    return selectedCoupon.value;
-  }, [selectedCoupon, subtotalCents]);
+  const couponDiscount = booking.validatedCoupon?.discountCents ?? 0;
 
   const afterCoupon = Math.max(subtotalCents - couponDiscount, 0);
 
@@ -211,9 +199,9 @@ export function BookingRightSummary({
         branchSlug: branch!.slug,
         date: date!,
         paymentMethod: (paymentMethod ?? "ONSITE") as "ONSITE" | "ONLINE",
-        discountCode: discountCode?.trim() ? discountCode.trim() : null,
+        discountCode: validatedCoupon?.code ?? null,
         notes: notes?.trim() ? notes.trim() : null,
-        giftCardCode: selectedGiftCard?.code ?? '',
+        giftCardCode: selectedGiftCard?.code ?? "",
         giftCardAmountCents: giftCardUsed,
         appointments,
       };
