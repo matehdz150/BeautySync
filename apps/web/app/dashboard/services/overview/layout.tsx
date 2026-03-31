@@ -27,7 +27,7 @@ export default function StaffLayout({
     { label: "Catálogo de servicios", href: `${BASE}` },
     { label: "Productos", href: `${BASE}/products` },
     { label: "Tarjetas de regalo", href: `${BASE}/gift-cards` },
-    { label: "Descuentos", href: `${BASE}/discounts` },
+    { label: "Cupones", href: `${BASE}/coupons` },
   ];
 
   function isActive(href: string) {

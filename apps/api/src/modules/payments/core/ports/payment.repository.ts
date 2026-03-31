@@ -41,4 +41,23 @@ export interface PaymentsRepositoryPort {
   assignClient(paymentId: string, clientId: string): Promise<void>;
 
   findByClientId(clientId: string): Promise<Payment[]>;
+
+  getAvailableBenefits(input: {
+    branchId: string;
+    publicUserId: string;
+  }): Promise<{
+    giftCards: {
+      id: string;
+      code: string;
+      balanceCents: number;
+      expiresAt?: Date | null;
+    }[];
+    coupons: {
+      id: string;
+      code: string;
+      type: 'percentage' | 'fixed';
+      value: number;
+      expiresAt?: Date | null;
+    }[];
+  }>;
 }

@@ -36,6 +36,10 @@ import { GIFT_CARD_REPOSITORY } from './core/ports/tokens';
 ========================= */
 import { BranchesModule } from '../branches/branches.module';
 import { AuthModule } from '../auth/auth.module';
+import { GetGiftCardByCodeUseCase } from './core/use-cases/get-gift-card-by-code.use-case';
+import { ClaimGiftCardUseCase } from './core/use-cases/claim-gift-card.use-case';
+import { ResendGiftCardUseCase } from './core/use-cases/resend-gift-card.use-case';
+import { CancelGiftCardUseCase } from './core/use-cases/cancel-gift-card.use-casse';
 
 @Module({
   imports: [
@@ -61,6 +65,10 @@ import { AuthModule } from '../auth/auth.module';
 
     AssignGiftCardToUserUseCase,
     UnassignGiftCardFromUserUseCase,
+    ClaimGiftCardUseCase,
+    GetGiftCardByCodeUseCase,
+    CancelGiftCardUseCase,
+    ResendGiftCardUseCase,
 
     /* =========================
        REPOSITORY

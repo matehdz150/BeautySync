@@ -112,6 +112,7 @@ import { FavoritesModule } from '../favorites/favorites.module';
     GetBranchForAiUseCase,
     PUBLIC_BRANCHES_REPOSITORY,
     BRANCHES_REPOSITORY,
+    BRANCH_IMAGES_REPOSITORY,
   ],
 })
 export class BranchesModule {}

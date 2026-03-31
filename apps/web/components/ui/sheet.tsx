@@ -77,7 +77,8 @@ function SheetContent({
           className="
             absolute
             top-6
-            -left-18              /* ⬅️ mueve fuera del panel */
+            -left-18 
+            z-[60]
             h-13 w-13
             rounded-full
             bg-white shadow

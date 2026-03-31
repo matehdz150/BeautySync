@@ -43,6 +43,16 @@ export interface UpdateClientInput {
   };
 }
 
+export type PublicClient = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  avatarUrl: string | null;
+
+  publicUserId: string;
+};
+
 export interface ClientsRepository {
   findAll(): Promise<Client[]>;
   findOne(id: string): Promise<ClientDetails>;
@@ -50,5 +60,6 @@ export interface ClientsRepository {
   update(id: string, dto: UpdateClientInput): Promise<Client>;
   delete(id: string): Promise<{ ok: true }>;
   findByOrganization(orgId: string): Promise<OrganizationClientListItem[]>;
+  findPublicClientsByOrganization(orgId: string): Promise<PublicClient[]>;
   findEditData(id: string): Promise<ClientEditData>;
 }

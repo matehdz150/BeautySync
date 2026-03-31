@@ -35,6 +35,7 @@ import { ConfigModule } from '@nestjs/config';
 import { FavoritesModule } from './modules/favorites/favorites.module';
 import { ProductsModule } from './modules/products/products.module';
 import { GiftCardsModule } from './modules/gift-cards/gift-cards.module';
+import { CouponsModule } from './modules/cupons/cupons.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { GiftCardsModule } from './modules/gift-cards/gift-cards.module';
     FavoritesModule,
     ProductsModule,
     GiftCardsModule,
+    CouponsModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

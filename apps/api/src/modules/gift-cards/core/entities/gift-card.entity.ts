@@ -20,5 +20,6 @@ export class GiftCard {
 
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
+    public readonly issuedToEmail: string | null,
   ) {}
 }

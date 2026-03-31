@@ -15,6 +15,10 @@ import {
   buildStaffInviteMail,
   StaffInviteMailPayload,
 } from '../mail/staff/staff-mail.builder';
+import {
+  buildGiftCardMail,
+  GiftCardPayload,
+} from '../mail/gift-card/gift-card-mail.builder';
 
 const transporter: Transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
@@ -59,6 +63,22 @@ export const mailWorker = new BullWorker(
       });
 
       console.log('📨 Invite email sent →', data.to);
+      return;
+    }
+
+    if (job.name === 'gift-card-issued') {
+      const data = job.data as GiftCardPayload;
+
+      const { subject, html } = await buildGiftCardMail(data);
+
+      await transporter.sendMail({
+        from: '"Belza" <no-reply@belza.com>',
+        to: data.to,
+        subject,
+        html,
+      });
+
+      console.log('📨 giftcard email sent →', data.to);
       return;
     }
 

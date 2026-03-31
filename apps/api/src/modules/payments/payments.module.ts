@@ -16,10 +16,13 @@ import { GetPaymentUseCase } from './core/use-cases/get-payment.use-case';
 import { DrizzleBookingsRepository } from './infrastructure/adapters/drizzle-bookings.repository';
 import { AssignClientToPaymentUseCase } from './core/use-cases/assign-client-to-payment.use-case';
 import { GetClientPaymentsUseCase } from './core/use-cases/get-client-payments.use-case';
+import { GetAvailablePaymentBenefitsUseCase } from './core/use-cases/get-available-benefits.use-case';
+import { BranchesModule } from '../branches/branches.module';
+import { PublicPaymentsController } from './application/controllers/public-payment.controller';
 
 @Module({
-  imports: [AuthModule],
-  controllers: [PaymentsController],
+  imports: [AuthModule, BranchesModule],
+  controllers: [PaymentsController, PublicPaymentsController],
   providers: [
     CreatePaymentUseCase,
     AddPaymentItemUseCase,
@@ -33,6 +36,7 @@ import { GetClientPaymentsUseCase } from './core/use-cases/get-client-payments.u
     GetPaymentUseCase,
     AssignClientToPaymentUseCase,
     GetClientPaymentsUseCase,
+    GetAvailablePaymentBenefitsUseCase,
     {
       provide: PAYMENTS_REPOSITORY,
       useClass: DrizzlePaymentsRepository,

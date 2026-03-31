@@ -9,6 +9,7 @@ export interface CreateGiftCardInput {
   initialAmountCents: number;
   currency?: string;
   expiresAt?: Date | null;
+  issuedToEmail?: string;
   ownerUserId?: string | null;
 }
 

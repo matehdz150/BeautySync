@@ -5,11 +5,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { GIFT_CARD_REPOSITORY } from '../ports/tokens';
 import { GiftCardRepository } from '../ports/gift-card.repository';
+
 import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
+
 import { BranchesRepository } from 'src/modules/branches/core/ports/branches.repository';
-import { BRANCHES_REPOSITORY } from 'src/modules/branches/core/ports/tokens';
+import {
+  BRANCH_IMAGES_REPOSITORY,
+  BRANCHES_REPOSITORY,
+} from 'src/modules/branches/core/ports/tokens';
+
+import { mailQueue } from 'src/modules/queues/mail/mail.queue';
+import { BranchImagesRepository } from 'src/modules/branches/core/ports/branch-images.repository';
 
 @Injectable()
 export class CreateGiftCardUseCase {
@@ -19,6 +28,9 @@ export class CreateGiftCardUseCase {
 
     @Inject(BRANCHES_REPOSITORY)
     private readonly branchesRepo: BranchesRepository,
+
+    @Inject(BRANCH_IMAGES_REPOSITORY)
+    private readonly branchImagesRepo: BranchImagesRepository,
   ) {}
 
   async execute(input: {
@@ -26,8 +38,12 @@ export class CreateGiftCardUseCase {
     initialAmountCents: number;
     ownerUserId?: string;
     expiresAt?: Date | null;
+    issuedToEmail?: string; // 🔥
     user: AuthenticatedUser;
   }) {
+    const MIN_AMOUNT = 100; // $1
+    const MAX_AMOUNT = 100_000_00; // $10,000
+
     // =========================
     // VALIDATIONS
     // =========================
@@ -39,18 +55,34 @@ export class CreateGiftCardUseCase {
       throw new BadRequestException('Monto inválido');
     }
 
-    if (input.initialAmountCents < 100) {
-      throw new BadRequestException('Monto mínimo 1.00');
+    if (input.initialAmountCents < MIN_AMOUNT) {
+      throw new BadRequestException('Monto mínimo $1.00');
+    }
+
+    if (input.initialAmountCents > MAX_AMOUNT) {
+      throw new BadRequestException('Monto máximo $10,000');
     }
 
     if (input.expiresAt && input.expiresAt < new Date()) {
       throw new BadRequestException('Fecha de expiración inválida');
     }
 
+    if (input.issuedToEmail && !input.issuedToEmail.includes('@')) {
+      throw new BadRequestException('Email inválido');
+    }
+
     // =========================
-    // 🔥 ACCESS CONTROL
+    // ACCESS CONTROL
     // =========================
     const branch = await this.branchesRepo.findById(input.branchId);
+
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+
+    const images = await this.branchImagesRepo.getByBranch(branch.id);
+
+    const coverUrl = images?.[0]?.url ?? null;
 
     if (!branch) {
       throw new NotFoundException('Branch not found');
@@ -68,13 +100,35 @@ export class CreateGiftCardUseCase {
     // =========================
     // CREATE
     // =========================
-    return this.repo.create({
+    const giftCard = await this.repo.create({
       branchId: input.branchId,
       code,
       initialAmountCents: input.initialAmountCents,
       ownerUserId: input.ownerUserId ?? null,
+      issuedToEmail: input.issuedToEmail, // 🔥 importante
       expiresAt: input.expiresAt ?? null,
     });
+
+    // =========================
+    // SEND EMAIL (ASYNC)
+    // =========================
+    if (input.issuedToEmail) {
+      mailQueue
+        .add('gift-card-issued', {
+          to: input.issuedToEmail,
+          code,
+          amountCents: input.initialAmountCents,
+          organization: branch.organizationId,
+          branch: branch.name,
+          claimLink: `${process.env.PUBLIC_APP_URL}/gift-card/claim/${code}`,
+          coverUrl,
+        })
+        .catch((e) => {
+          console.error('Failed to enqueue gift card email', e);
+        });
+    }
+
+    return giftCard;
   }
 
   private generateCode() {

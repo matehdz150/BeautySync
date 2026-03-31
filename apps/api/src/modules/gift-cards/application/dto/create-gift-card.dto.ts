@@ -1,4 +1,11 @@
-import { IsString, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  IsOptional,
+  IsUUID,
+  Min,
+  IsEmail,
+} from 'class-validator';
 
 export class CreateGiftCardDto {
   @IsUUID()
@@ -18,4 +25,8 @@ export class CreateGiftCardDto {
   @IsOptional()
   @IsUUID()
   ownerUserId?: string;
+
+  @IsOptional()
+  @IsEmail()
+  issuedToEmail?: string;
 }

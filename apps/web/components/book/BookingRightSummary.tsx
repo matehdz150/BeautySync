@@ -49,6 +49,17 @@ export function BookingRightSummary({
   const booking = usePublicBooking();
 
   const {
+    selectedGiftCardId,
+    giftCardAmountCents,
+    selectedCouponId,
+    benefits,
+  } = booking as any;
+
+  const selectedGiftCard = benefits?.giftCards?.find(
+    (g: any) => g.id === selectedGiftCardId,
+  );
+
+  const {
     branch,
     services: selectedServices,
     catalog,
@@ -113,7 +124,7 @@ export function BookingRightSummary({
 
   const staffSummary = useMemo(() => {
     const uniqueStaffIds = Array.from(
-      new Set(appointmentsDraft.map((a) => a.staffId))
+      new Set(appointmentsDraft.map((a) => a.staffId)),
     );
 
     return uniqueStaffIds.map((staffId) => {
@@ -125,6 +136,31 @@ export function BookingRightSummary({
       };
     });
   }, [appointmentsDraft, staffCatalog]);
+
+  const subtotalCents = confirmTotalCents;
+
+  const selectedCoupon = benefits?.coupons?.find(
+    (c: any) => c.id === selectedCouponId,
+  );
+
+  const couponDiscount = useMemo(() => {
+    if (!selectedCoupon) return 0;
+
+    if (selectedCoupon.type === "percentage") {
+      return Math.floor(subtotalCents * (selectedCoupon.value / 100));
+    }
+
+    return selectedCoupon.value;
+  }, [selectedCoupon, subtotalCents]);
+
+  const afterCoupon = Math.max(subtotalCents - couponDiscount, 0);
+
+  const giftCardUsed = Math.min(
+    selectedGiftCard?.balanceCents ?? 0,
+    afterCoupon,
+  );
+
+  const finalTotal = Math.max(afterCoupon - giftCardUsed, 0);
 
   const canConfirm = Boolean(branch && date && appointmentsDraft.length > 0);
 
@@ -146,7 +182,29 @@ export function BookingRightSummary({
 
     try {
       const appointments = [...appointmentsDraft].sort((a, b) =>
-        a.startIso.localeCompare(b.startIso)
+        a.startIso.localeCompare(b.startIso),
+      );
+
+      const subtotal = appointmentsDraft.reduce((acc, a) => {
+        const srv = catalog.find((s) => s.id === a.serviceId);
+        return acc + (srv?.priceCents ?? 0);
+      }, 0);
+
+      const selectedCoupon = benefits?.coupons?.find(
+        (c: any) => c.id === selectedCouponId,
+      );
+
+      const couponDiscount = selectedCoupon
+        ? selectedCoupon.type === "percentage"
+          ? Math.floor(subtotal * (selectedCoupon.value / 100))
+          : selectedCoupon.value
+        : 0;
+
+      const afterCoupon = Math.max(subtotal - couponDiscount, 0);
+
+      const giftCardUsed = Math.min(
+        selectedGiftCard?.balanceCents ?? 0,
+        afterCoupon,
       );
 
       const payload: CreatePublicBookingPayload = {
@@ -155,8 +213,12 @@ export function BookingRightSummary({
         paymentMethod: (paymentMethod ?? "ONSITE") as "ONSITE" | "ONLINE",
         discountCode: discountCode?.trim() ? discountCode.trim() : null,
         notes: notes?.trim() ? notes.trim() : null,
+        giftCardCode: selectedGiftCard?.code ?? '',
+        giftCardAmountCents: giftCardUsed,
         appointments,
       };
+
+      console.log(payload);
 
       const res = await createPublicBooking(payload);
 
@@ -193,10 +255,12 @@ export function BookingRightSummary({
 
   return (
     <>
-
       {/* ✅ SPLASH: Desktop */}
       <div className="hidden md:block">
-        <BookingConfirmSplashDesktop open={showSplash} title="Cita confirmada" />
+        <BookingConfirmSplashDesktop
+          open={showSplash}
+          title="Cita confirmada"
+        />
       </div>
 
       <div className="sticky top-28 space-y-4">
@@ -362,11 +426,36 @@ export function BookingRightSummary({
               </div>
 
               {/* TOTAL */}
-              <div className="border-t pt-4 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total</span>
-                <span className="text-lg font-semibold">
-                  {formatMoneyMXN(confirmTotalCents)}
-                </span>
+              <div className="border-t pt-4 space-y-2 text-sm">
+                {/* SUBTOTAL */}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>{formatMoneyMXN(subtotalCents)}</span>
+                </div>
+
+                {/* COUPON */}
+                {couponDiscount > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Descuento</span>
+                    <span>- {formatMoneyMXN(couponDiscount)}</span>
+                  </div>
+                )}
+
+                {/* GIFT CARD */}
+                {giftCardUsed > 0 && (
+                  <div className="flex justify-between text-indigo-600">
+                    <span>Gift card</span>
+                    <span>- {formatMoneyMXN(giftCardUsed)}</span>
+                  </div>
+                )}
+
+                {/* TOTAL FINAL */}
+                <div className="flex justify-between pt-2 border-t mt-2">
+                  <span className="font-medium">Total</span>
+                  <span className="text-lg font-semibold">
+                    {formatMoneyMXN(finalTotal)}
+                  </span>
+                </div>
               </div>
 
               {/* ERROR */}
@@ -378,7 +467,7 @@ export function BookingRightSummary({
               <Button
                 className={cn(
                   "w-full h-12 rounded-full",
-                  "bg-black hover:bg-black/90"
+                  "bg-black hover:bg-black/90",
                 )}
                 disabled={!canConfirm || submitting}
                 onClick={handleConfirm}

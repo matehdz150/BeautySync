@@ -12,7 +12,6 @@ import { GIFT_CARD_REPOSITORY } from '../ports/tokens';
 import * as repo from '../ports/gift-card.repository';
 import { BRANCHES_REPOSITORY } from 'src/modules/branches/core/ports/tokens';
 import { BranchesRepository } from 'src/modules/branches/core/ports/branches.repository';
-import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
 
 @Injectable()
 export class RedeemGiftCardUseCase {
@@ -28,7 +27,7 @@ export class RedeemGiftCardUseCase {
     code: string;
     amountCents: number;
     branchId: string;
-    user: AuthenticatedUser;
+    publicUserId: string;
   }) {
     // =========================
     // VALIDATIONS
@@ -54,10 +53,6 @@ export class RedeemGiftCardUseCase {
       throw new NotFoundException('Branch not found');
     }
 
-    if (!input.user.belongsToOrg(branch.organizationId)) {
-      throw new ForbiddenException('No tienes acceso a esta sucursal');
-    }
-
     // =========================
     // 🔥 BUSINESS VALIDATION
     // =========================
@@ -71,6 +66,11 @@ export class RedeemGiftCardUseCase {
       throw new ForbiddenException(
         'Esta gift card no pertenece a esta sucursal',
       );
+    }
+
+    // 🔥 OWNER VALIDATION
+    if (giftCard.ownerUserId !== input.publicUserId) {
+      throw new ForbiddenException('No puedes usar esta gift card');
     }
 
     if (giftCard.status !== 'active') {
