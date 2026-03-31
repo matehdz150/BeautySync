@@ -54,6 +54,11 @@ export const publicBookings = pgTable(
 
     remainingToPayCents: integer('remaining_to_pay_cents').notNull().default(0),
 
+    couponId: uuid('coupon_id'),
+
+    subtotalCents: integer('subtotal_cents').notNull(),
+    discountCents: integer('discount_cents').notNull().default(0),
+
     notes: text('notes'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),

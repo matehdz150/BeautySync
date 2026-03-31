@@ -47,12 +47,16 @@ import { publicBookingRatings } from '../db/schema/rankings/public_booking_ratin
 import { NotificationsJobsService } from '../queues/notifications/notifications-job.service';
 import { SLOT_LOCK_PORT } from '../cache/core/ports/tokens';
 import { SlotLockPort } from '../cache/core/ports/slot-lock.port';
+import { ValidateCouponUseCase } from '../cupons/core/use-cases/validate-cupon.use-case';
+import { ApplyCouponUseCase } from '../cupons/core/use-cases/apply-coupon.use-case';
 
 @Injectable()
 export class BookingsCoreService {
   constructor(
     private readonly publicBookingJobsService: PublicBookingJobsService,
     private readonly notificationsJobService: NotificationsJobsService,
+    private readonly validateCoupon: ValidateCouponUseCase,
+    private readonly applyCoupon: ApplyCouponUseCase,
     @Inject('DB') private readonly db: client.DB,
     @Inject(SLOT_LOCK_PORT)
     private readonly slotLock: SlotLockPort,
@@ -254,6 +258,23 @@ export class BookingsCoreService {
       0,
     );
 
+    let couponDiscount = 0;
+    let couponId: string | null = null;
+
+    if (dto.discountCode) {
+      const serviceIds = normalized.map((a) => a.serviceId);
+      const result = await this.validateCoupon.execute({
+        code: dto.discountCode,
+        branchId: branch.id,
+        amountCents: bookingTotalCents,
+        publicUserId,
+        serviceIds,
+      });
+
+      couponDiscount = result.discountCents;
+      couponId = result.couponId;
+    }
+
     // =========================
     // TRANSACTION
     // =========================
@@ -277,6 +298,9 @@ export class BookingsCoreService {
           publicUser,
           branch,
         });
+
+        const subtotal = bookingTotalCents;
+        const afterCoupon = Math.max(subtotal - couponDiscount, 0);
 
         let giftCardUsed = 0;
 
@@ -307,12 +331,11 @@ export class BookingsCoreService {
             throw new BadRequestException('Saldo insuficiente');
           }
 
-          // 🔥 aplicar descuento
-          giftCardUsed = Math.min(dto.giftCardAmountCents, bookingTotalCents);
+          // 🔥 ahora sí correcto
+          giftCardUsed = Math.min(dto.giftCardAmountCents, afterCoupon);
 
           const newBalance = giftCard.balanceCents - giftCardUsed;
 
-          // 🔥 update balance
           await tx
             .update(giftCards)
             .set({
@@ -321,16 +344,17 @@ export class BookingsCoreService {
             })
             .where(eq(giftCards.id, giftCard.id));
 
-          // 🔥 transaction con referencia a booking
           await tx.insert(giftCardTransactions).values({
             giftCardId: giftCard.id,
             type: 'redeem',
             amountCents: giftCardUsed,
             referenceType: 'booking',
-            referenceId: bookingId, // 🔥 CLAVE
+            referenceId: bookingId,
             createdAt: new Date(),
           });
         }
+
+        const finalTotal = Math.max(afterCoupon - giftCardUsed, 0);
 
         await tx.insert(publicBookings).values({
           id: bookingId,
@@ -341,10 +365,17 @@ export class BookingsCoreService {
           status: 'CONFIRMED',
           paymentMethod: (dto.paymentMethod ?? 'ONSITE') as 'ONSITE' | 'ONLINE',
           paidWithGiftCardCents: giftCardUsed,
-          remainingToPayCents: bookingTotalCents - giftCardUsed,
-          totalCents: bookingTotalCents,
+          subtotalCents: subtotal,
+          discountCents: couponDiscount,
+          couponId: couponId,
+          remainingToPayCents: finalTotal,
+          totalCents: finalTotal,
           notes: dto.notes ?? null,
         });
+
+        if (couponId) {
+          await this.applyCoupon.execute(couponId);
+        }
 
         const created = await Promise.all(
           normalized.map(async (a) => {
@@ -841,12 +872,23 @@ export class BookingsCoreService {
       await tx.insert(publicBookings).values({
         id: bookingId,
         branchId: branch.id,
-        publicUserId, // 👈 nullable
+        publicUserId,
+
         startsAt: bookingStartsAtUtc,
         endsAt: bookingEndsAtUtc,
+
         status: 'CONFIRMED',
         paymentMethod: 'ONSITE',
+
+        // 🔥 NUEVO
+        subtotalCents: bookingTotalCents,
+        discountCents: 0,
+
         totalCents: bookingTotalCents,
+
+        paidWithGiftCardCents: 0,
+        remainingToPayCents: bookingTotalCents,
+
         notes: dto.notes ?? null,
       });
 
