@@ -15,3 +15,4 @@ export * from './favorites';
 export * from './products';
 export * from './gift-cards';
 export * from './cupons';
+export * from './benefits';
