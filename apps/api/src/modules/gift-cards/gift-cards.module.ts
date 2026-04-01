@@ -83,6 +83,7 @@ import { CancelGiftCardUseCase } from './core/use-cases/cancel-gift-card.use-cas
     // 🔥 útil para booking module después
     RedeemGiftCardUseCase,
     GetMyGiftCardsUseCase,
+    GIFT_CARD_REPOSITORY,
   ],
 })
 export class GiftCardsModule {}

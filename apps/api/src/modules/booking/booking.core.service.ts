@@ -49,6 +49,7 @@ import { SLOT_LOCK_PORT } from '../cache/core/ports/tokens';
 import { SlotLockPort } from '../cache/core/ports/slot-lock.port';
 import { ValidateCouponUseCase } from '../cupons/core/use-cases/validate-cupon.use-case';
 import { ApplyCouponUseCase } from '../cupons/core/use-cases/apply-coupon.use-case';
+import { DomainEventBus } from 'src/shared/domain-events/domain-event-bus';
 
 @Injectable()
 export class BookingsCoreService {
@@ -60,6 +61,7 @@ export class BookingsCoreService {
     @Inject('DB') private readonly db: client.DB,
     @Inject(SLOT_LOCK_PORT)
     private readonly slotLock: SlotLockPort,
+    private readonly eventBus: DomainEventBus,
   ) {}
 
   async createPublicBooking(dto: CreatePublicBookingDto, publicUserId: string) {
@@ -459,6 +461,22 @@ export class BookingsCoreService {
       bookingId,
       startsAtUtc: bookingStartsAtUtc,
       endsAtUtc: bookingEndsAtUtc,
+    });
+
+    // =========================
+    // 🔥 DOMAIN EVENT
+    // =========================
+    await this.eventBus.publish({
+      type: 'booking.created',
+      payload: {
+        bookingId,
+        userId: publicUserId,
+        branchId: branch.id,
+        amountCents: bookingTotalCents,
+        isOnline:
+          (dto.paymentMethod ?? PublicPaymentMethodEnum.ONSITE) ===
+          PublicPaymentMethodEnum.ONLINE,
+      },
     });
 
     // =========================
