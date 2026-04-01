@@ -17,6 +17,12 @@ export async function activateBenefitProgram(data: {
   });
 }
 
+export type BenefitProgramState = {
+  exists: boolean;
+  isActive: boolean;
+  name: string | null;
+};
+
 export type BenefitRule = {
   id: string;
   type:
@@ -30,9 +36,14 @@ export type BenefitRule = {
   config: Record<string, unknown>;
 };
 
+export type GetBenefitRulesResponse = {
+  program: BenefitProgramState;
+  rules: BenefitRule[];
+};
+
 export async function getBenefitRulesByBranch(branchId: string) {
-  return api<BenefitRule[]>(
-    `/benefits/rules/branch/${branchId}`,
+  return api<GetBenefitRulesResponse>(
+    `/benefits/program/branch/${branchId}`,
     {
       method: "GET",
     }
