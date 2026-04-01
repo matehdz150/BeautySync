@@ -10,9 +10,16 @@ import { NotificationsJobsService } from '../queues/notifications/notifications-
 import { AuthModule } from '../auth/auth.module';
 import { CacheModule } from '../cache/cache.module';
 import { CouponsModule } from '../cupons/cupons.module';
+import { DomainEventsModule } from 'src/shared/domain-events/domain-events.module';
 
 @Module({
-  imports: [AuthModule, DbModule, CacheModule, CouponsModule],
+  imports: [
+    AuthModule,
+    DbModule,
+    CacheModule,
+    CouponsModule,
+    DomainEventsModule,
+  ],
   controllers: [BookingsPublicController, BookingsManagerController],
   providers: [
     BookingsPublicService,

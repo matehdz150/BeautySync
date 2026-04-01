@@ -12,6 +12,7 @@ import { publicBookings } from '../db/schema/public/public-bookings';
 import { appointments } from '../db/schema/appointments/appointments';
 import { publicBookingRatings } from '../db/schema/rankings/public_booking_ratings';
 import { publicBookingRatingStaff } from '../db/schema/rankings/public_booking_rating_staff';
+import { DomainEventBus } from 'src/shared/domain-events/domain-event-bus';
 
 type CreateBookingRatingInput = {
   bookingId: string;
@@ -22,6 +23,7 @@ type CreateBookingRatingInput = {
 
 @Injectable()
 export class RankingsService {
+  constructor(private readonly eventBus: DomainEventBus) {}
   async createBookingRating({
     bookingId,
     publicUserId,
@@ -84,8 +86,7 @@ export class RankingsService {
     /* ============================
        Transaction
     ============================ */
-    return await db.transaction(async (tx) => {
-      /* ---- create rating ---- */
+    const result = await db.transaction(async (tx) => {
       const [ratingRow] = await tx
         .insert(publicBookingRatings)
         .values({
@@ -97,7 +98,6 @@ export class RankingsService {
         })
         .returning();
 
-      /* ---- link staff ---- */
       if (staffIds.length > 0) {
         await tx.insert(publicBookingRatingStaff).values(
           staffIds.map((staffId) => ({
@@ -109,5 +109,17 @@ export class RankingsService {
 
       return ratingRow;
     });
+
+    // 🔥 EVENTO FUERA DE TX
+    await this.eventBus.publish({
+      type: 'review.created',
+      payload: {
+        reviewId: result.id,
+        userId: publicUserId,
+        branchId: booking.branchId,
+      },
+    });
+
+    return result;
   }
 }

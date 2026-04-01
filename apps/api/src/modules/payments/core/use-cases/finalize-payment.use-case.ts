@@ -9,6 +9,7 @@ import { PAYMENTS_REPOSITORY } from '../ports/tokens';
 import * as paymentRepository from '../ports/payment.repository';
 
 import { RecalculatePaymentTotalsUseCase } from './recalculate-payment-totals.use-case';
+import { DomainEventBus } from 'src/shared/domain-events/domain-event-bus';
 
 @Injectable()
 export class FinalizePaymentUseCase {
@@ -17,6 +18,8 @@ export class FinalizePaymentUseCase {
     private readonly paymentsRepo: paymentRepository.PaymentsRepositoryPort,
 
     private readonly recalcTotals: RecalculatePaymentTotalsUseCase,
+
+    private readonly eventBus: DomainEventBus,
   ) {}
 
   async execute(paymentId: string, method: paymentRepository.PaymentMethod) {
@@ -61,6 +64,18 @@ export class FinalizePaymentUseCase {
     await this.paymentsRepo.markPaid(paymentId, {
       paymentMethod: method,
       paidAt: new Date(),
+    });
+
+    await this.eventBus.publish({
+      type: 'payment.completed',
+      payload: {
+        paymentId: payment.id,
+        bookingId: payment.bookingId,
+        userId: payment.clientId,
+        branchId: payment.branchId,
+        amountCents: payment.totalCents,
+        method,
+      },
     });
 
     return this.paymentsRepo.findById(paymentId);

@@ -36,6 +36,7 @@ import { FavoritesModule } from './modules/favorites/favorites.module';
 import { ProductsModule } from './modules/products/products.module';
 import { GiftCardsModule } from './modules/gift-cards/gift-cards.module';
 import { CouponsModule } from './modules/cupons/cupons.module';
+import { BenefitsModule } from './modules/benefits/benefits.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { CouponsModule } from './modules/cupons/cupons.module';
     ProductsModule,
     GiftCardsModule,
     CouponsModule,
+    BenefitsModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

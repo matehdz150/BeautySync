@@ -13,6 +13,7 @@ import { CouponsController } from './application/cupons.controller';
 import { BranchesModule } from '../branches/branches.module';
 import { AuthModule } from '../auth/auth.module';
 import { GetCouponsByBranchUseCase } from './core/use-cases/get-coupons-by-branch.use-case';
+import { InternalCouponService } from './core/services/internal-coupon.service';
 
 @Module({
   imports: [BranchesModule, AuthModule],
@@ -27,7 +28,13 @@ import { GetCouponsByBranchUseCase } from './core/use-cases/get-coupons-by-branc
     ValidateCouponUseCase,
     ApplyCouponUseCase,
     GetCouponsByBranchUseCase,
+    InternalCouponService,
   ],
-  exports: [ValidateCouponUseCase, ApplyCouponUseCase],
+  exports: [
+    ValidateCouponUseCase,
+    ApplyCouponUseCase,
+    InternalCouponService,
+    COUPON_REPOSITORY,
+  ],
 })
 export class CouponsModule {}
