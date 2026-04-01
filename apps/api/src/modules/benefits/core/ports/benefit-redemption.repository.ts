@@ -10,4 +10,15 @@ export interface BenefitRedemptionRepository {
   }): Promise<{
     id: string;
   }>;
+
+  updateStatus(
+    id: string,
+    status: 'CONFIRMED' | 'PENDING' | 'FAILED',
+  ): Promise<void>;
+
+  updateMetadata(id: string, metadata: Record<string, unknown>): Promise<void>;
+
+  findByIdempotencyKey?(idempotencyKey: string): Promise<{
+    id: string;
+  } | null>;
 }

@@ -43,6 +43,7 @@ import { PaymentCompletedHandler } from './application/handlers/payment-complete
 import {
   BENEFIT_PROGRAM_REPOSITORY,
   BENEFIT_REWARD_HANDLERS,
+  BENEFIT_RULE_CONFIG_VALIDATORS,
   BENEFIT_RULE_REPOSITORY,
 } from './core/ports/tokens';
 
@@ -72,6 +73,18 @@ import { AuthModule } from '../auth/auth.module';
 import { ActivateBenefitProgramUseCase } from './core/use-cases/activate-benefit-programm.use-case';
 import { BranchesModule } from '../branches/branches.module';
 import { GetBenefitRulesByBranchUseCase } from './core/use-cases/get-benefit-rules-by-branch.use-case';
+import { CreateBenefitEarnRuleUseCase } from './core/use-cases/create-benefit-earn-rule.use-case';
+import { SpendAccumulatedConfigValidator } from './core/validators/spend-accumulated.validator';
+import { BookingCountConfigValidator } from './core/validators/booking-count.validator';
+import { FirstBookingConfigValidator } from './core/validators/first-booking.validator';
+import { ReviewCreatedConfigValidator } from './core/validators/review-created.validator';
+import { OnlinePaymentConfigValidator } from './core/validators/online-payment.validator';
+import { ReferralConfigValidator } from './core/validators/referral.validator';
+import { CreateBenefitRewardUseCase } from './core/use-cases/create-benefit-reward.use-case';
+import { BenefitsEventRegistry } from './application/handlers/benefits-event.registry';
+import { CacheModule } from '../cache/cache.module';
+import { GetUserWalletSummaryUseCase } from './core/use-cases/get-user-points.use-case';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -80,6 +93,8 @@ import { GetBenefitRulesByBranchUseCase } from './core/use-cases/get-benefit-rul
     GiftCardsModule,
     AuthModule,
     BranchesModule,
+    CacheModule,
+    PaymentsModule,
   ],
   controllers: [BenefitProgramController],
 
@@ -163,6 +178,25 @@ import { GetBenefitRulesByBranchUseCase } from './core/use-cases/get-benefit-rul
         GiftCardRewardHandler,
       ],
     },
+    {
+      provide: BENEFIT_RULE_CONFIG_VALIDATORS,
+      useFactory: (
+        booking: BookingCountConfigValidator,
+        spend: SpendAccumulatedConfigValidator,
+        review: ReviewCreatedConfigValidator,
+        online: OnlinePaymentConfigValidator,
+        first: FirstBookingConfigValidator,
+        referral: ReferralConfigValidator,
+      ) => [booking, spend, review, online, first, referral],
+      inject: [
+        BookingCountConfigValidator,
+        SpendAccumulatedConfigValidator,
+        ReviewCreatedConfigValidator,
+        OnlinePaymentConfigValidator,
+        FirstBookingConfigValidator,
+        ReferralConfigValidator,
+      ],
+    },
 
     // =====================
     // ENGINE
@@ -179,6 +213,15 @@ import { GetBenefitRulesByBranchUseCase } from './core/use-cases/get-benefit-rul
     RedeemBenefitRewardUseCase,
     ActivateBenefitProgramUseCase,
     GetBenefitRulesByBranchUseCase,
+    CreateBenefitEarnRuleUseCase,
+    BookingCountConfigValidator,
+    SpendAccumulatedConfigValidator,
+    FirstBookingConfigValidator,
+    ReviewCreatedConfigValidator,
+    OnlinePaymentConfigValidator,
+    ReferralConfigValidator,
+    CreateBenefitRewardUseCase,
+    GetUserWalletSummaryUseCase,
 
     // =====================
     // EVENT HANDLERS
@@ -186,6 +229,7 @@ import { GetBenefitRulesByBranchUseCase } from './core/use-cases/get-benefit-rul
     BookingCreatedHandler,
     ReviewCreatedHandler,
     PaymentCompletedHandler,
+    BenefitsEventRegistry,
   ],
 
   exports: [

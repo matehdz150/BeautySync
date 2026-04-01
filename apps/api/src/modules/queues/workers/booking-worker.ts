@@ -419,9 +419,20 @@ async function handler(name: string, data: any) {
   // FOLLOWUP
   // ==========================
   if (name === 'booking.followup.5m_after') {
+    if (status !== 'COMPLETED') {
+      console.log('⏭️ skipping followup, booking not completed', {
+        bookingId,
+        status,
+      });
+      return;
+    }
+
     await mailQueue.add('mail.booking.followup5m', payload, {
       jobId: `mail:${bookingId}:followup5m`,
     });
+
+    console.log('📧 followup mail queued', { bookingId });
+
     return;
   }
 
@@ -429,6 +440,9 @@ async function handler(name: string, data: any) {
   // MARK PAST
   // ==========================
   if (name === 'booking.markPast') {
+    const benefitsQueue = new Queue('benefits-queue', {
+      connection: redis,
+    });
     // ✅ no tocar cancelados/completed
     if (status === 'CANCELLED' || status === 'COMPLETED') {
       console.log('ℹ booking already finished, skipping', {
@@ -458,6 +472,20 @@ async function handler(name: string, data: any) {
           inArray(appointments.status, ['PENDING', 'CONFIRMED']),
         ),
       );
+
+    await benefitsQueue.add(
+      'process-booking-benefits',
+      {
+        bookingId,
+        branchId: booking.branchId,
+        userId: booking.publicUserId,
+        amountCents: booking.totalCents,
+        source: 'booking.completed', // 🔥 importante
+      },
+      {
+        jobId: `booking.completed-${bookingId}`,
+      },
+    );
 
     console.log('✅ booking + appointments marked as COMPLETED', { bookingId });
     return;

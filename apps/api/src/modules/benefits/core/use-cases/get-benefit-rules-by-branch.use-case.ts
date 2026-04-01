@@ -9,6 +9,7 @@ import {
 
 import {
   BENEFIT_PROGRAM_REPOSITORY,
+  BENEFIT_REWARD_REPOSITORY,
   BENEFIT_RULE_REPOSITORY,
 } from '../ports/tokens';
 import { BenefitRuleRepository } from '../ports/benefit-rule.repository';
@@ -18,6 +19,11 @@ import { BranchesRepository } from 'src/modules/branches/core/ports/branches.rep
 
 import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
 import { BenefitProgramRepository } from '../ports/benefit-program.repository';
+import {
+  BenefitReward,
+  BenefitRewardRepository,
+} from '../ports/benefit-reward.repository';
+import { BenefitEarnRuleEntity } from '../entities/benefit-rule.entity';
 
 @Injectable()
 export class GetBenefitRulesByBranchUseCase {
@@ -30,6 +36,9 @@ export class GetBenefitRulesByBranchUseCase {
 
     @Inject(BENEFIT_PROGRAM_REPOSITORY)
     private readonly programRepo: BenefitProgramRepository,
+
+    @Inject(BENEFIT_REWARD_REPOSITORY)
+    private readonly rewardRepo: BenefitRewardRepository,
   ) {}
 
   async execute(input: { branchId: string; user: AuthenticatedUser }) {
@@ -52,11 +61,15 @@ export class GetBenefitRulesByBranchUseCase {
     const program = await this.programRepo.findByBranchId(input.branchId);
 
     // =========================
-    // RULES
+    // RULES + REWARDS
     // =========================
-    const rules = program?.isActive
-      ? await this.ruleRepo.findActiveByBranch(input.branchId)
-      : [];
+    let rules: BenefitEarnRuleEntity[] = [];
+    let rewards: BenefitReward[] = [];
+
+    if (program?.isActive) {
+      rules = await this.ruleRepo.findActiveByBranch(input.branchId);
+      rewards = await this.rewardRepo.findActiveByProgram(program.id);
+    }
 
     return {
       program: {
@@ -65,6 +78,7 @@ export class GetBenefitRulesByBranchUseCase {
         name: program?.name ?? null,
       },
       rules,
+      rewards,
     };
   }
 }

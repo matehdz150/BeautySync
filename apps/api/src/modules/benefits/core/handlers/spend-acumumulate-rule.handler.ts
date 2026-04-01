@@ -9,7 +9,7 @@ import {
   BENEFIT_PROGRESS_REPOSITORY,
 } from '../ports/tokens';
 import { BenefitPointsRepository } from '../ports/benefit-points.repository';
-import { ProcessRuleInput } from '../engine/ types';
+import { ProcessRuleInput } from '../engine/types';
 
 @Injectable()
 export class SpendAccumulatedRuleHandler implements BenefitRuleHandler {

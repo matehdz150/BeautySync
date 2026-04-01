@@ -11,7 +11,7 @@ export class ReviewCreatedHandler {
 
   async handle(event: ReviewCreatedEvent) {
     const { payload } = event;
-
+    console.log('🎯 HANDLER HIT', event);
     await this.queue.add('process-review-benefits', payload, {
       jobId: `${event.type}-${payload.reviewId}`,
       removeOnComplete: true,

@@ -6,7 +6,7 @@ import {
 import { BenefitProgramRepository } from '../ports/benefit-program.repository';
 import { BenefitRuleRepository } from '../ports/benefit-rule.repository';
 import { BenefitRuleEngine } from '../engine/benefit-rule-engine.service';
-import { ProcessRuleInput } from '../engine/ types';
+import { ProcessRuleInput } from '../engine/types';
 
 export type ProcessPaymentBenefitsInput = {
   bookingId: string;

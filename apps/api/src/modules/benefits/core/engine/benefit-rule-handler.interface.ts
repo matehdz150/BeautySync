@@ -1,4 +1,4 @@
-import { ProcessRuleInput } from './ types';
+import { ProcessRuleInput } from './types';
 import { benefitEarnRuleTypeEnum } from 'src/modules/db/schema';
 
 export type BenefitEarnRuleType =

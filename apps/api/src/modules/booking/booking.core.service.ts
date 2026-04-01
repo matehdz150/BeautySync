@@ -464,22 +464,6 @@ export class BookingsCoreService {
     });
 
     // =========================
-    // 🔥 DOMAIN EVENT
-    // =========================
-    await this.eventBus.publish({
-      type: 'booking.created',
-      payload: {
-        bookingId,
-        userId: publicUserId,
-        branchId: branch.id,
-        amountCents: bookingTotalCents,
-        isOnline:
-          (dto.paymentMethod ?? PublicPaymentMethodEnum.ONSITE) ===
-          PublicPaymentMethodEnum.ONLINE,
-      },
-    });
-
-    // =========================
     // 🔔 BUILD NOTIFICATION DATA (READ ONLY)
     // =========================
 

@@ -23,6 +23,7 @@ import { BenefitPointsRepository } from '../ports/benefit-points.repository';
 import { BenefitRedemptionRepository } from '../ports/benefit-redemption.repository';
 import { BenefitTransactionManager } from '../ports/benefit-transactiont-manager.repository';
 import { BenefitRewardEngine } from '../engine/benefit-reward-engine.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class RedeemBenefitRewardUseCase {
@@ -48,38 +49,40 @@ export class RedeemBenefitRewardUseCase {
     private readonly rewardEngine: BenefitRewardEngine,
   ) {}
 
+  private generateReferenceCode() {
+    return `BEN-${randomUUID().slice(0, 8).toUpperCase()}`;
+  }
+
   async execute(input: RedeemBenefitRewardInput) {
-    // =========================
-    // 1. PROGRAMA
-    // =========================
-    const program = await this.programRepo.findByBranchId(input.branchId);
-
-    if (!program || !program.isActive) {
-      throw new BadRequestException('No active benefit program');
-    }
-
-    // =========================
-    // 2. REWARD
-    // =========================
-    const reward = await this.rewardRepo.findById(input.rewardId);
-
-    if (!reward) {
-      throw new BadRequestException('Reward not found');
-    }
-
-    if (!reward.isActive) {
-      throw new BadRequestException('Reward inactive');
-    }
-
-    if (reward.programId !== program.id) {
-      throw new ForbiddenException('Invalid reward for branch');
-    }
-
-    // =========================
-    // 3. TRANSACTION
-    // =========================
     return this.txManager.runInTransaction(async () => {
-      // 🔥 3.1 DECREMENTO ATÓMICO
+      // =========================
+      // PROGRAMA
+      // =========================
+      const program = await this.programRepo.findByBranchId(input.branchId);
+
+      if (!program || !program.isActive) {
+        throw new BadRequestException('No active benefit program');
+      }
+
+      // =========================
+      // REWARD
+      // =========================
+      const reward = await this.rewardRepo.findById(input.rewardId);
+
+      if (!reward) throw new BadRequestException('Reward not found');
+      if (!reward.isActive) throw new BadRequestException('Reward inactive');
+
+      if (reward.programId !== program.id) {
+        throw new ForbiddenException('Invalid reward for branch');
+      }
+
+      if (!reward.config) {
+        throw new BadRequestException('Invalid reward configuration');
+      }
+
+      // =========================
+      // BALANCE
+      // =========================
       const success = await this.balanceRepo.decrementIfEnough({
         userId: input.user.id,
         branchId: input.branchId,
@@ -90,7 +93,9 @@ export class RedeemBenefitRewardUseCase {
         throw new BadRequestException('Insufficient points');
       }
 
-      // 🔥 3.2 LEDGER (idempotente)
+      // =========================
+      // LEDGER
+      // =========================
       await this.pointsRepo.addPoints({
         userId: input.user.id,
         branchId: input.branchId,
@@ -100,32 +105,42 @@ export class RedeemBenefitRewardUseCase {
         referenceId: reward.id,
       });
 
-      // 🔥 3.3 EJECUTAR REWARD
-      await this.rewardEngine.redeem({
-        userId: input.user.id,
-        branchId: input.branchId,
-        reward,
-        context: {},
-      });
-
-      // 🔥 3.4 REDENCIÓN
+      // =========================
+      // REDENCIÓN (PENDING)
+      // =========================
       const redemption = await this.redemptionRepo.create({
         rewardId: reward.id,
         userId: input.user.id,
         branchId: input.branchId,
         pointsSpent: reward.pointsCost,
-        status: 'CONFIRMED',
+        status: 'PENDING',
         referenceCode: this.generateReferenceCode(),
         metadata: {
           idempotencyKey: input.idempotencyKey,
         },
       });
 
+      // =========================
+      // ENGINE
+      // =========================
+      try {
+        await this.rewardEngine.redeem({
+          userId: input.user.id,
+          branchId: input.branchId,
+          reward,
+          context: {},
+        });
+
+        // 🔥 CONFIRMAR
+        await this.redemptionRepo.updateStatus(redemption.id, 'CONFIRMED');
+      } catch {
+        // 🔥 OPCIONAL (muy pro)
+        await this.redemptionRepo.updateStatus(redemption.id, 'FAILED');
+
+        throw new BadRequestException('Reward execution failed');
+      }
+
       return redemption;
     });
-  }
-
-  private generateReferenceCode() {
-    return `BEN-${Date.now()}`;
   }
 }

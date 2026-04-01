@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-import { User, Heart, Settings, ChevronRight, Calendar, Send } from "lucide-react";
+import { User, Heart, Settings, ChevronRight, Calendar, Send, Wallet } from "lucide-react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PublicHeader } from "@/components/book/PublicHeader";
@@ -28,9 +28,9 @@ const NAV: NavItem[] = [
     icon: <Heart className="h-5 w-5" />,
   },
   {
-    label: "Mensajes",
+    label: "Cartera",
     href: "/me/messages",
-    icon: <Send className="h-5 w-5" />,
+    icon: <Wallet className="h-5 w-5" />,
   },
   {
     label: "Ajustes",

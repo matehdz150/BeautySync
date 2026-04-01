@@ -3,15 +3,20 @@
 import { useState, useEffect } from "react";
 import {
   activateBenefitProgram,
+  BenefitReward,
+  BenefitRule,
   getBenefitRulesByBranch,
 } from "@/lib/services/benefits";
 import Image from "next/image";
 import { Star } from "lucide-react";
 import { useBranch } from "@/context/BranchContext";
+import ActiveBenefitsView from "./ActiveBenefitsView";
 
 export default function BenefitsPage() {
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
+  const [rules, setRules] = useState<BenefitRule[]>([]);
+  const [rewards, setRewards] = useState<BenefitReward[]>([]);
 
   const [program, setProgram] = useState<{
     exists: boolean;
@@ -34,6 +39,8 @@ export default function BenefitsPage() {
 
         const data = await getBenefitRulesByBranch(branchId);
         setProgram(data.program);
+        setRewards(data.rewards)
+        setRules(data.rules);
       } catch (err) {
         console.error(err);
       } finally {
@@ -58,6 +65,8 @@ export default function BenefitsPage() {
       // 🔥 refresh estado
       const data = await getBenefitRulesByBranch(branchId);
       setProgram(data.program);
+      setRules(data.rules);
+      setRewards(data.rewards);
 
       alert("Programa activado 🚀");
     } catch (err) {
@@ -83,13 +92,7 @@ export default function BenefitsPage() {
   // ACTIVE VIEW
   // =========================
   if (program?.isActive) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <h1 className="text-3xl font-bold">
-          Programa de beneficios activo 🎉
-        </h1>
-      </div>
-    );
+    return <ActiveBenefitsView rules={rules} rewards={rewards} />;
   }
 
   // =========================
@@ -156,9 +159,7 @@ export default function BenefitsPage() {
             <p className="text-xl font-semibold">
               $149 MXN por sucursal al mes
             </p>
-            <p className="text-sm text-gray-500">
-              Comienza con 7 días gratis
-            </p>
+            <p className="text-sm text-gray-500">Comienza con 7 días gratis</p>
           </div>
 
           {/* CTA */}

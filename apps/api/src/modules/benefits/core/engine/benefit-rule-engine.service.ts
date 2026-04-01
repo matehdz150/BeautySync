@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { BenefitRuleHandler } from './benefit-rule-handler.interface';
-import { ProcessRuleInput } from './ types';
+import { ProcessRuleInput } from './types';
 import { BENEFIT_RULE_HANDLERS } from '../ports/tokens';
 
 @Injectable()

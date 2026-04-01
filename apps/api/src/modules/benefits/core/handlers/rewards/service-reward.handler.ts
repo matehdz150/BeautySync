@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { BenefitRewardHandler } from '../../engine/benefit-reward-handler.interface';
-import { BenefitRewardType, RedeemRewardInput } from '../../engine/ types';
+import { BenefitRewardType, RedeemRewardInput } from '../../engine/types';
 import { InternalCouponService } from 'src/modules/cupons/core/services/internal-coupon.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ServiceRewardHandler implements BenefitRewardHandler {
@@ -13,7 +14,7 @@ export class ServiceRewardHandler implements BenefitRewardHandler {
 
   async redeem(input: RedeemRewardInput) {
     if (!input.reward.referenceId) {
-      throw new Error('Service reward requires referenceId');
+      throw new BadRequestException('Service reward requires referenceId');
     }
 
     const code = this.generateCode();
@@ -21,17 +22,20 @@ export class ServiceRewardHandler implements BenefitRewardHandler {
     await this.internalCouponService.createCoupon({
       branchId: input.branchId,
       code,
-
       type: 'percentage',
-      value: 100, // 🔥 100% descuento
-
+      value: 100,
       assignedToUserId: input.userId,
-
       serviceIds: [input.reward.referenceId],
     });
+
+    return {
+      type: 'SERVICE' as const,
+      code,
+      serviceId: input.reward.referenceId,
+    };
   }
 
   private generateCode() {
-    return `SRV-${Math.random().toString(36).substring(2, 10)}`;
+    return `SRV-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 }

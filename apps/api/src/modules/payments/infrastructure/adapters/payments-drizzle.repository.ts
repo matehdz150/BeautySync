@@ -295,4 +295,23 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
       coupons: couponsRows,
     };
   }
+
+  async getUserBenefitBranchIds(userId: string) {
+    const giftCardBranches = await this.db
+      .select({ branchId: giftCards.branchId })
+      .from(giftCards)
+      .where(eq(giftCards.ownerUserId, userId));
+
+    const couponBranches = await this.db
+      .select({ branchId: coupons.branchId })
+      .from(coupons)
+      .where(eq(coupons.assignedToUserId, userId));
+
+    return [
+      ...new Set([
+        ...giftCardBranches.map((g) => g.branchId),
+        ...couponBranches.map((c) => c.branchId),
+      ]),
+    ];
+  }
 }

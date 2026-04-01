@@ -35,5 +35,6 @@ export type RedeemRewardInput = {
 
   context: {
     bookingId?: string;
+    redemptionId?: string;
   };
 };
