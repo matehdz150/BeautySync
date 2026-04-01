@@ -6,3 +6,7 @@ export * from './benefitUserProgress';
 export * from './benefits-enums';
 export * from './benefitRewards';
 export * from './benefitRewardRedemptions';
+export * from './benefitTierReward';
+export * from './benefitTiers';
+export * from './userTierRewardsGranted';
+export * from './userTierState';
