@@ -1,170 +1,198 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
 import {
-  Star,
-  Gift,
-  Users,
-  ChartLine,
-  CheckCircle2,
-} from "lucide-react";
+  activateBenefitProgram,
+  getBenefitRulesByBranch,
+} from "@/lib/services/benefits";
+import Image from "next/image";
+import { Star } from "lucide-react";
+import { useBranch } from "@/context/BranchContext";
 
-export default function RewardsProgramPage() {
+export default function BenefitsPage() {
+  const [loading, setLoading] = useState(true);
+  const [activating, setActivating] = useState(false);
+
+  const [program, setProgram] = useState<{
+    exists: boolean;
+    isActive: boolean;
+    name: string | null;
+  } | null>(null);
+
+  const { branch } = useBranch();
+  const branchId = branch?.id ?? "";
+
+  // =========================
+  // LOAD PROGRAM
+  // =========================
+  useEffect(() => {
+    if (!branchId) return;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+
+        const data = await getBenefitRulesByBranch(branchId);
+        setProgram(data.program);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [branchId]);
+
+  // =========================
+  // ACTIVATE
+  // =========================
+  const handleActivate = async () => {
+    try {
+      setActivating(true);
+
+      await activateBenefitProgram({
+        branchId,
+      });
+
+      // 🔥 refresh estado
+      const data = await getBenefitRulesByBranch(branchId);
+      setProgram(data.program);
+
+      alert("Programa activado 🚀");
+    } catch (err) {
+      console.error(err);
+      alert("Error al activar");
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  // =========================
+  // LOADING UI
+  // =========================
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">Cargando programa...</p>
+      </div>
+    );
+  }
+
+  // =========================
+  // ACTIVE VIEW
+  // =========================
+  if (program?.isActive) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <h1 className="text-3xl font-bold">
+          Programa de beneficios activo 🎉
+        </h1>
+      </div>
+    );
+  }
+
+  // =========================
+  // LANDING (TU DISEÑO ORIGINAL)
+  // =========================
   return (
-    <div className="h-dvh overflow-y-auto">
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-12 pb-26">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-white via-gray-100 to-purple-200 px-6">
+      <div className="max-w-6xl w-full grid md:grid-cols-2 gap-10 items-center">
+        {/* LEFT */}
+        <div>
+          {/* Badge */}
+          <div className="flex items-center gap-2 mb-6">
+            <div className="relative w-8 h-8">
+              <Image
+                src="/loyal.svg"
+                alt="Lealtad"
+                fill
+                className="object-contain"
+              />
 
-        {/* ================= HERO ================= */}
-        <div className="relative overflow-hidden rounded-3xl h-[420px]">
-          <img
-            src="https://plus.unsplash.com/premium_photo-1728670001843-8233c4371d13?q=80&w=2495&auto=format&fit=crop"
-            alt="Programa de beneficios"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-
-          <div className="absolute inset-0 bg-black/55" />
-
-          <div className="relative z-10 h-full flex flex-col justify-center p-10 text-white">
-            <h1 className="text-4xl font-bold leading-tight">
-              Programa de beneficios
-            </h1>
-            <p className="max-w-2xl text-lg text-white/90 mt-2">
-              Aumenta la lealtad de tus clientes con puntos, recompensas y beneficios exclusivos.
-            </p>
-
-            <div className="mt-6 flex gap-4 items-center">
-              <Button size="lg" className="rounded-full px-8">
-                Activar programa de beneficios
-              </Button>
-              <div className="flex items-center gap-2 text-sm text-white/80">
-                <Star className="w-5 h-5" />
-                Potencia tus reservas
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Star className="w-2 h-2 text-white fill-white drop-shadow-sm" />
               </div>
+            </div>
+
+            <span className="text-sm font-medium text-gray-600">
+              Sistema de recompensas para clientes
+            </span>
+          </div>
+
+          {/* Title */}
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            Haz que tus clientes regresen una y otra vez
+          </h1>
+
+          {/* Subtitle */}
+          <p className="text-gray-600 mb-6">
+            Impulsa tus ingresos con un programa de recompensas diseñado a tu
+            medida — motiva visitas frecuentes y aumenta el valor de cada
+            compra.
+          </p>
+
+          {/* Features */}
+          <ul className="space-y-3 text-gray-700 mb-8">
+            <li className="flex gap-2">
+              <span>✔</span>
+              Diseña dinámicas de puntos, niveles y referidos adaptadas a tu
+              negocio
+            </li>
+            <li className="flex gap-2">
+              <span>✔</span>
+              Incentiva a tus clientes con beneficios exclusivos y promociones
+              personalizadas
+            </li>
+            <li className="flex gap-2">
+              <span>✔</span>
+              Permite que tus clientes vean su progreso y canjeen recompensas
+              fácilmente
+            </li>
+          </ul>
+
+          {/* Price */}
+          <div className="mb-6">
+            <p className="text-xl font-semibold">
+              $149 MXN por sucursal al mes
+            </p>
+            <p className="text-sm text-gray-500">
+              Comienza con 7 días gratis
+            </p>
+          </div>
+
+          {/* CTA */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleActivate}
+              disabled={activating}
+              className="px-6 py-3 rounded-xl bg-black text-white font-medium hover:opacity-90 transition"
+            >
+              {activating ? "Activando..." : "Activar ahora"}
+            </button>
+
+            <button className="text-gray-600 hover:underline">
+              Más información
+            </button>
+          </div>
+        </div>
+
+        {/* RIGHT */}
+        <div className="flex justify-center">
+          <div className="relative w-72 h-78 rounded-3xl bg-gradient-to-br from-pink-400 via-purple-400 to-orange-300 flex items-center justify-center shadow-2xl overflow-hidden">
+            <Image
+              src="/loyal.svg"
+              alt="Lealtad"
+              fill
+              className="object-contain opacity-80 mb-5"
+            />
+
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Star className="w-16 h-16 text-white fill-white drop-shadow-lg" />
             </div>
           </div>
         </div>
-
-        {/* ================= WHAT IS IT ================= */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">¿Qué es el programa de beneficios?</h2>
-          <p className="text-muted-foreground">
-            Es una forma de incentivar a tus clientes a regresar y gastar más ofreciendo puntos,
-            rangos, recompensas y beneficios exclusivos por su fidelidad.
-          </p>
-        </section>
-
-        {/* ================= HOW IT WORKS ================= */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Step
-            number={1}
-            title="Gana puntos"
-            description="Los clientes acumulan puntos por cada servicio o gasto que realicen."
-            icon={<Gift className="w-6 h-6 text-indigo-600" />}
-          />
-          <Step
-            number={2}
-            title="Sube de nivel"
-            description="Los clientes pueden avanzar a niveles (Bronce, Plata, Oro) con beneficios extra."
-            icon={<Users className="w-6 h-6 text-indigo-600" />}
-          />
-          <Step
-            number={3}
-            title="Canjea recompensas"
-            description="Usa puntos para obtener descuentos, servicios gratis o beneficios especiales."
-            icon={<ChartLine className="w-6 h-6 text-indigo-600" />}
-          />
-        </section>
-
-        {/* ================= BENEFITS FOR BUSINESS ================= */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">Beneficios para tu negocio</h2>
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-            <li className="flex items-start gap-2 text-sm">
-              <CheckCircle2 className="w-5 h-5 text-indigo-500 mt-1" />
-              Aumenta la retención de clientes recurrentes.
-            </li>
-            <li className="flex items-start gap-2 text-sm">
-              <CheckCircle2 className="w-5 h-5 text-indigo-500 mt-1" />
-              Diferencia tu negocio de la competencia.
-            </li>
-            <li className="flex items-start gap-2 text-sm">
-              <CheckCircle2 className="w-5 h-5 text-indigo-500 mt-1" />
-              Incentiva mayores ingresos por visita.
-            </li>
-            <li className="flex items-start gap-2 text-sm">
-              <CheckCircle2 className="w-5 h-5 text-indigo-500 mt-1" />
-              Permite campañas promocionales específicas.
-            </li>
-          </ul>
-        </section>
-
-        {/* ================= BENEFITS FOR CLIENT ================= */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">Beneficios para tus clientes</h2>
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-            <li className="flex items-start gap-2 text-sm">
-              <CheckCircle2 className="w-5 h-5 text-indigo-500 mt-1" />
-              Obtienen puntos por cada visita.
-            </li>
-            <li className="flex items-start gap-2 text-sm">
-              <CheckCircle2 className="w-5 h-5 text-indigo-500 mt-1" />
-              Acceden a descuentos por niveles.
-            </li>
-            <li className="flex items-start gap-2 text-sm">
-              <CheckCircle2 className="w-5 h-5 text-indigo-500 mt-1" />
-              Reciben beneficios exclusivos.
-            </li>
-            <li className="flex items-start gap-2 text-sm">
-              <CheckCircle2 className="w-5 h-5 text-indigo-500 mt-1" />
-              Pueden ver su progreso en la app.
-            </li>
-          </ul>
-        </section>
-
-        {/* ================= FINAL CTA ================= */}
-        <section className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl bg-indigo-50 p-6">
-          <div>
-            <h3 className="font-semibold text-lg">
-              Comienza a fidelizar a tus clientes
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Activa el programa de beneficios y personalízalo cuando quieras.
-            </p>
-          </div>
-          <Button className="rounded-full px-6">
-            Activar programa de beneficios
-          </Button>
-        </section>
       </div>
-    </div>
-  );
-}
-
-/* =====================
-   SUB COMPONENTS
-===================== */
-
-function Step({
-  number,
-  title,
-  description,
-  icon,
-}: {
-  number: number;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-2 p-6 border rounded-2xl bg-white">
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold">
-          {number}
-        </div>
-        <div className="font-semibold">{title}</div>
-      </div>
-      <p className="text-sm text-muted-foreground">{description}</p>
-      <div>{icon}</div>
     </div>
   );
 }
