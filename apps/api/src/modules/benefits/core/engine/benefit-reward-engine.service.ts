@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { BENEFIT_REWARD_HANDLERS } from '../ports/tokens';
 import { BenefitRewardHandler } from './benefit-reward-handler.interface';
-import { RedeemRewardInput } from './ types';
+import { RedeemRewardInput } from './types';
 
 @Injectable()
 export class BenefitRewardEngine {
@@ -17,6 +17,6 @@ export class BenefitRewardEngine {
       throw new Error(`No handler for reward type: ${input.reward.type}`);
     }
 
-    await handler.redeem(input);
+    return handler.redeem(input); // 🔥 return
   }
 }

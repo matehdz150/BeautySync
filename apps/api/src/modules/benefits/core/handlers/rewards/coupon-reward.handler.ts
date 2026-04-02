@@ -1,8 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException } from '@nestjs/common';
 import { BenefitRewardHandler } from '../../engine/benefit-reward-handler.interface';
 import { CouponRepository } from 'src/modules/cupons/core/ports/coupon.repository';
 import { COUPON_REPOSITORY } from 'src/modules/cupons/core/ports/tokens';
-import { BenefitRewardType, RedeemRewardInput } from '../../engine/ types';
+import { BenefitRewardType, RedeemRewardInput } from '../../engine/types';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class CouponRewardHandler implements BenefitRewardHandler {
@@ -22,17 +23,32 @@ export class CouponRewardHandler implements BenefitRewardHandler {
       expiresAt?: string;
     };
 
-    await this.couponsRepo.create({
+    // 🔥 VALIDACIÓN
+    if (!config || !config.type || typeof config.value !== 'number') {
+      throw new BadRequestException('Invalid coupon config');
+    }
+
+    const code = this.generateCode();
+
+    const coupon = await this.couponsRepo.create({
       branchId: input.branchId,
-      code: this.generateCode(),
+      code,
       type: config.type,
       value: config.value,
       assignedToUserId: input.userId,
       expiresAt: config.expiresAt ? new Date(config.expiresAt) : undefined,
     });
+
+    return {
+      type: 'COUPON' as const,
+      code,
+      couponId: coupon.id,
+      value: config.value,
+      expiresAt: config.expiresAt ?? null,
+    };
   }
 
   private generateCode() {
-    return `BEN-${Math.random().toString(36).substring(2, 10)}`;
+    return `BEN-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 }

@@ -3,7 +3,7 @@ import {
   BenefitRuleHandler,
   BenefitEarnRuleType,
 } from '../engine/benefit-rule-handler.interface';
-import { ProcessRuleInput } from '../engine/ types';
+import { ProcessRuleInput } from '../engine/types';
 import { BENEFIT_PROGRESS_REPOSITORY } from '../ports/tokens';
 import { BENEFIT_POINTS_REPOSITORY } from '../ports/tokens';
 import { BenefitProgressRepository } from '../ports/benefit-progress.repository';

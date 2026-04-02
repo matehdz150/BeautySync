@@ -7,7 +7,7 @@ import {
   ProcessBookingBenefitsInput,
 } from '../ports/benefit-rule.repository';
 import { BenefitRuleEngine } from '../engine/benefit-rule-engine.service';
-import { ProcessRuleInput } from '../engine/ types';
+import { ProcessRuleInput } from '../engine/types';
 
 @Injectable()
 export class ProcessBookingBenefitsUseCase {

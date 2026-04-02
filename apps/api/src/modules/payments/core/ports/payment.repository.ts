@@ -60,4 +60,6 @@ export interface PaymentsRepositoryPort {
       expiresAt?: Date | null;
     }[];
   }>;
+
+  getUserBenefitBranchIds(userId: string): Promise<string[]>;
 }

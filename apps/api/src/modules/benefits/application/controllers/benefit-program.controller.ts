@@ -18,13 +18,32 @@ import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedU
 
 import { ActivateBenefitProgramUseCase } from '../../core/use-cases/activate-benefit-programm.use-case';
 import { GetBenefitRulesByBranchUseCase } from '../../core/use-cases/get-benefit-rules-by-branch.use-case';
+import { BenefitEarnRuleType } from '../../core/engine/benefit-rule-handler.interface';
+import { CreateBenefitEarnRuleUseCase } from '../../core/use-cases/create-benefit-earn-rule.use-case';
+import { CreateBenefitRewardDto } from '../dto/create-benefit-reward.dto';
+import { CreateBenefitRewardUseCase } from '../../core/use-cases/create-benefit-reward.use-case';
+import {
+  PublicSession,
+  PublicUser,
+} from 'src/modules/auth/application/decorators/public-user.decorator';
+import { GetUserWalletSummaryUseCase } from '../../core/use-cases/get-user-points.use-case';
+import { PublicAuthGuard } from 'src/modules/auth/application/guards/public-auth.guard';
 
 @Controller('benefits/program')
 export class BenefitProgramController {
   constructor(
     private readonly activateProgram: ActivateBenefitProgramUseCase,
     private readonly getRules: GetBenefitRulesByBranchUseCase,
+    private readonly createRule: CreateBenefitEarnRuleUseCase,
+    private readonly createReward: CreateBenefitRewardUseCase,
+    private readonly getUserPoints: GetUserWalletSummaryUseCase,
   ) {}
+
+  @UseGuards(PublicAuthGuard)
+  @Get('wallet')
+  async getMyPoints(@PublicUser() user: PublicSession) {
+    return this.getUserPoints.execute(user.publicUserId);
+  }
 
   // =========================
   // ACTIVATE PROGRAM
@@ -43,6 +62,48 @@ export class BenefitProgramController {
     return this.activateProgram.execute({
       branchId: body.branchId,
       name: body.name,
+      user: req.user,
+    });
+  }
+
+  @Post('/earnrule')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  create(
+    @Body()
+    body: {
+      branchId: string;
+      type: BenefitEarnRuleType;
+      config: unknown;
+    },
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.createRule.execute({
+      branchId: body.branchId,
+      type: body.type,
+      config: body.config,
+      user: req.user,
+    });
+  }
+
+  // =========================
+  // CREATE REWARD
+  // =========================
+  @Post('/reward')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  createRewardEx(
+    @Body() body: CreateBenefitRewardDto,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.createReward.execute({
+      branchId: body.branchId,
+      type: body.type,
+      name: body.name ?? '',
+      pointsCost: body.pointsCost,
+      referenceId: body.referenceId,
+      stock: body.stock,
+      config: body.config,
       user: req.user,
     });
   }

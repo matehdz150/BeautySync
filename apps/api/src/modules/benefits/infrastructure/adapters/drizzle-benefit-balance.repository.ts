@@ -43,4 +43,14 @@ export class DrizzleBenefitBalanceRepository implements BenefitBalanceRepository
 
     return result.length > 0;
   }
+
+  async getAllUserBalances(userId: string) {
+    return this.db
+      .select({
+        branchId: benefitUserBalance.branchId,
+        pointsBalance: benefitUserBalance.pointsBalance,
+      })
+      .from(benefitUserBalance)
+      .where(eq(benefitUserBalance.userId, userId));
+  }
 }

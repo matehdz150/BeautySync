@@ -9,7 +9,7 @@ import {
 } from '../ports/tokens';
 import { BenefitProgressRepository } from '../ports/benefit-progress.repository';
 import { BenefitPointsRepository } from '../ports/benefit-points.repository';
-import { ProcessRuleInput } from '../engine/ types';
+import { ProcessRuleInput } from '../engine/types';
 
 @Injectable()
 export class FirstBookingRuleHandler implements BenefitRuleHandler {

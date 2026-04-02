@@ -11,8 +11,14 @@ export async function processBookingBenefits(input: {
   bookingId: string;
   amountCents: number;
   isOnline: boolean;
+  source?: string;
 }) {
   console.log('🎯 processBookingBenefits', input);
+
+  if (input.source !== 'booking.completed') {
+    console.log('⏭️ skipping booking benefits (not completed)', input.source);
+    return;
+  }
 
   // =========================
   // 1. programa activo

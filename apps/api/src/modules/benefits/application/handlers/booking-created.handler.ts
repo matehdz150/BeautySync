@@ -11,7 +11,7 @@ export class BookingCreatedHandler {
 
   async handle(event: BookingCreatedEvent) {
     const { payload } = event;
-
+    console.log('🎯 HANDLER HIT', event);
     await this.queue.add('process-booking-benefits', payload, {
       jobId: `${event.type}-${payload.bookingId}`,
       removeOnComplete: true,

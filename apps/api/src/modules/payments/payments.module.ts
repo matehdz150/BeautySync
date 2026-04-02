@@ -46,5 +46,6 @@ import { PublicPaymentsController } from './application/controllers/public-payme
       useClass: DrizzleBookingsRepository,
     },
   ],
+  exports: [PAYMENTS_REPOSITORY],
 })
 export class PaymentsModule {}

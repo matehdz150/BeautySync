@@ -1,25 +1,22 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { Queue } from 'bullmq';
+import { Injectable } from '@nestjs/common';
+import { ProcessPaymentBenefitsUseCase } from '../../core/use-cases/process-payment-benefits.use-case';
 import { PaymentCompletedEvent } from 'src/shared/domain-events/events';
 
 @Injectable()
 export class PaymentCompletedHandler {
   constructor(
-    @Inject('BENEFITS_QUEUE')
-    private readonly queue: Queue,
+    private readonly processPaymentBenefits: ProcessPaymentBenefitsUseCase,
   ) {}
 
   async handle(event: PaymentCompletedEvent) {
     const { payload } = event;
 
-    await this.queue.add('process-payment-benefits', payload, {
-      jobId: `${event.type}-${payload.bookingId}`,
-      removeOnComplete: true,
-      attempts: 5,
-      backoff: {
-        type: 'exponential',
-        delay: 1000,
-      },
+    await this.processPaymentBenefits.execute({
+      bookingId: payload.bookingId,
+      userId: payload.userId,
+      branchId: payload.branchId,
+      amountCents: payload.amountCents,
+      isOnline: payload.method === 'ONLINE',
     });
   }
 }
