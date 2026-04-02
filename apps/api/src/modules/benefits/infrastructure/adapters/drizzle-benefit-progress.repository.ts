@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { DB } from 'src/modules/db/client';
+import { DB } from '../../../db/client';
 import { BenefitProgressRepository } from '../../core/ports/benefit-progress.repository';
 import { and, eq, sql } from 'drizzle-orm';
-import { benefitUserProgress } from 'src/modules/db/schema/benefits/benefitUserProgress';
+import { benefitUserProgress } from '../../../db/schema';
 
 @Injectable()
 export class DrizzleBenefitProgressRepository implements BenefitProgressRepository {

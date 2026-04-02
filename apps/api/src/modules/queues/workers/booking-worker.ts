@@ -443,7 +443,8 @@ async function handler(name: string, data: any) {
     const benefitsQueue = new Queue('benefits-queue', {
       connection: redis,
     });
-    // ✅ no tocar cancelados/completed
+
+    // 🚫 no reprocesar
     if (status === 'CANCELLED' || status === 'COMPLETED') {
       console.log('ℹ booking already finished, skipping', {
         bookingId,
@@ -452,6 +453,9 @@ async function handler(name: string, data: any) {
       return;
     }
 
+    // ==========================
+    // 1. marcar booking como COMPLETED
+    // ==========================
     await db
       .update(publicBookings)
       .set({
@@ -473,6 +477,9 @@ async function handler(name: string, data: any) {
         ),
       );
 
+    // ==========================
+    // 2. enqueue BENEFITS (puntos / reglas)
+    // ==========================
     await benefitsQueue.add(
       'process-booking-benefits',
       {
@@ -480,17 +487,32 @@ async function handler(name: string, data: any) {
         branchId: booking.branchId,
         userId: booking.publicUserId,
         amountCents: booking.totalCents,
-        source: 'booking.completed', // 🔥 importante
+        source: 'booking.completed',
+        isOnline: false,
       },
       {
         jobId: `booking.completed-${bookingId}`,
       },
     );
 
-    console.log('✅ booking + appointments marked as COMPLETED', { bookingId });
+    // ==========================
+    // 3. enqueue TIER PROGRESS 🔥
+    // ==========================
+    await benefitsQueue.add(
+      'process-tier-progress',
+      {
+        userId: booking.publicUserId,
+        branchId: booking.branchId,
+      },
+      {
+        jobId: `tier-progress-${bookingId}`,
+      },
+    );
+
+    console.log('✅ booking COMPLETED + benefits jobs queued', { bookingId });
+
     return;
   }
-
   console.log('⚠️ job no manejado:', name);
 }
 

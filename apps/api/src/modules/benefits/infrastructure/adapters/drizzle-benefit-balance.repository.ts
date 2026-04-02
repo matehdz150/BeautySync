@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { BenefitBalanceRepository } from '../../core/ports/benefit-balance.repository';
-import { DB } from 'src/modules/db/client';
+import { DB } from '../../../db/client';
 import { and, eq, gte, sql } from 'drizzle-orm';
-import { benefitUserBalance } from 'src/modules/db/schema';
+import { benefitUserBalance } from '../../../db/schema';
 
 @Injectable()
 export class DrizzleBenefitBalanceRepository implements BenefitBalanceRepository {

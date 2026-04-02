@@ -13,16 +13,22 @@ import { BranchImagesRepository } from 'src/modules/branches/core/ports/branch-i
 import { PAYMENTS_REPOSITORY } from 'src/modules/payments/core/ports/tokens';
 import { PaymentsRepositoryPort } from 'src/modules/payments/core/ports/payment.repository';
 
-export interface UserBenefitsSummary {
-  points: number;
-  branch: {
-    id: string;
-    name: string;
-    address: string | null;
-    slug: string | null;
-    coverUrl: string | null;
-  } | null;
+import { USER_TIER_STATE_REPOSITORY } from '../ports/tokens';
+import { UserTierStateRepository } from '../ports/user-tier-state.repository';
+
+import { BENEFIT_TIERS_REPOSITORY } from '../ports/tokens';
+import { BenefitTiersRepository } from '../ports/benefit-tier.repository';
+
+// ===============================
+
+export interface UserWalletSummaryResponse {
+  global: {
+    totalGiftCardCents: number;
+  };
+  branches: repo.UserBenefitsWalletItem[];
 }
+
+// ===============================
 
 @Injectable()
 export class GetUserWalletSummaryUseCase {
@@ -39,15 +45,20 @@ export class GetUserWalletSummaryUseCase {
     @Inject(BRANCH_IMAGES_REPOSITORY)
     private readonly imagesRepo: BranchImagesRepository,
 
+    @Inject(USER_TIER_STATE_REPOSITORY)
+    private readonly userTierRepo: UserTierStateRepository,
+
+    @Inject(BENEFIT_TIERS_REPOSITORY)
+    private readonly tiersRepo: BenefitTiersRepository,
+
     @Inject(CACHE_PORT)
     private readonly cache: cachePort.CachePort,
   ) {}
 
-  async execute(userId: string): Promise<repo.UserBenefitsWalletItem[]> {
+  async execute(userId: string): Promise<UserWalletSummaryResponse> {
     const cacheKey = `benefits:wallet:${userId}`;
 
-    const cached =
-      await this.cache.get<repo.UserBenefitsWalletItem[]>(cacheKey);
+    const cached = await this.cache.get<UserWalletSummaryResponse>(cacheKey);
     if (cached) return cached;
 
     // =========================
@@ -55,23 +66,26 @@ export class GetUserWalletSummaryUseCase {
     // =========================
     const balances = await this.balanceRepo.getAllUserBalances(userId);
 
-    // 👇 obtener branches donde tiene beneficios aunque no tenga puntos
     const benefitBranches =
       await this.paymentsRepo.getUserBenefitBranchIds(userId);
 
-    // 👇 unir ambos
     const allBranchIds = Array.from(
       new Set([...balances.map((b) => b.branchId), ...benefitBranches]),
     );
 
-    if (!allBranchIds.length) return [];
+    if (!allBranchIds.length) {
+      return {
+        global: { totalGiftCardCents: 0 },
+        branches: [],
+      };
+    }
 
     const branchIds = allBranchIds;
 
     // =========================
     // 2. parallel
     // =========================
-    const [branches, images, benefits] = await Promise.all([
+    const [branches, images, benefits, tierStates] = await Promise.all([
       Promise.all(branchIds.map((id) => this.branchesRepo.findById(id))),
       Promise.all(branchIds.map((id) => this.imagesRepo.getByBranch(id))),
       Promise.all(
@@ -82,16 +96,36 @@ export class GetUserWalletSummaryUseCase {
           }),
         ),
       ),
+      this.userTierRepo.getByUser(userId), // 🔥 todos los tiers del usuario
     ]);
 
     const branchMap = new Map(branches.map((b) => [b?.id, b]));
     const imagesMap = new Map(branchIds.map((id, i) => [id, images[i]]));
     const benefitsMap = new Map(branchIds.map((id, i) => [id, benefits[i]]));
 
+    const tierStateMap = new Map(tierStates.map((t) => [t.branchId, t]));
+
+    // 🔥 obtener tiers únicos
+    const tierIds = Array.from(
+      new Set(
+        tierStates
+          .map((t) => t.currentTierId)
+          .filter((id): id is string => id !== null), // 🔥 CLAVE
+      ),
+    );
+
+    const tiers = await Promise.all(
+      tierIds.map((id) => this.tiersRepo.findById(id)),
+    );
+
+    const tierMap = new Map(tiers.map((t) => [t?.id, t]));
+
     // =========================
     // 3. build
     // =========================
     const response: repo.UserBenefitsWalletItem[] = [];
+
+    let globalGiftCardCents = 0;
 
     for (const branchId of branchIds) {
       const branch = branchMap.get(branchId);
@@ -109,6 +143,8 @@ export class GetUserWalletSummaryUseCase {
       const totalGiftCardCents =
         b?.giftCards.reduce((acc, g) => acc + g.balanceCents, 0) ?? 0;
 
+      globalGiftCardCents += totalGiftCardCents;
+
       const bestCoupon =
         b?.coupons?.slice().sort((a, b) => {
           if (a.type === 'percentage' && b.type === 'fixed') return -1;
@@ -116,8 +152,17 @@ export class GetUserWalletSummaryUseCase {
           return b.value - a.value;
         })[0] ?? null;
 
+      // =========================
+      // 🔥 TIER
+      // =========================
+      const tierState = tierStateMap.get(branchId);
+      const tierEntity =
+        tierState?.currentTierId != null
+          ? tierMap.get(tierState.currentTierId)
+          : null;
+
       response.push({
-        points: balance?.pointsBalance ?? 0, // 🔥 default 0
+        points: balance?.pointsBalance ?? 0,
 
         branch: {
           id: branch.id,
@@ -137,11 +182,27 @@ export class GetUserWalletSummaryUseCase {
               }
             : null,
         },
+
+        // 🔥 NUEVO
+        tier: tierEntity
+          ? {
+              name: tierEntity.name,
+              color: tierEntity.color,
+              icon: tierEntity.icon,
+            }
+          : null,
       });
     }
 
-    await this.cache.set(cacheKey, response, 60);
+    const result: UserWalletSummaryResponse = {
+      global: {
+        totalGiftCardCents: globalGiftCardCents,
+      },
+      branches: response,
+    };
 
-    return response;
+    await this.cache.set(cacheKey, result, 60);
+
+    return result;
   }
 }

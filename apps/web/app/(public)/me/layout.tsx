@@ -29,7 +29,7 @@ const NAV: NavItem[] = [
   },
   {
     label: "Cartera",
-    href: "/me/messages",
+    href: "/me/wallet",
     icon: <Wallet className="h-5 w-5" />,
   },
   {

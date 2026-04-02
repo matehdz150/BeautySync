@@ -3,9 +3,9 @@ import {
   BenefitReward,
   BenefitRewardRepository,
 } from '../../core/ports/benefit-reward.repository';
-import { DB } from 'src/modules/db/client';
+import { DB } from '../../../db/client';
 import { and, eq } from 'drizzle-orm';
-import { benefitRewards } from 'src/modules/db/schema';
+import { benefitRewards } from '../../../db/schema';
 
 @Injectable()
 export class DrizzleBenefitRewardRepository implements BenefitRewardRepository {

@@ -1,10 +1,10 @@
 // infrastructure/drizzle/drizzle-tier-rewards.repository.ts
 
-import { Injectable } from '@nestjs/common';
-import { db } from 'src/modules/db/client';
+import { Inject, Injectable } from '@nestjs/common';
+import { DB, DbOrTx } from '../../../db//client';
 import { eq } from 'drizzle-orm';
 
-import { benefitTierRewards } from 'src/modules/db/schema';
+import { benefitTierRewards } from '../../../db/schema';
 
 import {
   TierRewardsRepository,
@@ -18,8 +18,12 @@ import {
 
 @Injectable()
 export class DrizzleTierRewardsRepository implements TierRewardsRepository {
-  async create(input: CreateTierRewardInput): Promise<TierReward> {
-    const [row] = await db
+  constructor(@Inject('DB') private readonly db: DB) {}
+
+  async create(input: CreateTierRewardInput, tx?: DbOrTx): Promise<TierReward> {
+    const dbInstance = tx ?? this.db;
+
+    const [row] = await dbInstance
       .insert(benefitTierRewards)
       .values({
         tierId: input.tierId,
@@ -37,8 +41,10 @@ export class DrizzleTierRewardsRepository implements TierRewardsRepository {
     };
   }
 
-  async getByTier(tierId: string): Promise<TierReward[]> {
-    const rows = await db
+  async getByTier(tierId: string, tx?: DbOrTx): Promise<TierReward[]> {
+    const dbInstance = tx ?? this.db;
+
+    const rows = await dbInstance
       .select()
       .from(benefitTierRewards)
       .where(eq(benefitTierRewards.tierId, tierId));

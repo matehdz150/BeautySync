@@ -1,3 +1,4 @@
+import { Queue } from 'bullmq';
 import { db } from '../../../db/client';
 import {
   benefitUserProgress,
@@ -5,6 +6,11 @@ import {
   benefitUserBalance,
 } from '../../../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
+import { redis } from '../../redis/redis.provider';
+
+const benefitsQueue = new Queue('benefits-queue', {
+  connection: redis,
+});
 
 export async function processBookingCountRule(params: {
   userId: string;
@@ -109,4 +115,15 @@ export async function processBookingCountRule(params: {
         updatedAt: new Date(),
       },
     });
+
+  await benefitsQueue.add(
+    'process-tier-progress',
+    {
+      userId,
+      branchId,
+    },
+    {
+      jobId: `tier-progress-${context.bookingId}`, // idempotente
+    },
+  );
 }

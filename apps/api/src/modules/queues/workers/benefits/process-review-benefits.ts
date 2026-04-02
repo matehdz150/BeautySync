@@ -1,3 +1,4 @@
+import { Queue } from 'bullmq';
 import { db } from '../../../db/client';
 import {
   benefitPrograms,
@@ -6,6 +7,11 @@ import {
   benefitUserBalance,
 } from '../../../db/schema';
 import { eq, sql } from 'drizzle-orm';
+import { redis } from '../../redis/redis.provider';
+
+const benefitsQueue = new Queue('benefits-queue', {
+  connection: redis,
+});
 
 export async function processReviewBenefits(input: {
   reviewId: string;
@@ -60,4 +66,15 @@ export async function processReviewBenefits(input: {
         },
       });
   }
+
+  await benefitsQueue.add(
+    'process-tier-progress',
+    {
+      userId: input.userId,
+      branchId: input.branchId,
+    },
+    {
+      jobId: `tier-progress-${input.reviewId}`, // 🔥 idempotente
+    },
+  );
 }
