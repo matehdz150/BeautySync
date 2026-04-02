@@ -20,3 +20,14 @@ export const BENEFIT_REDEMPTION_REPOSITORY = Symbol(
 export const BENEFIT_TRANSACTION_MANAGER = Symbol(
   'BENEFIT_TRANSACTION_MANAGER',
 );
+
+export const BENEFIT_TIERS_REPOSITORY = Symbol('BENEFIT_TIERS_REPOSITORY');
+// core/ports/tokens.ts
+
+export const TIER_REWARDS_REPOSITORY = Symbol('TIER_REWARDS_REPOSITORY');
+
+// ports/tokens.ts
+
+export const TIER_REWARD_CONFIG_VALIDATORS = Symbol(
+  'TIER_REWARD_CONFIG_VALIDATORS',
+);

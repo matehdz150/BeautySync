@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const benefitTierRewards = pgTable('benefit_tier_rewards', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -9,7 +9,7 @@ export const benefitTierRewards = pgTable('benefit_tier_rewards', {
     enum: ['ONE_TIME', 'RECURRING'],
   }).notNull(),
 
-  rewardId: uuid('reward_id').notNull(), // 👉 FK a tu sistema actual
+  config: jsonb('config').notNull(),
 
   createdAt: timestamp('created_at').defaultNow(),
 });
