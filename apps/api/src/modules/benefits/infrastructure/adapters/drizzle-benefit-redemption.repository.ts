@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 
-import { DB } from 'src/modules/db/client';
+import { DB } from '../../../db/client';
 import { BenefitRedemptionRepository } from '../../core/ports/benefit-redemption.repository';
-import { benefitRewardRedemptions } from 'src/modules/db/schema/benefits/benefitRewardRedemptions';
+import { benefitRewardRedemptions } from '../../../db/schema';
 
 @Injectable()
 export class DrizzleBenefitRedemptionRepository implements BenefitRedemptionRepository {

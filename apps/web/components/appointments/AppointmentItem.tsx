@@ -35,7 +35,7 @@ export function AppointmentItem({
     <div
       onClick={OFF_HOURS ? undefined : onClick} // ⛔ no clickeable
       className={cn(
-        "absolute left-1 right-1 rounded-sm px-2 py-1 border-l-4",
+        "absolute left-1 right-1 rounded-sm px-2 py-1 border-l-4 overflow-hidden",
         OFF_HOURS ? "cursor-not-allowed" : "cursor-pointer"
       )}
       style={{

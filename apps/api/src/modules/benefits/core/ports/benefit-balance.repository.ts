@@ -25,6 +25,12 @@ export interface UserBenefitsWalletItem {
       value: number;
     } | null;
   };
+
+  tier: {
+    name: string;
+    color: string | null;
+    icon: string | null;
+  } | null;
 }
 
 export interface BenefitBalanceRepository {

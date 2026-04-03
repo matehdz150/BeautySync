@@ -1,3 +1,4 @@
+import { Queue } from 'bullmq';
 import { db } from '../../../db/client';
 import {
   benefitPointsLedger,
@@ -5,6 +6,11 @@ import {
   publicBookings,
 } from '../../../db/schema';
 import { eq, and, ne, sql } from 'drizzle-orm';
+import { redis } from '../../redis/redis.provider';
+
+const benefitsQueue = new Queue('benefits-queue', {
+  connection: redis,
+});
 
 export async function processFirstBookingRule(params: {
   userId: string;
@@ -78,4 +84,15 @@ export async function processFirstBookingRule(params: {
     userId,
     bookingId: context.bookingId,
   });
+
+  await benefitsQueue.add(
+    'process-tier-progress',
+    {
+      userId,
+      branchId,
+    },
+    {
+      jobId: `tier-progress-${context.bookingId}`, // idempotente
+    },
+  );
 }

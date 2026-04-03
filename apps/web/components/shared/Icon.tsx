@@ -6,9 +6,11 @@ import type { ComponentType, SVGProps } from "react";
 export function CategoryIcon({
   name,
   className = "w-3 h-3",
+  style,
 }: {
   name?: string;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   if (!name) return null;
 
@@ -21,5 +23,5 @@ export function CategoryIcon({
     (Icons as unknown as Record<string, ComponentType<SVGProps<SVGSVGElement>>>)
       [normalized] ?? Icons.HelpCircle;
 
-  return <Icon className={className} />;
+  return <Icon className={className} style={style}/>;
 }

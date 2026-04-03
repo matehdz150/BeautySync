@@ -129,3 +129,90 @@ export async function createBenefitReward(data: {
     body: JSON.stringify(data),
   });
 }
+
+// ===============================
+// TIERS
+// ===============================
+
+export type TierRewardType = "ONE_TIME" | "RECURRING";
+
+export type TierRewardConfig =
+  | {
+      type: "gift_card";
+      amountCents: number;
+      expiresInDays?: number;
+    }
+  | {
+      type: "coupon_percentage";
+      value: number;
+      expiresInDays?: number;
+    }
+  | {
+      type: "coupon_fixed";
+      value: number;
+      expiresInDays?: number;
+    };
+
+export type CreateTierInput = {
+  branchId: string;
+
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+
+  minPoints: number;
+
+  rewards?: {
+    type: TierRewardType;
+    config: TierRewardConfig;
+  }[];
+};
+
+export type TierResponse = {
+  tier: {
+    id: string;
+    programId: string;
+    name: string;
+    description: string | null;
+    color: string | null;
+    icon: string | null;
+    minPoints: number;
+    position: number;
+    createdAt: string;
+  };
+  rewards: {
+    id: string;
+    tierId: string;
+    type: TierRewardType;
+    config: TierRewardConfig;
+    createdAt: string | null;
+  }[];
+};
+
+export async function createTier(data: CreateTierInput) {
+  return api<TierResponse>("/benefits/tiers", {
+    method: "POST",
+    body: JSON.stringify({
+      ...data,
+      rewards: data.rewards ?? [],
+    }),
+  });
+}
+
+export type BranchTierItem = {
+  id: string;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  minPoints: number;
+};
+
+export async function getBranchTiers(branchId: string) {
+  return api<BranchTierItem[]>(
+    `/benefits/tiers/${branchId}`,
+    {
+      method: "GET",
+    }
+  );
+}

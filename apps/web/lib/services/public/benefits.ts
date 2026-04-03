@@ -1,5 +1,9 @@
 import { publicFetch } from "./apiPublic";
 
+// ===============================
+// TYPES
+// ===============================
+
 export type UserWalletItem = {
   points: number;
 
@@ -20,10 +24,28 @@ export type UserWalletItem = {
       value: number;
     } | null;
   };
+
+  // 🔥 NEW
+  tier: {
+    name: string;
+    color: string | null;
+    icon: string | null;
+  } | null;
 };
 
-export async function getUserWallet(): Promise<UserWalletItem[]> {
-  return publicFetch<UserWalletItem[]>(
+export type UserWalletResponse = {
+  global: {
+    totalGiftCardCents: number;
+  };
+  branches: UserWalletItem[];
+};
+
+// ===============================
+// API
+// ===============================
+
+export async function getUserWallet(): Promise<UserWalletResponse> {
+  return publicFetch<UserWalletResponse>(
     `/benefits/program/wallet`
   );
 }

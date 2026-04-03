@@ -2,8 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 
 import { BenefitProgramRepository } from '../../core/ports/benefit-program.repository';
-import { benefitPrograms } from 'src/modules/db/schema';
-import * as client from 'src/modules/db/client';
+import { benefitPrograms } from '../../../db/schema';
+import * as client from '../../../db/client';
 import { BenefitProgram } from '../../core/entities/benefit-program.entity';
 
 @Injectable()

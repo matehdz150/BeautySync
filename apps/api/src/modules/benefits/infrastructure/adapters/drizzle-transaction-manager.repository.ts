@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { BenefitTransactionManager } from '../../core/ports/benefit-transactiont-manager.repository';
-import { DB } from 'src/modules/db/client';
+import { DB } from '../../../db/client';
 
 @Injectable()
 export class DrizzleTransactionManager implements BenefitTransactionManager {

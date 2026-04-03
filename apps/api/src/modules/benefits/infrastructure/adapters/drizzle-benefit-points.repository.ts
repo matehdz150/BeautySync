@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { BenefitPointsRepository } from '../../core/ports/benefit-points.repository';
 import { DB } from 'src/modules/db/client';
-import { benefitPointsLedger, benefitUserBalance } from 'src/modules/db/schema';
+import { benefitPointsLedger, benefitUserBalance } from '../../../db/schema';
 import { sql } from 'drizzle-orm';
-import { benefitPointsSourceEnum } from 'src/modules/db/schema';
+import { benefitPointsSourceEnum } from '../../../db/schema';
 
 export type BenefitPointsSource =
   (typeof benefitPointsSourceEnum.enumValues)[number];

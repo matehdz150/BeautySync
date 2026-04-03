@@ -12,11 +12,14 @@ import { Star } from "lucide-react";
 import { useBranch } from "@/context/BranchContext";
 import ActiveBenefitsView from "./ActiveBenefitsView";
 
+type View = "rules" | "tiers";
+
 export default function BenefitsPage() {
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
   const [rules, setRules] = useState<BenefitRule[]>([]);
   const [rewards, setRewards] = useState<BenefitReward[]>([]);
+  const [view, setView] = useState<View>("rules");
 
   const [program, setProgram] = useState<{
     exists: boolean;
@@ -39,7 +42,7 @@ export default function BenefitsPage() {
 
         const data = await getBenefitRulesByBranch(branchId);
         setProgram(data.program);
-        setRewards(data.rewards)
+        setRewards(data.rewards);
         setRules(data.rules);
       } catch (err) {
         console.error(err);
@@ -92,7 +95,14 @@ export default function BenefitsPage() {
   // ACTIVE VIEW
   // =========================
   if (program?.isActive) {
-    return <ActiveBenefitsView rules={rules} rewards={rewards} />;
+    return (
+      <ActiveBenefitsView
+        rules={rules}
+        rewards={rewards}
+        view={view}
+        setView={setView}
+      />
+    );
   }
 
   // =========================

@@ -1,15 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { BenefitReward, BenefitRule } from "@/lib/services/benefits";
 import {
-  Bolt,
-  Calendar,
   CalendarCheck,
   CirclePlus,
   Coins,
   CreditCard,
+  Diamond,
   Gift,
   Handbag,
-  Plus,
   Sparkles,
   Star,
   Ticket,
@@ -18,13 +16,18 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import TiersView from "./create/TiersView";
 
 export default function ActiveBenefitsView({
   rules,
   rewards,
+  view,
+  setView,
 }: {
   rules: BenefitRule[];
   rewards: BenefitReward[];
+  view: "rules" | "tiers";
+  setView: (v: "rules" | "tiers") => void;
 }) {
   const router = useRouter();
   return (
@@ -49,92 +52,130 @@ export default function ActiveBenefitsView({
                 </button>
               </div>
 
+              <div className="flex gap-2 mb-6">
+                <button
+                  onClick={() => setView("rules")}
+                  className={`px-4 py-2 rounded-lg text-sm ${
+                    view === "rules"
+                      ? "bg-black text-white"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  Reglas
+                </button>
+
+                <button
+                  onClick={() => setView("tiers")}
+                  className={`px-4 py-2 rounded-lg text-sm ${
+                    view === "tiers"
+                      ? "bg-black text-white"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  Rangos
+                </button>
+              </div>
+
               {/* 🔥 BANNER */}
-              <div className="relative overflow-hidden rounded-2xl bg-white border p-6 flex items-center justify-between overflow-hidden">
+              <div className="relative overflow-hidden rounded-2xl bg-white border p-6 flex items-center justify-between">
                 {/* LEFT */}
                 <div className="max-w-md">
                   <h2 className="text-lg font-semibold mb-1 text-gray-900">
-                    Mejora la lealtad de tus clientes
+                    {view === "tiers"
+                      ? "Define niveles de fidelidad"
+                      : "Mejora la lealtad de tus clientes"}
                   </h2>
 
                   <p className="text-sm text-gray-500 mb-4">
-                    Configura recompensas para incentivar visitas frecuentes y
-                    aumentar el valor de cada cliente.
+                    {view === "tiers"
+                      ? "Crea niveles como Silver, Gold o VIP para premiar a tus mejores clientes."
+                      : "Configura recompensas para incentivar visitas frecuentes y aumentar el valor de cada cliente."}
                   </p>
 
                   <Button
                     className="px-4 rounded-full text-sm font-medium py-6"
                     variant={"primary"}
                   >
-                    Configurar ahora
+                    {view === "tiers" ? "Crear nivel" : "Configurar ahora"}
                   </Button>
                 </div>
 
                 {/* RIGHT IMAGE */}
                 <div className="relative w-35 h-35 hidden md:block opacity-70">
-                  {/* Imagen */}
                   <Image
-                    src="/loyal.svg"
-                    alt="Loyal"
+                    src='/loyal.svg'
+                    alt="Banner"
                     fill
                     className="object-contain"
                   />
 
-                  {/* Overlay Bolt */}
+                  {/* ICON OVERLAY */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Coins className="w-12 h-12 text-white fill-purple-500 drop-shadow-md" />
+                    {view === "tiers" ? (<Diamond className="w-12 h-12 text-white fill-purple-500 drop-shadow-md" />
+                    ) : (
+                      <Coins className="w-12 h-12 text-white fill-purple-500 drop-shadow-md" />
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* RULES */}
-              <div>
-                <h3 className="text-lg font-bold mb-1">
-                  Formas de ganar puntos
-                </h3>
+              {view === "rules" && (
+                <>
+                  <div>
+                    <h3 className="text-lg font-bold mb-1">
+                      Formas de ganar puntos
+                    </h3>
 
-                <p className="text-sm text-gray-500 mb-4">
-                  Configura cómo tus clientes acumulan puntos
-                </p>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Configura cómo tus clientes acumulan puntos
+                    </p>
 
-                <div className="space-y-3">
-                  {rules.map((rule) => (
-                    <RuleCard key={rule.id} rule={rule} />
-                  ))}
-                  <Button
-                    variant="outline"
-                    className="flex gap-2 shadow-none rounded-full px-3"
-                    onClick={() => router.push("loyal-program/create/earn")}
-                  >
-                    Agregar Regla
-                    <CirclePlus />
-                  </Button>
-                </div>
-              </div>
+                    <div className="space-y-3">
+                      {rules.map((rule) => (
+                        <RuleCard key={rule.id} rule={rule} />
+                      ))}
+                      <Button
+                        variant="outline"
+                        className="flex gap-2 shadow-none rounded-full px-3"
+                        onClick={() => router.push("loyal-program/create/earn")}
+                      >
+                        Agregar Regla
+                        <CirclePlus />
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold mb-1">
+                      Formas de gastar puntos
+                    </h3>
+
+                    <p className="text-sm text-gray-500 mb-4">
+                      Configura cómo tus clientes gastan puntos
+                    </p>
+
+                    <div className="space-y-3">
+                      {rewards.map((reward) => (
+                        <RewardCard key={reward.id} reward={reward} />
+                      ))}
+                      <Button
+                        variant="outline"
+                        className="flex gap-2 shadow-none rounded-full py-5 px-3"
+                        onClick={() =>
+                          router.push("loyal-program/create/reward")
+                        }
+                      >
+                        Agregar recompensa
+                        <CirclePlus />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+              {view === "tiers" && (
+                <TiersView/>
+              )}
               {/* RULES */}
-              <div>
-                <h3 className="text-lg font-bold mb-1">
-                  Formas de gastar puntos
-                </h3>
-
-                <p className="text-sm text-gray-500 mb-4">
-                  Configura cómo tus clientes gastan puntos
-                </p>
-
-                <div className="space-y-3">
-                  {rewards.map((reward) => (
-                    <RewardCard key={reward.id} reward={reward} />
-                  ))}
-                  <Button
-                  variant="outline"
-                  className="flex gap-2 shadow-none rounded-full py-5 px-3"
-                  onClick={() => router.push("loyal-program/create/reward")}
-                >
-                  Agregar recompensa
-                  <CirclePlus />
-                </Button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -287,9 +328,7 @@ function RewardCard({ reward }: { reward: BenefitReward }) {
         {/* TEXT */}
         <div>
           <p className="font-medium">{reward.name}</p>
-          <p className="text-sm text-gray-500">
-            {reward.pointsCost} puntos
-          </p>
+          <p className="text-sm text-gray-500">{reward.pointsCost} puntos</p>
         </div>
       </div>
 

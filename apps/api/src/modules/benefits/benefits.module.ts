@@ -45,6 +45,10 @@ import {
   BENEFIT_REWARD_HANDLERS,
   BENEFIT_RULE_CONFIG_VALIDATORS,
   BENEFIT_RULE_REPOSITORY,
+  BENEFIT_TIERS_REPOSITORY,
+  TIER_REWARD_CONFIG_VALIDATORS,
+  TIER_REWARDS_REPOSITORY,
+  USER_TIER_STATE_REPOSITORY,
 } from './core/ports/tokens';
 
 // handlers
@@ -85,6 +89,16 @@ import { BenefitsEventRegistry } from './application/handlers/benefits-event.reg
 import { CacheModule } from '../cache/cache.module';
 import { GetUserWalletSummaryUseCase } from './core/use-cases/get-user-points.use-case';
 import { PaymentsModule } from '../payments/payments.module';
+import { BenefitTiersController } from './application/controllers/tiers/benefit-tiers.controller';
+import { CreateTierWithRewardsUseCase } from './core/use-cases/tiers/create-benefit-tier.use-case';
+import { DrizzleBenefitTiersRepository } from './infrastructure/adapters/drizzle-benefit-tiers.repository';
+import { DrizzleTierRewardsRepository } from './infrastructure/adapters/drizzle-tier-rewards.repository';
+import { GiftCardRewardValidator } from './core/validators/tiers/gift-card.validator';
+import { CouponPercentageValidator } from './core/validators/tiers/CouponPercentage.validator';
+import { CouponFixedValidator } from './core/validators/tiers/CouponFixed.validator';
+import { db } from '../db/client';
+import { DrizzleUserTierStateRepository } from './infrastructure/adapters/drizzle-user-tier-state.repository';
+import { GetBranchTiersUseCase } from './core/use-cases/tiers/get-branch-tiers.use-case';
 
 @Module({
   imports: [
@@ -96,7 +110,7 @@ import { PaymentsModule } from '../payments/payments.module';
     CacheModule,
     PaymentsModule,
   ],
-  controllers: [BenefitProgramController],
+  controllers: [BenefitProgramController, BenefitTiersController],
 
   providers: [
     // =====================
@@ -133,6 +147,35 @@ import { PaymentsModule } from '../payments/payments.module';
     {
       provide: BENEFIT_RULE_REPOSITORY,
       useClass: DrizzleBenefitRuleRepository,
+    },
+    {
+      provide: BENEFIT_TIERS_REPOSITORY,
+      useClass: DrizzleBenefitTiersRepository,
+    },
+    {
+      provide: TIER_REWARDS_REPOSITORY,
+      useClass: DrizzleTierRewardsRepository,
+    },
+    {
+      provide: USER_TIER_STATE_REPOSITORY,
+      useClass: DrizzleUserTierStateRepository,
+    },
+    {
+      provide: TIER_REWARD_CONFIG_VALIDATORS,
+      useFactory: (
+        gift: GiftCardRewardValidator,
+        percentage: CouponPercentageValidator,
+        fixed: CouponFixedValidator,
+      ) => [gift, percentage, fixed],
+      inject: [
+        GiftCardRewardValidator,
+        CouponPercentageValidator,
+        CouponFixedValidator,
+      ],
+    },
+    {
+      provide: 'DB',
+      useValue: db,
     },
 
     // =====================
@@ -222,6 +265,11 @@ import { PaymentsModule } from '../payments/payments.module';
     ReferralConfigValidator,
     CreateBenefitRewardUseCase,
     GetUserWalletSummaryUseCase,
+    CreateTierWithRewardsUseCase,
+    GiftCardRewardValidator,
+    CouponPercentageValidator,
+    CouponFixedValidator,
+    GetBranchTiersUseCase,
 
     // =====================
     // EVENT HANDLERS

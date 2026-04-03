@@ -1,3 +1,4 @@
+import { DbOrTx } from 'src/modules/db/client';
 import { BenefitTier } from '../entities/benefit-tier.entity';
 
 export interface CreateTierWithRewardsInput {
@@ -18,21 +19,32 @@ export interface CreateTierWithRewardsInput {
 }
 
 export interface BenefitTiersRepository {
-  getByProgram(programId: string): Promise<
+  getByProgram(
+    programId: string,
+    tx?: DbOrTx, // 🔥 ESTO FALTABA
+  ): Promise<
     {
       id: string;
       minPoints: number;
       position: number;
+      color: string | null;
+      icon: string | null;
+      name: string;
     }[]
   >;
 
-  create(input: {
-    programId: string;
-    name: string;
-    description: string | null;
-    color: string | null;
-    icon: string | null;
-    minPoints: number;
-    position: number;
-  }): Promise<BenefitTier>;
+  create(
+    input: {
+      programId: string;
+      name: string;
+      description: string | null;
+      color: string | null;
+      icon: string | null;
+      minPoints: number;
+      position: number;
+    },
+    db?: DbOrTx,
+  ): Promise<BenefitTier>;
+
+  findById(id: string): Promise<BenefitTier | null>;
 }

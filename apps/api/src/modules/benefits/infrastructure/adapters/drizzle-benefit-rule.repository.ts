@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 
-import { DB } from 'src/modules/db/client';
-import { benefitEarnRules, benefitPrograms } from 'src/modules/db/schema';
+import { DB } from '../../../db/client';
+import { benefitEarnRules, benefitPrograms } from '../../../db/schema';
 
 import { BenefitRuleRepository } from '../../core/ports/benefit-rule.repository';
 import { BenefitEarnRuleEntity } from '../../core/entities/benefit-rule.entity';
