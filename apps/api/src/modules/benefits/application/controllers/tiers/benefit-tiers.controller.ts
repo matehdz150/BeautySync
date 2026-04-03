@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -14,12 +15,14 @@ import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedU
 
 import { CreateTierWithRewardsUseCase } from 'src/modules/benefits/core/use-cases/tiers/create-benefit-tier.use-case';
 import { GetBranchTiersUseCase } from 'src/modules/benefits/core/use-cases/tiers/get-branch-tiers.use-case';
+import { UpdateTierWithRewardsUseCase } from 'src/modules/benefits/core/use-cases/tiers/update-tier-with-reward.use-case';
 
 @Controller('benefits/tiers')
 export class BenefitTiersController {
   constructor(
     private readonly createTierWithRewards: CreateTierWithRewardsUseCase,
     private readonly getBranchTiersUseCase: GetBranchTiersUseCase,
+    private readonly updateTierUseCase: UpdateTierWithRewardsUseCase,
   ) {}
 
   // =========================
@@ -34,6 +37,35 @@ export class BenefitTiersController {
   ) {
     return this.getBranchTiersUseCase.execute({
       branchId,
+      user: req.user,
+    });
+  }
+
+  @Patch(':tierId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  updateTier(
+    @Param('tierId') tierId: string,
+    @Body()
+    body: {
+      branchId: string;
+
+      name?: string;
+      description?: string;
+      color?: string;
+      icon?: string;
+      minPoints?: number;
+
+      rewards?: {
+        type: 'ONE_TIME' | 'RECURRING';
+        config: any;
+      }[];
+    },
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.updateTierUseCase.execute({
+      tierId,
+      ...body,
       user: req.user,
     });
   }

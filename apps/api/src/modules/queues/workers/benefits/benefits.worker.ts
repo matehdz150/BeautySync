@@ -37,6 +37,10 @@ const couponRepo = new DrizzleCouponRepository();
 // 🔥 TYPES
 // =========================
 
+type RecalculateTiersJob = {
+  branchId: string;
+};
+
 type BookingBenefitsJob = {
   userId: string;
   branchId: string;
@@ -68,6 +72,12 @@ type TierProgressJob = {
 // =========================
 // 🔥 TYPE GUARDS
 // =========================
+
+function isRecalculateTiersJob(data: unknown): data is RecalculateTiersJob {
+  if (!isObject(data)) return false;
+
+  return typeof data.branchId === 'string';
+}
 
 function isObject(data: unknown): data is Record<string, unknown> {
   return typeof data === 'object' && data !== null;
@@ -162,6 +172,45 @@ async function handler(name: string, data: unknown) {
         giftCardRepo,
         couponRepo,
       });
+    }
+
+    case 'tiers.recalculate': {
+      if (!isRecalculateTiersJob(data)) {
+        throw new Error('Invalid recalculate tiers payload');
+      }
+
+      console.log('🔁 Recalculating tiers for branch:', data.branchId);
+
+      // 🔥 1. obtener usuarios con balance
+      const users = await balanceRepo.getUsersByBranch(data.branchId);
+
+      console.log(`👥 Users to process: ${users.length}`);
+
+      // 🔥 2. procesar en batch
+      const chunkSize = 50;
+
+      for (let i = 0; i < users.length; i += chunkSize) {
+        const chunk = users.slice(i, i + chunkSize);
+
+        await Promise.all(
+          chunk.map((u) =>
+            processUserTierProgress({
+              userId: u.userId,
+              branchId: data.branchId,
+
+              balanceRepo,
+              programRepo,
+              tiersRepo,
+              rewardsRepo,
+              grantRepo,
+              giftCardRepo,
+              couponRepo,
+            }),
+          ),
+        );
+      }
+
+      return;
     }
 
     default:

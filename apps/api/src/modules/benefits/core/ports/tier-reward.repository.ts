@@ -13,4 +13,6 @@ export interface TierRewardsRepository {
   create(input: CreateTierRewardInput, tx?: DbOrTx): Promise<TierReward>;
 
   getByTier(tierId: string, tx?: DbOrTx): Promise<TierReward[]>;
+
+  deleteByTier(tierId: string, tx?: DbOrTx);
 }

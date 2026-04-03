@@ -7,6 +7,7 @@ import { benefitTiers } from '../../../db/schema';
 import { BenefitTiersRepository } from '../../core/ports/benefit-tier.repository';
 
 import { BenefitTier } from '../../core/entities/benefit-tier.entity';
+import { benefitTierRewards } from '../../../db/schema';
 
 @Injectable()
 export class DrizzleBenefitTiersRepository implements BenefitTiersRepository {
@@ -97,5 +98,47 @@ export class DrizzleBenefitTiersRepository implements BenefitTiersRepository {
       position: row.position,
       createdAt: row.createdAt,
     };
+  }
+
+  async update(
+    id: string,
+    data: Partial<{
+      name: string;
+      description: string | null;
+      color: string | null;
+      icon: string | null;
+      minPoints: number;
+    }>,
+    tx?: DbOrTx,
+  ): Promise<BenefitTier> {
+    const dbInstance = tx ?? this.db;
+
+    const [row] = await dbInstance
+      .update(benefitTiers)
+      .set({
+        ...data,
+      })
+      .where(eq(benefitTiers.id, id))
+      .returning();
+
+    return {
+      id: row.id,
+      programId: row.programId,
+      name: row.name,
+      description: row.description,
+      color: row.color,
+      icon: row.icon,
+      minPoints: row.minPoints,
+      position: row.position,
+      createdAt: row.createdAt,
+    };
+  }
+
+  async deleteByTier(tierId: string, tx?: DbOrTx) {
+    const dbInstance = tx ?? this.db;
+
+    await dbInstance
+      .delete(benefitTierRewards)
+      .where(eq(benefitTierRewards.tierId, tierId));
   }
 }

@@ -38,6 +38,8 @@ export interface BenefitBalanceRepository {
     pointsBalance: number;
   }>;
 
+  getUsersByBranch(branchId: string): Promise<{ userId: string }[]>;
+
   getAllUserBalances(userId: string): Promise<
     {
       branchId: string;

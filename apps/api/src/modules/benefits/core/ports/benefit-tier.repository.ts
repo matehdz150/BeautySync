@@ -47,4 +47,18 @@ export interface BenefitTiersRepository {
   ): Promise<BenefitTier>;
 
   findById(id: string): Promise<BenefitTier | null>;
+
+  update(
+    id: string,
+    data: Partial<{
+      name: string;
+      description: string | null;
+      color: string | null;
+      icon: string | null;
+      minPoints: number;
+    }>,
+    tx?: DbOrTx,
+  ): Promise<BenefitTier>;
+
+  deleteByTier(tierId: string, tx?: DbOrTx);
 }
