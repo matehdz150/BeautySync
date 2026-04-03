@@ -56,9 +56,10 @@ export interface BenefitTiersRepository {
       color: string | null;
       icon: string | null;
       minPoints: number;
+      position: number;
     }>,
     tx?: DbOrTx,
   ): Promise<BenefitTier>;
 
-  deleteByTier(tierId: string, tx?: DbOrTx);
+  delete(id: string, tx?: DbOrTx): Promise<void>;
 }

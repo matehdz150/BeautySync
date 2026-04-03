@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -14,6 +15,7 @@ import { RolesGuard } from 'src/modules/auth/application/guards/roles.guard';
 import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
 
 import { CreateTierWithRewardsUseCase } from 'src/modules/benefits/core/use-cases/tiers/create-benefit-tier.use-case';
+import { DeleteTierUseCase } from 'src/modules/benefits/core/use-cases/tiers/delete-tier.use-case';
 import { GetBranchTiersUseCase } from 'src/modules/benefits/core/use-cases/tiers/get-branch-tiers.use-case';
 import { UpdateTierWithRewardsUseCase } from 'src/modules/benefits/core/use-cases/tiers/update-tier-with-reward.use-case';
 
@@ -23,6 +25,7 @@ export class BenefitTiersController {
     private readonly createTierWithRewards: CreateTierWithRewardsUseCase,
     private readonly getBranchTiersUseCase: GetBranchTiersUseCase,
     private readonly updateTierUseCase: UpdateTierWithRewardsUseCase,
+    private readonly deleteTierUseCase: DeleteTierUseCase,
   ) {}
 
   // =========================
@@ -92,6 +95,21 @@ export class BenefitTiersController {
     return this.createTierWithRewards.execute({
       ...body,
       rewards: body.rewards ?? [],
+    });
+  }
+
+  @Delete(':tierId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  deleteTier(
+    @Param('tierId') tierId: string,
+    @Body('branchId') branchId: string,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.deleteTierUseCase.execute({
+      tierId,
+      branchId,
+      user: req.user,
     });
   }
 }

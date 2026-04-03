@@ -141,4 +141,10 @@ export class DrizzleBenefitTiersRepository implements BenefitTiersRepository {
       .delete(benefitTierRewards)
       .where(eq(benefitTierRewards.tierId, tierId));
   }
+
+  async delete(id: string, db?: DbOrTx) {
+    const dbInstance = db ?? this.db;
+
+    await dbInstance.delete(benefitTiers).where(eq(benefitTiers.id, id));
+  }
 }
