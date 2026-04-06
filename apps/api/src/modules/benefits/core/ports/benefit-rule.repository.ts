@@ -21,10 +21,24 @@ export type CreateBenefitEarnRuleInput = {
 
 export interface BenefitRuleRepository {
   findActiveByBranch(branchId: string): Promise<BenefitEarnRuleEntity[]>;
+
+  findById(id: string): Promise<BenefitEarnRuleEntity | null>;
+
   create(data: {
     programId: string;
     type: BenefitEarnRuleType;
     config: any;
     isActive: boolean;
   }): Promise<BenefitEarnRuleEntity>;
+
+  update(
+    id: string,
+    data: {
+      type?: BenefitEarnRuleType;
+      config?: any;
+      isActive?: boolean;
+    },
+  ): Promise<BenefitEarnRuleEntity>;
+
+  delete(id: string): Promise<void>;
 }
