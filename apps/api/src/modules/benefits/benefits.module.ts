@@ -106,6 +106,7 @@ import { redis } from '../queues/redis/redis.provider';
 import { GetTierByIdUseCase } from './core/use-cases/tiers/get-tier-by-id.use-case';
 import { UpdateBenefitEarnRuleUseCase } from './core/use-cases/update-benefit-earn-rule.use-case';
 import { DeleteBenefitEarnRuleUseCase } from './core/use-cases/delete-benefit-earn-rule.use-case';
+import { GetBenefitRuleByIdUseCase } from './core/use-cases/get-rule-by-id.use-case';
 
 @Module({
   imports: [
@@ -274,6 +275,7 @@ import { DeleteBenefitEarnRuleUseCase } from './core/use-cases/delete-benefit-ea
     CreateBenefitEarnRuleUseCase,
     UpdateBenefitEarnRuleUseCase,
     DeleteBenefitEarnRuleUseCase,
+    GetBenefitRuleByIdUseCase,
     BookingCountConfigValidator,
     SpendAccumulatedConfigValidator,
     FirstBookingConfigValidator,

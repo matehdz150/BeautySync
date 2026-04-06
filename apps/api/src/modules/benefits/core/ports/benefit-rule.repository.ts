@@ -41,4 +41,6 @@ export interface BenefitRuleRepository {
   ): Promise<BenefitEarnRuleEntity>;
 
   delete(id: string): Promise<void>;
+
+  findById(ruleId: string): Promise<BenefitEarnRuleEntity | null>;
 }

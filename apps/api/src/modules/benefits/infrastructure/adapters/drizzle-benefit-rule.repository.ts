@@ -76,22 +76,6 @@ export class DrizzleBenefitRuleRepository implements BenefitRuleRepository {
     });
   }
 
-  async findById(id: string): Promise<BenefitEarnRuleEntity | null> {
-    const row = await this.db.query.benefitEarnRules.findFirst({
-      where: eq(benefitEarnRules.id, id),
-    });
-
-    if (!row) return null;
-
-    return createBenefitEarnRuleEntity({
-      id: row.id,
-      programId: row.programId,
-      type: row.type,
-      isActive: row.isActive,
-      config: row.config as Record<string, unknown>,
-    });
-  }
-
   async update(
     id: string,
     data: {
@@ -128,5 +112,24 @@ export class DrizzleBenefitRuleRepository implements BenefitRuleRepository {
       .update(benefitEarnRules)
       .set({ isActive: false })
       .where(eq(benefitEarnRules.id, id));
+  }
+
+  // =========================
+  // FIND BY ID
+  // =========================
+  async findById(id: string): Promise<BenefitEarnRuleEntity | null> {
+    const row = await this.db.query.benefitEarnRules.findFirst({
+      where: eq(benefitEarnRules.id, id),
+    });
+
+    if (!row) return null;
+
+    return createBenefitEarnRuleEntity({
+      id: row.id,
+      programId: row.programId,
+      type: row.type,
+      isActive: row.isActive,
+      config: row.config as Record<string, unknown>, // ok
+    });
   }
 }

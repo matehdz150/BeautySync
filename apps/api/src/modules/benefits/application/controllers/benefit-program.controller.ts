@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -32,6 +33,7 @@ import { GetUserWalletSummaryUseCase } from '../../core/use-cases/get-user-point
 import { PublicAuthGuard } from 'src/modules/auth/application/guards/public-auth.guard';
 import { DeleteBenefitEarnRuleUseCase } from '../../core/use-cases/delete-benefit-earn-rule.use-case';
 import { UpdateBenefitEarnRuleUseCase } from '../../core/use-cases/update-benefit-earn-rule.use-case';
+import { GetBenefitRuleByIdUseCase } from '../../core/use-cases/get-rule-by-id.use-case';
 
 @Controller('benefits/program')
 export class BenefitProgramController {
@@ -43,6 +45,7 @@ export class BenefitProgramController {
     private readonly getUserPoints: GetUserWalletSummaryUseCase,
     private readonly updateRule: UpdateBenefitEarnRuleUseCase,
     private readonly deleteRule: DeleteBenefitEarnRuleUseCase,
+    private readonly getRuleById: GetBenefitRuleByIdUseCase,
   ) {}
 
   @UseGuards(PublicAuthGuard)
@@ -127,6 +130,24 @@ export class BenefitProgramController {
     return this.deleteRule.execute({
       ruleId,
       branchId: body.branchId,
+      user: req.user,
+    });
+  }
+
+  // =========================
+  // GET RULE BY ID
+  // =========================
+  @Get('/earnrule/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  getRuleByIdEx(
+    @Param('id') ruleId: string,
+    @Query('branchId') branchId: string,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.getRuleById.execute({
+      ruleId,
+      branchId,
       user: req.user,
     });
   }

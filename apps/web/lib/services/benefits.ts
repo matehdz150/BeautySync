@@ -26,12 +26,7 @@ export type BenefitProgramState = {
 export type BenefitReward = {
   id: string;
   name: string;
-  type:
-    | "SERVICE"
-    | "PRODUCT"
-    | "COUPON"
-    | "GIFT_CARD"
-    | "CUSTOM";
+  type: "SERVICE" | "PRODUCT" | "COUPON" | "GIFT_CARD" | "CUSTOM";
   pointsCost: number;
   isActive: boolean;
   stock?: number | null;
@@ -58,12 +53,9 @@ export type GetBenefitRulesResponse = {
 };
 
 export async function getBenefitRulesByBranch(branchId: string) {
-  return api<GetBenefitRulesResponse>(
-    `/benefits/program/branch/${branchId}`,
-    {
-      method: "GET",
-    }
-  );
+  return api<GetBenefitRulesResponse>(`/benefits/program/branch/${branchId}`, {
+    method: "GET",
+  });
 }
 
 // ===============================
@@ -87,6 +79,55 @@ export async function createBenefitRule(data: {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export async function updateBenefitRule(data: {
+  ruleId: string;
+  branchId: string;
+  type?: BenefitRuleType;
+  config?: Record<string, unknown>;
+  isActive?: boolean;
+}) {
+  return api<BenefitRule>(`/benefits/program/earnrule/${data.ruleId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      branchId: data.branchId,
+      type: data.type,
+      config: data.config,
+      isActive: data.isActive,
+    }),
+  });
+}
+
+export async function deleteBenefitRule(data: {
+  ruleId: string;
+  branchId: string;
+}) {
+  return api<{ success: boolean }>(
+    `/benefits/program/earnrule/${data.ruleId}`,
+    {
+      method: "DELETE",
+      body: JSON.stringify({
+        branchId: data.branchId,
+      }),
+    },
+  );
+}
+
+// ===============================
+// GET BENEFIT RULE BY ID
+// ===============================
+
+export async function getBenefitRuleById(data: {
+  ruleId: string;
+  branchId: string;
+}) {
+  return api<BenefitRule>(
+    `/benefits/program/earnrule/${data.ruleId}?branchId=${data.branchId}`,
+    {
+      method: "GET",
+    },
+  );
 }
 
 export type BenefitRewardType =
@@ -209,12 +250,9 @@ export type BranchTierItem = {
 };
 
 export async function getBranchTiers(branchId: string) {
-  return api<BranchTierItem[]>(
-    `/benefits/tiers/${branchId}`,
-    {
-      method: "GET",
-    }
-  );
+  return api<BranchTierItem[]>(`/benefits/tiers/${branchId}`, {
+    method: "GET",
+  });
 }
 
 export async function updateTier(data: {
@@ -247,10 +285,7 @@ export async function updateTier(data: {
   });
 }
 
-export async function deleteTier(data: {
-  tierId: string;
-  branchId: string;
-}) {
+export async function deleteTier(data: { tierId: string; branchId: string }) {
   return api<{ success: boolean }>(`/benefits/tiers/${data.tierId}`, {
     method: "DELETE",
     body: JSON.stringify({
