@@ -99,6 +99,14 @@ import { CouponFixedValidator } from './core/validators/tiers/CouponFixed.valida
 import { db } from '../db/client';
 import { DrizzleUserTierStateRepository } from './infrastructure/adapters/drizzle-user-tier-state.repository';
 import { GetBranchTiersUseCase } from './core/use-cases/tiers/get-branch-tiers.use-case';
+import { UpdateTierWithRewardsUseCase } from './core/use-cases/tiers/update-tier-with-reward.use-case';
+import { DeleteTierUseCase } from './core/use-cases/tiers/delete-tier.use-case';
+import { Queue } from 'bullmq';
+import { redis } from '../queues/redis/redis.provider';
+import { GetTierByIdUseCase } from './core/use-cases/tiers/get-tier-by-id.use-case';
+import { UpdateBenefitEarnRuleUseCase } from './core/use-cases/update-benefit-earn-rule.use-case';
+import { DeleteBenefitEarnRuleUseCase } from './core/use-cases/delete-benefit-earn-rule.use-case';
+import { GetBenefitRuleByIdUseCase } from './core/use-cases/get-rule-by-id.use-case';
 
 @Module({
   imports: [
@@ -240,6 +248,14 @@ import { GetBranchTiersUseCase } from './core/use-cases/tiers/get-branch-tiers.u
         ReferralConfigValidator,
       ],
     },
+    {
+      provide: 'TIERS_QUEUE',
+      useFactory: () => {
+        return new Queue('tiers-queue', {
+          connection: redis,
+        });
+      },
+    },
 
     // =====================
     // ENGINE
@@ -257,6 +273,9 @@ import { GetBranchTiersUseCase } from './core/use-cases/tiers/get-branch-tiers.u
     ActivateBenefitProgramUseCase,
     GetBenefitRulesByBranchUseCase,
     CreateBenefitEarnRuleUseCase,
+    UpdateBenefitEarnRuleUseCase,
+    DeleteBenefitEarnRuleUseCase,
+    GetBenefitRuleByIdUseCase,
     BookingCountConfigValidator,
     SpendAccumulatedConfigValidator,
     FirstBookingConfigValidator,
@@ -270,6 +289,9 @@ import { GetBranchTiersUseCase } from './core/use-cases/tiers/get-branch-tiers.u
     CouponPercentageValidator,
     CouponFixedValidator,
     GetBranchTiersUseCase,
+    UpdateTierWithRewardsUseCase,
+    DeleteTierUseCase,
+    GetTierByIdUseCase,
 
     // =====================
     // EVENT HANDLERS

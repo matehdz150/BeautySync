@@ -187,6 +187,8 @@ export default function ActiveBenefitsView({
 function RuleCard({ rule }: { rule: BenefitRule }) {
   const config = rule.config as any;
 
+  const router = useRouter();
+
   const getTitle = () => {
     switch (rule.type) {
       case "BOOKING_COUNT":
@@ -279,8 +281,8 @@ function RuleCard({ rule }: { rule: BenefitRule }) {
 
       {/* RIGHT */}
       <div className="flex items-center gap-3">
-        <button className="px-4 py-3 border rounded-full text-sm">
-          Acciones
+        <button className="px-4 py-3 border rounded-full text-sm" onClick={()=> router.push(`/dashboard/loyal-program/edit/earn/${rule.id}`)}>
+          Editar
         </button>
       </div>
     </div>

@@ -18,6 +18,22 @@ export class DrizzleBenefitProgramRepository implements BenefitProgramRepository
     return row ? this.toEntity(row) : null;
   }
 
+  async findById(id: string) {
+    const row = await this.db.query.benefitPrograms.findFirst({
+      where: (t, { eq }) => eq(t.id, id),
+    });
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      branchId: row.branchId,
+      name: row.name ?? undefined,
+      isActive: row.isActive,
+      createdAt: row.createdAt,
+    };
+  }
+
   async create(data: { branchId: string; name?: string; isActive: boolean }) {
     const [created] = await this.db
       .insert(benefitPrograms)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createTier } from "@/lib/services/benefits";
@@ -12,7 +12,7 @@ import { CategoryIcon } from "@/components/shared/Icon";
 import { ColorPickerModal } from "@/components/loyal-program/ColorPickerModal";
 import { getTierGradient } from "@/lib/helpers/colors/colors";
 import { IconPickerModal } from "@/components/loyal-program/IconPickerModal";
-import { Crown } from "lucide-react";
+import { Crown, Gift, HandCoins, MoreVertical, Percent } from "lucide-react";
 
 type RewardType = "ONE_TIME" | "RECURRING";
 type ConfigType = "gift_card" | "coupon_percentage" | "coupon_fixed";
@@ -52,16 +52,7 @@ export default function CreateTierPage() {
   >([]);
 
   const addReward = () => {
-    setRewards((prev) => [
-      ...prev,
-      {
-        type: "ONE_TIME",
-        config: {
-          type: "gift_card",
-          amountCents: 10000,
-        },
-      },
-    ]);
+    router.push("/dashboard/loyal-program/create/tier/reward");
   };
 
   const updateReward = (index: number, data: any) => {
@@ -82,6 +73,18 @@ export default function CreateTierPage() {
       return copy;
     });
   };
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("newReward");
+
+    if (stored) {
+      const parsed = JSON.parse(stored);
+
+      setRewards((prev) => [...prev, parsed]);
+
+      sessionStorage.removeItem("newReward");
+    }
+  }, []);
 
   // =========================
   // VALIDATION
@@ -122,7 +125,7 @@ export default function CreateTierPage() {
   // =========================
 
   return (
-    <div className="min-h-screen bg-white px-6 py-10 pb-200">
+    <div className="h-screen overflow-y-auto bg-white px-6 py-10 pb-50">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* ACTIONS */}
         <div className="flex justify-end gap-3">
@@ -179,10 +182,12 @@ export default function CreateTierPage() {
                 }}
               />
             ) : (
-              <Crown style={{
+              <Crown
+                style={{
                   color: color ? `#${color}` : "#FFD700",
-                  fill: color ? `#${color}25` : '#FFD70035'
-                }}/>
+                  fill: color ? `#${color}25` : "#FFD70035",
+                }}
+              />
             )}
           </button>
           <div className="flex-1">
@@ -212,67 +217,27 @@ export default function CreateTierPage() {
         {/* REWARDS */}
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-medium text-gray-700">Recompensas</h3>
-
-            <button onClick={addReward} className="text-sm text-indigo-500">
-              + Agregar recompensa
-            </button>
+            <h3 className="text-xl font-medium text-black">Recompensas</h3>
           </div>
+          <Button
+            onClick={addReward}
+            className="text-sm px-5 py-5 shadow-none rounded-full"
+            variant={"outline"}
+          >
+            + Agregar recompensa
+          </Button>
 
-          {rewards.map((reward, i) => (
-            <div key={i} className="border rounded-xl p-4 space-y-3">
-              {/* TYPE */}
-              <select
-                value={reward.type}
-                onChange={(e) => updateReward(i, { type: e.target.value })}
-                className="w-full border rounded-lg p-2 text-sm"
-              >
-                <option value="ONE_TIME">Una sola vez</option>
-                <option value="RECURRING">Recurrente</option>
-              </select>
+          <div className="space-y-3">
+            {!rewards.length && (
+              <div className="border rounded-xl p-4 text-sm text-gray-500">
+                No hay recompensas aún
+              </div>
+            )}
 
-              {/* CONFIG TYPE */}
-              <select
-                value={reward.config.type}
-                onChange={(e) => updateConfig(i, { type: e.target.value })}
-                className="w-full border rounded-lg p-2 text-sm"
-              >
-                <option value="gift_card">Gift Card</option>
-                <option value="coupon_percentage">Cupón %</option>
-                <option value="coupon_fixed">Cupón fijo</option>
-              </select>
-
-              {/* DYNAMIC CONFIG */}
-              {reward.config.type === "gift_card" && (
-                <FancyInput
-                  label="Monto"
-                  suffix="MXN"
-                  value={reward.config.amountCents / 100 || ""}
-                  onChange={(v) =>
-                    updateConfig(i, {
-                      amountCents: toSafeNumber(v) * 100,
-                    })
-                  }
-                />
-              )}
-
-              {(reward.config.type === "coupon_percentage" ||
-                reward.config.type === "coupon_fixed") && (
-                <FancyInput
-                  label="Valor"
-                  suffix={
-                    reward.config.type === "coupon_percentage" ? "%" : "MXN"
-                  }
-                  value={reward.config.value || ""}
-                  onChange={(v) =>
-                    updateConfig(i, {
-                      value: toSafeNumber(v),
-                    })
-                  }
-                />
-              )}
-            </div>
-          ))}
+            {rewards.map((reward, i) => (
+              <RewardItemCard key={i} reward={reward} />
+            ))}
+          </div>
         </div>
       </div>
       {showColorModal && (
@@ -326,6 +291,68 @@ function FancyInput({
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+export function RewardItemCard({
+  reward,
+}: {
+  reward: {
+    type: "ONE_TIME" | "RECURRING";
+    config: any;
+  };
+}) {
+  const getIcon = () => {
+    switch (reward.config.type) {
+      case "gift_card":
+        return <Gift className="w-4 h-4 text-green-600" />;
+      case "coupon_percentage":
+        return <Percent className="w-4 h-4 text-green-600" />;
+      case "coupon_fixed":
+        return <HandCoins className="w-4 h-4 text-green-600" />;
+      default:
+        return <Gift className="w-4 h-4 text-green-600" />;
+    }
+  };
+
+  const getTitle = () => {
+    switch (reward.config.type) {
+      case "gift_card":
+        return `$${(reward.config.amountCents / 100).toLocaleString(
+          "es-MX",
+        )} MXN`;
+      case "coupon_percentage":
+        return `${reward.config.value}% descuento`;
+      case "coupon_fixed":
+        return `$${reward.config.value} MXN descuento`;
+      default:
+        return "Recompensa";
+    }
+  };
+
+  const getSubtitle = () => {
+    return reward.type === "ONE_TIME" ? "Una sola vez" : "Recurrente";
+  };
+
+  return (
+    <div className="bg-white border rounded-xl p-4 flex items-center justify-between">
+      {/* LEFT */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+          {getIcon()}
+        </div>
+
+        <div>
+          <p className="font-medium">{getTitle()}</p>
+          <p className="text-sm text-gray-500">{getSubtitle()}</p>
+        </div>
+      </div>
+
+      {/* RIGHT */}
+      <button className="p-2 hover:bg-gray-100 rounded-lg">
+        <MoreVertical className="w-4 h-4 text-gray-500" />
+      </button>
     </div>
   );
 }

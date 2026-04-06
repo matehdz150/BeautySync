@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -13,13 +15,19 @@ import { RolesGuard } from 'src/modules/auth/application/guards/roles.guard';
 import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
 
 import { CreateTierWithRewardsUseCase } from 'src/modules/benefits/core/use-cases/tiers/create-benefit-tier.use-case';
+import { DeleteTierUseCase } from 'src/modules/benefits/core/use-cases/tiers/delete-tier.use-case';
 import { GetBranchTiersUseCase } from 'src/modules/benefits/core/use-cases/tiers/get-branch-tiers.use-case';
+import { GetTierByIdUseCase } from 'src/modules/benefits/core/use-cases/tiers/get-tier-by-id.use-case';
+import { UpdateTierWithRewardsUseCase } from 'src/modules/benefits/core/use-cases/tiers/update-tier-with-reward.use-case';
 
 @Controller('benefits/tiers')
 export class BenefitTiersController {
   constructor(
     private readonly createTierWithRewards: CreateTierWithRewardsUseCase,
     private readonly getBranchTiersUseCase: GetBranchTiersUseCase,
+    private readonly updateTierUseCase: UpdateTierWithRewardsUseCase,
+    private readonly deleteTierUseCase: DeleteTierUseCase,
+    private readonly getTierByIdUseCase: GetTierByIdUseCase,
   ) {}
 
   // =========================
@@ -34,6 +42,48 @@ export class BenefitTiersController {
   ) {
     return this.getBranchTiersUseCase.execute({
       branchId,
+      user: req.user,
+    });
+  }
+
+  @Get('by-id/:tierId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  getTierById(
+    @Param('tierId') tierId: string,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.getTierByIdUseCase.execute({
+      tierId,
+      user: req.user,
+    });
+  }
+
+  @Patch(':tierId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  updateTier(
+    @Param('tierId') tierId: string,
+    @Body()
+    body: {
+      branchId: string;
+
+      name?: string;
+      description?: string;
+      color?: string;
+      icon?: string;
+      minPoints?: number;
+
+      rewards?: {
+        type: 'ONE_TIME' | 'RECURRING';
+        config: any;
+      }[];
+    },
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.updateTierUseCase.execute({
+      tierId,
+      ...body,
       user: req.user,
     });
   }
@@ -60,6 +110,21 @@ export class BenefitTiersController {
     return this.createTierWithRewards.execute({
       ...body,
       rewards: body.rewards ?? [],
+    });
+  }
+
+  @Delete(':tierId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  deleteTier(
+    @Param('tierId') tierId: string,
+    @Body('branchId') branchId: string,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.deleteTierUseCase.execute({
+      tierId,
+      branchId,
+      user: req.user,
     });
   }
 }

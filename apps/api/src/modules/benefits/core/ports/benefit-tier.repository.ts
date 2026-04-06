@@ -18,6 +18,19 @@ export interface CreateTierWithRewardsInput {
   }[];
 }
 
+export type TierWithContext = {
+  tier: BenefitTier;
+  program: {
+    id: string;
+    branchId: string;
+    isActive: boolean;
+  };
+  branch: {
+    id: string;
+    organizationId: string;
+  };
+};
+
 export interface BenefitTiersRepository {
   getByProgram(
     programId: string,
@@ -47,4 +60,21 @@ export interface BenefitTiersRepository {
   ): Promise<BenefitTier>;
 
   findById(id: string): Promise<BenefitTier | null>;
+
+  update(
+    id: string,
+    data: Partial<{
+      name: string;
+      description: string | null;
+      color: string | null;
+      icon: string | null;
+      minPoints: number;
+      position: number;
+    }>,
+    tx?: DbOrTx,
+  ): Promise<BenefitTier>;
+
+  delete(id: string, tx?: DbOrTx): Promise<void>;
+
+  findByIdWithContext(tierId: string): Promise<TierWithContext | null>;
 }

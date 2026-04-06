@@ -57,4 +57,12 @@ export class DrizzleTierRewardsRepository implements TierRewardsRepository {
       createdAt: row.createdAt,
     }));
   }
+
+  async deleteByTier(tierId: string, tx?: DbOrTx) {
+    const dbInstance = tx ?? this.db;
+
+    await dbInstance
+      .delete(benefitTierRewards)
+      .where(eq(benefitTierRewards.tierId, tierId));
+  }
 }

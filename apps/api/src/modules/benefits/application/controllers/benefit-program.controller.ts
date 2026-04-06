@@ -3,9 +3,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -28,6 +31,9 @@ import {
 } from 'src/modules/auth/application/decorators/public-user.decorator';
 import { GetUserWalletSummaryUseCase } from '../../core/use-cases/get-user-points.use-case';
 import { PublicAuthGuard } from 'src/modules/auth/application/guards/public-auth.guard';
+import { DeleteBenefitEarnRuleUseCase } from '../../core/use-cases/delete-benefit-earn-rule.use-case';
+import { UpdateBenefitEarnRuleUseCase } from '../../core/use-cases/update-benefit-earn-rule.use-case';
+import { GetBenefitRuleByIdUseCase } from '../../core/use-cases/get-rule-by-id.use-case';
 
 @Controller('benefits/program')
 export class BenefitProgramController {
@@ -37,6 +43,9 @@ export class BenefitProgramController {
     private readonly createRule: CreateBenefitEarnRuleUseCase,
     private readonly createReward: CreateBenefitRewardUseCase,
     private readonly getUserPoints: GetUserWalletSummaryUseCase,
+    private readonly updateRule: UpdateBenefitEarnRuleUseCase,
+    private readonly deleteRule: DeleteBenefitEarnRuleUseCase,
+    private readonly getRuleById: GetBenefitRuleByIdUseCase,
   ) {}
 
   @UseGuards(PublicAuthGuard)
@@ -82,6 +91,63 @@ export class BenefitProgramController {
       branchId: body.branchId,
       type: body.type,
       config: body.config,
+      user: req.user,
+    });
+  }
+
+  @Patch('/earnrule/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  update(
+    @Param('id') ruleId: string,
+    @Body()
+    body: {
+      branchId: string;
+      type?: BenefitEarnRuleType;
+      config?: unknown;
+      isActive?: boolean;
+    },
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.updateRule.execute({
+      ruleId,
+      branchId: body.branchId,
+      type: body.type,
+      config: body.config,
+      isActive: body.isActive,
+      user: req.user,
+    });
+  }
+
+  @Delete('/earnrule/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  delete(
+    @Param('id') ruleId: string,
+    @Body() body: { branchId: string },
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.deleteRule.execute({
+      ruleId,
+      branchId: body.branchId,
+      user: req.user,
+    });
+  }
+
+  // =========================
+  // GET RULE BY ID
+  // =========================
+  @Get('/earnrule/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  getRuleByIdEx(
+    @Param('id') ruleId: string,
+    @Query('branchId') branchId: string,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.getRuleById.execute({
+      ruleId,
+      branchId,
       user: req.user,
     });
   }

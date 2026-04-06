@@ -75,4 +75,61 @@ export class DrizzleBenefitRuleRepository implements BenefitRuleRepository {
       config: row.config as Record<string, unknown>,
     });
   }
+
+  async update(
+    id: string,
+    data: {
+      type?: BenefitEarnRuleEntity['type'];
+      config?: Record<string, unknown>;
+      isActive?: boolean;
+    },
+  ): Promise<BenefitEarnRuleEntity> {
+    const [row] = await this.db
+      .update(benefitEarnRules)
+      .set({
+        ...(data.type && { type: data.type }),
+        ...(data.config && { config: data.config }),
+        ...(data.isActive !== undefined && { isActive: data.isActive }),
+      })
+      .where(eq(benefitEarnRules.id, id))
+      .returning();
+
+    if (!row) {
+      throw new Error('Rule not found after update');
+    }
+
+    return createBenefitEarnRuleEntity({
+      id: row.id,
+      programId: row.programId,
+      type: row.type,
+      isActive: row.isActive,
+      config: row.config as Record<string, unknown>,
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db
+      .update(benefitEarnRules)
+      .set({ isActive: false })
+      .where(eq(benefitEarnRules.id, id));
+  }
+
+  // =========================
+  // FIND BY ID
+  // =========================
+  async findById(id: string): Promise<BenefitEarnRuleEntity | null> {
+    const row = await this.db.query.benefitEarnRules.findFirst({
+      where: eq(benefitEarnRules.id, id),
+    });
+
+    if (!row) return null;
+
+    return createBenefitEarnRuleEntity({
+      id: row.id,
+      programId: row.programId,
+      type: row.type,
+      isActive: row.isActive,
+      config: row.config as Record<string, unknown>, // ok
+    });
+  }
 }
