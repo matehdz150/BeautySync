@@ -20,8 +20,6 @@ import {
   Users,
   ChartLine,
   UserPen,
-  Hash,
-  ChevronsUpDown,
   Smile,
   Globe,
   Puzzle,
@@ -151,26 +149,26 @@ export function AppSidebar() {
       {/* HEADER */}
       <SidebarHeader className="pl-3 pt-7 bg-[#111113]">
         <div className="flex items-center gap-3">
-          
           <h1 className="text-white font-semibold text-lg">Belza</h1>
         </div>
       </SidebarHeader>
 
       {!collapsed && (
         <div className="flex items-center bg-[#111113] px-6">
-        <div className="flex border-b w-full pb-2 border-muted-foreground">
-          {/* Línea + texto */}
-          <div className="flex-1 text-sm font-normal text-muted-foreground">Quick actions</div>
+          <div className="flex border-b w-full pb-2 border-muted-foreground">
+            {/* Línea + texto */}
+            <div className="flex-1 text-sm font-normal text-muted-foreground">
+              Quick actions
+            </div>
 
-          {/* Badge */}
-          <div className="ml-3 flex gap-1 items-center bg-muted-foreground font-light text-xs px-2 py-1 rounded-sm">
-            <span>⌘</span>
-            <span>K</span>
+            {/* Badge */}
+            <div className="ml-3 flex gap-1 items-center bg-muted-foreground font-light text-xs px-2 py-1 rounded-sm">
+              <span>⌘</span>
+              <span>K</span>
+            </div>
           </div>
         </div>
-      </div>
       )}
-
 
       {/* MENU */}
       <SidebarContent className="flex flex-col h-full bg-[#111113]">
@@ -191,8 +189,12 @@ export function AppSidebar() {
       ${collapsed ? "justify-center ml-3" : "gap-2 px-3"}
       ${
         active
-          ? "bg-indigo-400 text-muted"
-          : "text-muted-foreground hover:bg-muted-foreground"
+          ? `
+    relative text-white
+    bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500
+    shadow-[0_10px_30px_rgba(168,85,247,0.4)]
+  `
+          : "text-muted-foreground hover:bg-muted"
       }
       h-10
     `}

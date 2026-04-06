@@ -30,6 +30,8 @@ export default function SelectRewardTypePage() {
     );
   };
 
+  
+
   return (
     <div className="min-h-screen bg-white px-6 py-10">
       <div className="max-w-xl mx-auto space-y-10">

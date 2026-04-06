@@ -25,4 +25,6 @@ export interface BenefitProgramRepository {
     id: string,
     data: Partial<{ isActive: boolean; name: string }>,
   ): Promise<BenefitProgram>;
+
+  findById(id: string): Promise<BenefitProgram | null>;
 }

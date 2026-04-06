@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DB, DbOrTx } from '../../../db/client';
 import { eq } from 'drizzle-orm';
 
-import { benefitTiers } from '../../../db/schema';
+import { benefitPrograms, benefitTiers, branches } from '../../../db/schema';
 
 import { BenefitTiersRepository } from '../../core/ports/benefit-tier.repository';
 
@@ -146,5 +146,50 @@ export class DrizzleBenefitTiersRepository implements BenefitTiersRepository {
     const dbInstance = db ?? this.db;
 
     await dbInstance.delete(benefitTiers).where(eq(benefitTiers.id, id));
+  }
+
+  async findByIdWithContext(tierId: string) {
+    const result = await this.db
+      .select({
+        // TIER
+        tier: {
+          id: benefitTiers.id,
+          programId: benefitTiers.programId,
+          name: benefitTiers.name,
+          description: benefitTiers.description,
+          color: benefitTiers.color,
+          icon: benefitTiers.icon,
+          minPoints: benefitTiers.minPoints,
+          position: benefitTiers.position,
+          createdAt: benefitTiers.createdAt,
+        },
+
+        // PROGRAM
+        program: {
+          id: benefitPrograms.id,
+          branchId: benefitPrograms.branchId,
+          isActive: benefitPrograms.isActive,
+        },
+
+        // BRANCH
+        branch: {
+          id: branches.id,
+          organizationId: branches.organizationId,
+        },
+      })
+      .from(benefitTiers)
+      .innerJoin(
+        benefitPrograms,
+        eq(benefitPrograms.id, benefitTiers.programId),
+      )
+      .innerJoin(branches, eq(branches.id, benefitPrograms.branchId))
+      .where(eq(benefitTiers.id, tierId))
+      .limit(1);
+
+    const row = result[0];
+
+    if (!row) return null;
+
+    return row;
   }
 }

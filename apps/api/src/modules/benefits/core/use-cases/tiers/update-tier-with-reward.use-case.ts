@@ -57,7 +57,7 @@ export class UpdateTierWithRewardsUseCase {
     @Inject('DB')
     private readonly db: DB,
 
-    @Inject('TIERS_QUEUE')
+    @Inject('BENEFITS_QUEUE')
     private readonly queue: Queue,
   ) {}
 

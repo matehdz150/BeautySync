@@ -130,8 +130,8 @@ export default function TiersView() {
             </div>
 
             {/* RIGHT */}
-            <button className="px-4 py-3 border rounded-full text-sm">
-              Acciones
+            <button className="px-4 py-3 border rounded-full text-sm" onClick={()=>router.push(`/dashboard/loyal-program/edit/tier/${tier.id}`)}>
+              Editar
             </button>
           </div>
         ))}

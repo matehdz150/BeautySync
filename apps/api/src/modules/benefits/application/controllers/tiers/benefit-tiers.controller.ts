@@ -17,6 +17,7 @@ import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedU
 import { CreateTierWithRewardsUseCase } from 'src/modules/benefits/core/use-cases/tiers/create-benefit-tier.use-case';
 import { DeleteTierUseCase } from 'src/modules/benefits/core/use-cases/tiers/delete-tier.use-case';
 import { GetBranchTiersUseCase } from 'src/modules/benefits/core/use-cases/tiers/get-branch-tiers.use-case';
+import { GetTierByIdUseCase } from 'src/modules/benefits/core/use-cases/tiers/get-tier-by-id.use-case';
 import { UpdateTierWithRewardsUseCase } from 'src/modules/benefits/core/use-cases/tiers/update-tier-with-reward.use-case';
 
 @Controller('benefits/tiers')
@@ -26,6 +27,7 @@ export class BenefitTiersController {
     private readonly getBranchTiersUseCase: GetBranchTiersUseCase,
     private readonly updateTierUseCase: UpdateTierWithRewardsUseCase,
     private readonly deleteTierUseCase: DeleteTierUseCase,
+    private readonly getTierByIdUseCase: GetTierByIdUseCase,
   ) {}
 
   // =========================
@@ -40,6 +42,19 @@ export class BenefitTiersController {
   ) {
     return this.getBranchTiersUseCase.execute({
       branchId,
+      user: req.user,
+    });
+  }
+
+  @Get('by-id/:tierId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  getTierById(
+    @Param('tierId') tierId: string,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.getTierByIdUseCase.execute({
+      tierId,
       user: req.user,
     });
   }

@@ -216,3 +216,51 @@ export async function getBranchTiers(branchId: string) {
     }
   );
 }
+
+export async function updateTier(data: {
+  tierId: string;
+
+  branchId: string;
+
+  name?: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  minPoints?: number;
+
+  rewards?: {
+    type: TierRewardType;
+    config: TierRewardConfig;
+  }[];
+}) {
+  return api<TierResponse>(`/benefits/tiers/${data.tierId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      branchId: data.branchId,
+      name: data.name,
+      description: data.description,
+      color: data.color,
+      icon: data.icon,
+      minPoints: data.minPoints,
+      rewards: data.rewards,
+    }),
+  });
+}
+
+export async function deleteTier(data: {
+  tierId: string;
+  branchId: string;
+}) {
+  return api<{ success: boolean }>(`/benefits/tiers/${data.tierId}`, {
+    method: "DELETE",
+    body: JSON.stringify({
+      branchId: data.branchId,
+    }),
+  });
+}
+
+export async function getTierById(tierId: string) {
+  return api<TierResponse>(`/benefits/tiers/by-id/${tierId}`, {
+    method: "GET",
+  });
+}
