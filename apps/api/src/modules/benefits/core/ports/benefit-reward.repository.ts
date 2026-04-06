@@ -35,4 +35,19 @@ export interface BenefitRewardRepository {
     config?: Record<string, unknown>;
     isActive: boolean;
   }): Promise<BenefitReward>;
+
+  update(
+    id: string,
+    data: {
+      type?: string;
+      name?: string;
+      pointsCost?: number;
+      referenceId?: string | null;
+      stock?: number | null;
+      config?: Record<string, unknown>;
+      isActive?: boolean;
+    },
+  ): Promise<BenefitReward>;
+
+  delete(id: string): Promise<void>;
 }

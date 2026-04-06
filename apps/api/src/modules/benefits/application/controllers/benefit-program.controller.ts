@@ -34,6 +34,8 @@ import { PublicAuthGuard } from 'src/modules/auth/application/guards/public-auth
 import { DeleteBenefitEarnRuleUseCase } from '../../core/use-cases/delete-benefit-earn-rule.use-case';
 import { UpdateBenefitEarnRuleUseCase } from '../../core/use-cases/update-benefit-earn-rule.use-case';
 import { GetBenefitRuleByIdUseCase } from '../../core/use-cases/get-rule-by-id.use-case';
+import { UpdateBenefitRewardUseCase } from '../../core/use-cases/update-benefit-reward.use-case';
+import { DeleteBenefitRewardUseCase } from '../../core/use-cases/delete-benefit-reward.use-case';
 
 @Controller('benefits/program')
 export class BenefitProgramController {
@@ -46,6 +48,8 @@ export class BenefitProgramController {
     private readonly updateRule: UpdateBenefitEarnRuleUseCase,
     private readonly deleteRule: DeleteBenefitEarnRuleUseCase,
     private readonly getRuleById: GetBenefitRuleByIdUseCase,
+    private readonly updateReward: UpdateBenefitRewardUseCase,
+    private readonly deleteReward: DeleteBenefitRewardUseCase,
   ) {}
 
   @UseGuards(PublicAuthGuard)
@@ -170,6 +174,53 @@ export class BenefitProgramController {
       referenceId: body.referenceId,
       stock: body.stock,
       config: body.config,
+      user: req.user,
+    });
+  }
+
+  @Patch('/reward/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  updateRewardEx(
+    @Param('id') rewardId: string,
+    @Body()
+    body: {
+      branchId: string;
+      type?: 'SERVICE' | 'PRODUCT' | 'COUPON' | 'GIFT_CARD' | 'CUSTOM';
+      name?: string;
+      pointsCost?: number;
+      referenceId?: string | null;
+      stock?: number | null;
+      config?: unknown;
+      isActive?: boolean;
+    },
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.updateReward.execute({
+      rewardId,
+      branchId: body.branchId,
+      type: body.type,
+      name: body.name,
+      pointsCost: body.pointsCost,
+      referenceId: body.referenceId,
+      stock: body.stock,
+      config: body.config,
+      isActive: body.isActive,
+      user: req.user,
+    });
+  }
+
+  @Delete('/reward/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  deleteRewardEx(
+    @Param('id') rewardId: string,
+    @Body() body: { branchId: string },
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.deleteReward.execute({
+      rewardId,
+      branchId: body.branchId,
       user: req.user,
     });
   }

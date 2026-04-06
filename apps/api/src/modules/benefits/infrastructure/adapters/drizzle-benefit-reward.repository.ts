@@ -109,4 +109,69 @@ export class DrizzleBenefitRewardRepository implements BenefitRewardRepository {
           : undefined,
     };
   }
+
+  // =========================
+  // UPDATE
+  // =========================
+  async update(
+    id: string,
+    data: {
+      type?: BenefitReward['type'];
+      name?: string;
+      pointsCost?: number;
+      referenceId?: string | null;
+      stock?: number | null;
+      config?: Record<string, unknown>;
+      isActive?: boolean;
+    },
+  ): Promise<BenefitReward> {
+    const updateData: Partial<typeof benefitRewards.$inferInsert> = {};
+
+    if (data.type !== undefined) {
+      updateData.type = data.type;
+    }
+
+    if (data.name !== undefined) {
+      updateData.name = data.name;
+    }
+
+    if (data.pointsCost !== undefined) {
+      updateData.pointsCost = data.pointsCost;
+    }
+
+    if (data.referenceId !== undefined) {
+      updateData.referenceId = data.referenceId;
+    }
+
+    if (data.stock !== undefined) {
+      updateData.stock = data.stock;
+    }
+
+    if (data.config !== undefined) {
+      updateData.config = data.config;
+    }
+
+    if (data.isActive !== undefined) {
+      updateData.isActive = data.isActive;
+    }
+
+    const [row] = await this.db
+      .update(benefitRewards)
+      .set(updateData)
+      .where(eq(benefitRewards.id, id))
+      .returning();
+
+    if (!row) {
+      throw new Error('Reward not found after update');
+    }
+
+    return this.mapToEntity(row);
+  }
+
+  // =========================
+  // DELETE
+  // =========================
+  async delete(id: string): Promise<void> {
+    await this.db.delete(benefitRewards).where(eq(benefitRewards.id, id));
+  }
 }
