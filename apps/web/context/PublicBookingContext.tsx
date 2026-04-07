@@ -80,20 +80,51 @@ type BookingState = {
 
   benefits: {
     isAuthenticated: boolean;
+    hasActiveProgram: boolean;
     giftCards: {
       id: string;
       code: string;
       balanceCents: number;
       expiresAt?: string | null;
     }[];
-    coupons: {
+  coupons: {
+    id: string;
+    code: string;
+    type: "percentage" | "fixed";
+    value: number;
+    expiresAt?: string | null;
+  }[];
+
+  pointsBalance: number;
+
+  redeemableRewards: {
+    availableCount: number;
+    rewards: {
       id: string;
-      code: string;
-      type: "percentage" | "fixed";
-      value: number;
-      expiresAt?: string | null;
+      name: string;
+      pointsCost: number;
+      type: "SERVICE" | "PRODUCT" | "COUPON" | "GIFT_CARD" | "CUSTOM";
+      referenceId?: string | null;
+      config?: Record<string, unknown>;
     }[];
   };
+
+  tier: {
+    id: string;
+    name: string;
+    color: string | null;
+    icon: string | null;
+  } | null;
+
+  tierRewards: {
+    id: string;
+    type: "ONE_TIME" | "RECURRING";
+    config: Record<string, unknown>;
+    granted: boolean;
+    grantedAt: string | null;
+    used: boolean;
+  }[];
+};
 
   benefitsLoading: boolean;
   selectedCouponId: string | null;
@@ -161,8 +192,13 @@ const initialState: BookingState = {
 
   benefits: {
     isAuthenticated: false,
+    hasActiveProgram: false,
     giftCards: [],
     coupons: [],
+    pointsBalance: 0,
+    redeemableRewards: { availableCount: 0, rewards: [] },
+    tier: null,
+    tierRewards: [],
   },
   benefitsLoading: false,
   selectedCouponId: null,

@@ -46,6 +46,7 @@ export interface PaymentsRepositoryPort {
     branchId: string;
     publicUserId: string;
   }): Promise<{
+    hasActiveProgram: boolean;
     giftCards: {
       id: string;
       code: string;
@@ -58,6 +59,37 @@ export interface PaymentsRepositoryPort {
       type: 'percentage' | 'fixed';
       value: number;
       expiresAt?: Date | null;
+    }[];
+
+    // 🔥 beneficios ampliados
+    pointsBalance: number;
+
+    redeemableRewards: {
+      availableCount: number;
+      rewards: {
+        id: string;
+        name: string;
+        pointsCost: number;
+        type: 'SERVICE' | 'PRODUCT' | 'COUPON' | 'GIFT_CARD' | 'CUSTOM';
+        referenceId?: string | null;
+        config?: Record<string, unknown>;
+      }[];
+    };
+
+    tier: {
+      id: string;
+      name: string;
+      color: string | null;
+      icon: string | null;
+    } | null;
+
+    tierRewards: {
+      id: string;
+      type: 'ONE_TIME' | 'RECURRING';
+      config: Record<string, unknown>;
+      granted: boolean;
+      grantedAt: Date | null;
+      used: boolean;
     }[];
   }>;
 

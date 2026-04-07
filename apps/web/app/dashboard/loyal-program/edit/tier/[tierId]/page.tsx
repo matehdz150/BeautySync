@@ -121,7 +121,7 @@ export default function EditTierPage() {
     <div className="h-screen overflow-y-auto bg-white px-6 py-10 pb-50">
       <div className="max-w-4xl mx-auto space-y-8">
         <div className="flex justify-end gap-3">
-          <Button onClick={() => router.back()} variant="outline">
+          <Button onClick={() => router.push('/dashboard/loyal-program')} variant="outline">
             Cerrar
           </Button>
 

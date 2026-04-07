@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createTier } from "@/lib/services/benefits";
@@ -13,9 +13,7 @@ import { ColorPickerModal } from "@/components/loyal-program/ColorPickerModal";
 import { getTierGradient } from "@/lib/helpers/colors/colors";
 import { IconPickerModal } from "@/components/loyal-program/IconPickerModal";
 import { Crown, Gift, HandCoins, MoreVertical, Percent } from "lucide-react";
-
-type RewardType = "ONE_TIME" | "RECURRING";
-type ConfigType = "gift_card" | "coupon_percentage" | "coupon_fixed";
+import { useTierDraft, RewardType } from "./TierDraftContext";
 
 const toSafeNumber = (v: string) => {
   const n = Number(v);
@@ -25,76 +23,36 @@ const toSafeNumber = (v: string) => {
 export default function CreateTierPage() {
   const router = useRouter();
   const { branch } = useBranch();
+  const { draft, updateDraft, reset } = useTierDraft();
 
   const branchId = branch?.id ?? "";
 
   const [loading, setLoading] = useState(false);
-
-  // =========================
-  // TIER DATA
-  // =========================
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [color, setColor] = useState("");
-  const [icon, setIcon] = useState("");
-  const [minPoints, setMinPoints] = useState(0);
   const [showColorModal, setShowColorModal] = useState(false);
   const [showIconModal, setShowIconModal] = useState(false);
-
-  // =========================
-  // REWARDS
-  // =========================
-  const [rewards, setRewards] = useState<
-    {
-      type: RewardType;
-      config: any;
-    }[]
-  >([]);
 
   const addReward = () => {
     router.push("/dashboard/loyal-program/create/tier/reward");
   };
 
   const updateReward = (index: number, data: any) => {
-    setRewards((prev) => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], ...data };
-      return copy;
-    });
+    const copy = [...draft.rewards];
+    copy[index] = { ...copy[index], ...data };
+    updateDraft({ rewards: copy });
   };
 
   const updateConfig = (index: number, config: any) => {
-    setRewards((prev) => {
-      const copy = [...prev];
-      copy[index].config = {
-        ...copy[index].config,
-        ...config,
-      };
-      return copy;
-    });
+    const copy = [...draft.rewards];
+    copy[index].config = { ...copy[index].config, ...config };
+    updateDraft({ rewards: copy });
   };
 
-  useEffect(() => {
-    const stored = sessionStorage.getItem("newReward");
-
-    if (stored) {
-      const parsed = JSON.parse(stored);
-
-      setRewards((prev) => [...prev, parsed]);
-
-      sessionStorage.removeItem("newReward");
-    }
-  }, []);
-
-  // =========================
-  // VALIDATION
-  // =========================
   const isInvalid =
-    !branchId || !name || minPoints <= 0 || rewards.length === 0;
+    !branchId ||
+    !draft.name ||
+    draft.minPoints <= 0 ||
+    draft.rewards.length === 0;
 
-  // =========================
-  // SUBMIT
-  // =========================
   const handleSubmit = async () => {
     try {
       if (!branchId) return alert("Sucursal inválida");
@@ -103,13 +61,15 @@ export default function CreateTierPage() {
 
       await createTier({
         branchId,
-        name,
-        description,
-        color,
-        icon,
-        minPoints,
-        rewards,
+        name: draft.name,
+        description: draft.description,
+        color: draft.color,
+        icon: draft.icon,
+        minPoints: draft.minPoints,
+        rewards: draft.rewards,
       });
+
+      reset();
 
       router.push("/dashboard/loyal-program");
     } catch (err) {
@@ -120,17 +80,13 @@ export default function CreateTierPage() {
     }
   };
 
-  // =========================
-  // UI
-  // =========================
-
   return (
     <div className="h-screen overflow-y-auto bg-white px-6 py-10 pb-50">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* ACTIONS */}
         <div className="flex justify-end gap-3">
           <Button
-            onClick={() => router.back()}
+            onClick={() => router.push('/dashboard/loyal-program')}
             variant="outline"
             className="px-6 py-6 text-sm"
           >
@@ -162,7 +118,7 @@ export default function CreateTierPage() {
             type="button"
             onClick={() => setShowColorModal(true)}
             className={`w-14 h-14 rounded-xl border flex items-center justify-center
-  bg-gradient-to-br ${getTierGradient(color)}
+  bg-gradient-to-br ${getTierGradient(draft.color)}
 `}
           />
 
@@ -172,26 +128,30 @@ export default function CreateTierPage() {
             onClick={() => setShowIconModal(true)}
             className="w-14 h-14 rounded-xl border flex items-center justify-center transition hover:scale-105"
           >
-            {icon ? (
+            {draft.icon ? (
               <CategoryIcon
-                name={icon}
+                name={draft.icon}
                 className="w-5 h-5"
                 style={{
-                  color: color ? `#${color}` : "#666",
-                  fill: color ? `#${color}25` : "transparent",
+                  color: draft.color ? `#${draft.color}` : "#666",
+                  fill: draft.color ? `#${draft.color}25` : "transparent",
                 }}
               />
             ) : (
               <Crown
                 style={{
-                  color: color ? `#${color}` : "#FFD700",
-                  fill: color ? `#${color}25` : "#FFD70035",
+                  color: draft.color ? `#${draft.color}` : "#FFD700",
+                  fill: draft.color ? `#${draft.color}25` : "#FFD70035",
                 }}
               />
             )}
           </button>
           <div className="flex-1">
-            <FancyInput label="Nombre" value={name} onChange={setName} />
+            <FancyInput
+              label="Nombre"
+              value={draft.name}
+              onChange={(v) => updateDraft({ name: v })}
+            />
           </div>
         </div>
 
@@ -199,16 +159,16 @@ export default function CreateTierPage() {
           <div className="col-span-1">
             <FancyInput
               label="Descripción"
-              value={description}
-              onChange={setDescription}
+              value={draft.description}
+              onChange={(v) => updateDraft({ description: v })}
             />
           </div>
 
           <div className="col-span-1">
             <FancyInput
               label="Puntos necesarios"
-              value={minPoints}
-              onChange={(v) => setMinPoints(toSafeNumber(v))} // 🔥 FIX
+              value={draft.minPoints}
+              onChange={(v) => updateDraft({ minPoints: toSafeNumber(v) })} // 🔥 FIX
               suffix="pts"
             />
           </div>
@@ -228,13 +188,13 @@ export default function CreateTierPage() {
           </Button>
 
           <div className="space-y-3">
-            {!rewards.length && (
+            {!draft.rewards.length && (
               <div className="border rounded-xl p-4 text-sm text-gray-500">
                 No hay recompensas aún
               </div>
             )}
 
-            {rewards.map((reward, i) => (
+            {draft.rewards.map((reward, i) => (
               <RewardItemCard key={i} reward={reward} />
             ))}
           </div>
@@ -245,15 +205,15 @@ export default function CreateTierPage() {
           open={showColorModal}
           onOpenChange={setShowColorModal}
           onSelect={(c) => {
-            setColor(c);
+            updateDraft({ color: c });
           }}
         />
       )}
       <IconPickerModal
         open={showIconModal}
         onOpenChange={setShowIconModal}
-        onSelect={(selected) => setIcon(selected)}
-        color={color}
+        onSelect={(selected) => updateDraft({ icon: selected })}
+        color={draft.color}
       />
     </div>
   );
@@ -299,7 +259,7 @@ export function RewardItemCard({
   reward,
 }: {
   reward: {
-    type: "ONE_TIME" | "RECURRING";
+    type: RewardType;
     config: any;
   };
 }) {

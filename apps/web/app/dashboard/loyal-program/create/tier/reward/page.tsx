@@ -26,19 +26,14 @@ export default function SelectRewardTypePage() {
 
   const handleSelect = (type: string) => {
     router.push(
-      `/dashboard/loyal-program/create/tier/reward/config?type=${type}`
+      `/dashboard/loyal-program/create/tier/reward/config?type=${type}`,
     );
   };
-
-  
 
   return (
     <div className="min-h-screen bg-white px-6 py-10">
       <div className="max-w-xl mx-auto space-y-10">
-        <h1 className="text-4xl font-semibold">
-          Elige el tipo de recompensa
-        </h1>
-
+        <h1 className="text-4xl font-semibold">Elige el tipo de recompensa</h1>
 
         <div className="space-y-4">
           {options.map((opt) => (
@@ -51,9 +46,7 @@ export default function SelectRewardTypePage() {
                 {opt.icon}
               </div>
 
-              <span className="text-base font-medium">
-                {opt.title}
-              </span>
+              <span className="text-base font-medium">{opt.title}</span>
             </button>
           ))}
         </div>
