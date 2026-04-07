@@ -36,6 +36,7 @@ import { UpdateBenefitEarnRuleUseCase } from '../../core/use-cases/update-benefi
 import { GetBenefitRuleByIdUseCase } from '../../core/use-cases/get-rule-by-id.use-case';
 import { UpdateBenefitRewardUseCase } from '../../core/use-cases/update-benefit-reward.use-case';
 import { DeleteBenefitRewardUseCase } from '../../core/use-cases/delete-benefit-reward.use-case';
+import { GetBenefitRewardByIdUseCase } from '../../core/use-cases/get-benefit-reward-by-id.use-case';
 
 @Controller('benefits/program')
 export class BenefitProgramController {
@@ -50,6 +51,7 @@ export class BenefitProgramController {
     private readonly getRuleById: GetBenefitRuleByIdUseCase,
     private readonly updateReward: UpdateBenefitRewardUseCase,
     private readonly deleteReward: DeleteBenefitRewardUseCase,
+    private readonly getRewardByIdUseCase: GetBenefitRewardByIdUseCase,
   ) {}
 
   @UseGuards(PublicAuthGuard)
@@ -206,6 +208,23 @@ export class BenefitProgramController {
       stock: body.stock,
       config: body.config,
       isActive: body.isActive,
+      user: req.user,
+    });
+  }
+
+  // =========================
+  // GET REWARD BY ID
+  // =========================
+  @Get('/reward/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('owner', 'manager')
+  getRewardById(
+    @Param('id') rewardId: string,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    console.log(rewardId);
+    return this.getRewardByIdUseCase.execute({
+      rewardId,
       user: req.user,
     });
   }

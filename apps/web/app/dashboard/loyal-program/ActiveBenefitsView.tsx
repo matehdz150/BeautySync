@@ -290,6 +290,7 @@ function RuleCard({ rule }: { rule: BenefitRule }) {
 }
 
 function RewardCard({ reward }: { reward: BenefitReward }) {
+  const router = useRouter();
   const getIcon = () => {
     switch (reward.type) {
       case "SERVICE":
@@ -336,8 +337,8 @@ function RewardCard({ reward }: { reward: BenefitReward }) {
 
       {/* RIGHT */}
       <div className="flex items-center gap-3">
-        <button className="px-4 py-3 border rounded-full text-sm">
-          Acciones
+        <button className="px-4 py-3 border rounded-full text-sm" onClick={()=> router.push(`/dashboard/loyal-program/edit/reward/${reward.id}`)}>
+          Editar
         </button>
       </div>
     </div>

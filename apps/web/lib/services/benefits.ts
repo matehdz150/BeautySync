@@ -1,6 +1,7 @@
 // services/benefits.ts
 
 import { api } from "./api";
+import { Service } from "./services";
 
 export async function activateBenefitProgram(data: {
   branchId: string;
@@ -169,6 +170,83 @@ export async function createBenefitReward(data: {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+// ===============================
+// GET REWARD BY ID
+// ===============================
+
+export type BenefitRewardDetails = {
+  id: string;
+  name: string;
+  type: BenefitRewardType;
+  pointsCost: number;
+  isActive: boolean;
+  referenceId?: string | null;
+  stock?: number | null;
+  config?: Record<string, unknown>;
+
+  service?: Service | null;
+};
+
+
+export async function getBenefitRewardById(data: {
+  rewardId: string;
+}) {
+  return api<BenefitRewardDetails>(
+    `/benefits/program/reward/${data.rewardId}`,
+    {
+      method: "GET",
+    },
+  );
+}
+
+// ===============================
+// UPDATE REWARD
+// ===============================
+export async function updateBenefitReward(data: {
+  rewardId: string;
+  branchId: string;
+
+  type?: BenefitRewardType;
+  name?: string;
+  pointsCost?: number;
+  referenceId?: string | null;
+  stock?: number | null;
+  config?: GiftCardConfig | CouponConfig | Record<string, unknown>;
+  isActive?: boolean;
+}) {
+  return api<BenefitRewardCreate>(`/benefits/program/reward/${data.rewardId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      branchId: data.branchId,
+      type: data.type,
+      name: data.name,
+      pointsCost: data.pointsCost,
+      referenceId: data.referenceId,
+      stock: data.stock,
+      config: data.config,
+      isActive: data.isActive,
+    }),
+  });
+}
+
+// ===============================
+// DELETE REWARD
+// ===============================
+export async function deleteBenefitReward(data: {
+  rewardId: string;
+  branchId: string;
+}) {
+  return api<{ success: boolean }>(
+    `/benefits/program/reward/${data.rewardId}`,
+    {
+      method: "DELETE",
+      body: JSON.stringify({
+        branchId: data.branchId,
+      }),
+    },
+  );
 }
 
 // ===============================
