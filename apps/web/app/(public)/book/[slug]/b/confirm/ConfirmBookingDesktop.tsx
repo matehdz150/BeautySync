@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { usePublicBooking } from "@/context/PublicBookingContext";
 import { cn } from "@/lib/utils";
-import { CreditCard, Store } from "lucide-react";
-import { motion } from "framer-motion";
+import { ChevronRight, CreditCard, Gem, LucideProps, Sparkle, Sparkles, Store } from "lucide-react";
+import { color, motion } from "framer-motion";
 import {
   getPaymentBenefits,
   PaymentBenefits,
@@ -60,9 +60,18 @@ export function ConfirmBookingDesktopPage() {
           type: "SET_BENEFITS",
           payload: {
             isAuthenticated: false,
+            hasActiveProgram: false,
             coupons: [],
             giftCards: [],
+            pointsBalance: 0,
+            redeemableRewards: { availableCount: 0, rewards: [] },
+            tier: null,
+            tierRewards: [],
           },
+        });
+        dispatch({
+          type: "SET_BENEFITS_LOADING",
+          payload: false,
         });
       }
     }
@@ -85,7 +94,7 @@ export function ConfirmBookingDesktopPage() {
     );
   }
 
-  return (
+  const content = (
     <div className="space-y-8">
       <motion.div
         aria-hidden
@@ -317,7 +326,7 @@ export function ConfirmBookingDesktopPage() {
           )}
         </div>
         {/* BENEFICIOS */}
-        <section className="space-y-2">
+        <section className="space-y-2 pt-2">
           <h2 className="text-lg font-semibold">Tus beneficios</h2>
 
           {booking.benefitsLoading && (
@@ -327,7 +336,35 @@ export function ConfirmBookingDesktopPage() {
           )}
 
           {!booking.benefitsLoading && booking.benefits && (
-            <div className="space-y-0">
+            <div className="space-y-6">
+              {/* ========================= */}
+              {/* TIER & POINTS */}
+              {/* ========================= */}
+              {booking.benefits.hasActiveProgram && (
+                <button
+                  type="button"
+                  onClick={() => setRewardsSheetOpen(true)}
+                  className="w-full border border-x-0 px-5 py-4 flex items-center gap-3 cursor-pointer text-left"
+                >
+                  <div className="h-12 w-12 rounded-xl flex items-center justify-center">
+                    <GradientGem className="h-8 w-8" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm sm:text-base font-medium truncate">
+                      {booking.benefits.pointsBalance > 0
+                        ? `Tienes ${booking.benefits.pointsBalance.toLocaleString()} pts en ${booking.branch?.name.toLowerCase()}`
+                        : "Aún no tienes puntos acumulados en esta sucursal"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm font-medium text-indigo-600 cursor-pointer">
+                    <Sparkles className="h-4 w-4" />
+                    {booking.benefits.pointsBalance > 0
+                      ? `${booking.benefits.redeemableRewards.availableCount} recompensas`
+                      : "Cómo ganar puntos"}
+                  </div>
+                  <ChevronRight className="text-muted-foreground shrink-0 cursor-pointer" />
+                </button>
+              )}
               {/* ========================= */}
               {/* GIFT CARDS */}
               {/* ========================= */}
@@ -421,6 +458,17 @@ export function ConfirmBookingDesktopPage() {
                         ? `${c.value}%`
                         : `$${(c.value / 100).toFixed(0)}`;
 
+                    const fromTier = booking.benefits.tierRewards.some((tr) => {
+                      const config = tr.config as any;
+                      if (config?.type === "coupon_percentage" && c.type === "percentage") {
+                        return config.value === c.value;
+                      }
+                      if (config?.type === "coupon_fixed" && c.type === "fixed") {
+                        return config.value === c.value;
+                      }
+                      return false;
+                    });
+
                     return (
                       <button
                         key={c.id}
@@ -432,7 +480,7 @@ export function ConfirmBookingDesktopPage() {
                           })
                         }
                         className={cn(
-                          "w-full rounded-2xl border p-4 flex justify-between",
+                          "w-full rounded-2xl border p-4 flex justify-between items-center gap-3",
                           selected
                             ? "border-indigo-500 bg-indigo-50"
                             : "hover:bg-gray-50",
@@ -441,13 +489,19 @@ export function ConfirmBookingDesktopPage() {
                         <div>
                           <p className="font-medium">{c.code}</p>
                           <p className="text-xs text-muted-foreground">
-                            Cupón disponible
+                            {fromTier ? "Cupón de tu tier" : "Cupón disponible"}
                           </p>
                         </div>
 
                         <p className="font-semibold text-indigo-600">
                           {discount}
                         </p>
+
+                        {fromTier && (
+                          <span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                            Tier
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -481,4 +535,40 @@ export function ConfirmBookingDesktopPage() {
       </section>
     </div>
   );
+
+  return (
+    <>
+      {content}
+      <AvailableRewardsSheet
+        open={rewardsSheetOpen}
+        onOpenChange={setRewardsSheetOpen}
+        branchId={booking.branch?.id}
+      />
+    </>
+  );
 }
+
+
+const GradientGem = ({ style, className, ...props }: LucideProps & { style?: { text?: string } & React.CSSProperties }) => {
+  const gradientId = "gem-gradient-inline";
+
+  return (
+    <>
+      <svg width="0" height="0" style={{ position: 'absolute' }}>
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#5b5bf7" />
+            <stop offset="100%" stopColor="#c14ef0" />
+          </linearGradient>
+        </defs>
+      </svg>
+
+      <Gem 
+        {...props}
+        className={className}
+        style={style}
+        stroke={`url(#${gradientId})`} 
+      />
+    </>
+  );
+};

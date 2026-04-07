@@ -1,8 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Store } from "lucide-react";
+import {
+  CreditCard,
+  Store,
+  Sparkles,
+  ChevronRight,
+  Gem,
+  LucideProps,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { usePublicBooking } from "@/context/PublicBookingContext";
@@ -15,12 +22,15 @@ import { BookingConfirmSplash } from "../../success/BookingConfirmSplash";
 import { PublicPhoneDialog } from "@/components/public/PublicPhoneDialog";
 import { PublicAuthDialog } from "@/components/public/PublicAuthDialog";
 import { PublicApiError } from "@/lib/errors";
+import { getPaymentBenefits } from "@/lib/services/public/payments";
+import { CategoryIcon } from "@/components/shared/Icon";
 
 type PaymentMethod = "ONSITE" | "ONLINE";
 
 export function ConfirmBookingMobilePage() {
   const router = useRouter();
   const booking = usePublicBooking();
+  const dispatch = booking.dispatch;
 
   const { branch, date, appointmentsDraft } = booking as any;
 
@@ -45,6 +55,39 @@ export function ConfirmBookingMobilePage() {
   // para reintentar confirm cuando termine login / phone
   const [pendingConfirm, setPendingConfirm] = useState(false);
 
+  // ===============================
+  // Load benefits (public)
+  // ===============================
+  useEffect(() => {
+    async function loadBenefits() {
+      if (!booking.branch?.id) return;
+
+      try {
+        dispatch({ type: "SET_BENEFITS_LOADING", payload: true });
+        const data = await getPaymentBenefits(booking.branch.id);
+        dispatch({ type: "SET_BENEFITS", payload: data });
+      } catch {
+        dispatch({
+          type: "SET_BENEFITS",
+          payload: {
+            isAuthenticated: false,
+            hasActiveProgram: false,
+            coupons: [],
+            giftCards: [],
+            pointsBalance: 0,
+            redeemableRewards: { availableCount: 0, rewards: [] },
+            tier: null,
+            tierRewards: [],
+          },
+        });
+      } finally {
+        dispatch({ type: "SET_BENEFITS_LOADING", payload: false });
+      }
+    }
+
+    loadBenefits();
+  }, [booking.branch?.id, dispatch]);
+
   async function handleConfirm() {
     if (!canConfirm) return;
     if (submitting) return;
@@ -57,7 +100,7 @@ export function ConfirmBookingMobilePage() {
 
     try {
       const appointments = [...appointmentsDraft].sort((a, b) =>
-        a.startIso.localeCompare(b.startIso)
+        a.startIso.localeCompare(b.startIso),
       );
 
       const payload: CreatePublicBookingPayload = {
@@ -149,6 +192,168 @@ export function ConfirmBookingMobilePage() {
         </div>
       </section>
 
+      {/* Beneficios (solo si hay programa activo) */}
+      {booking.benefitsLoading && (
+        <div className="text-sm text-muted-foreground">
+          Cargando beneficios…
+        </div>
+      )}
+
+      {!booking.benefitsLoading && booking.benefits.hasActiveProgram && (
+        <div className="w-full border border-x-0 border-black/10 px-2 py-4 flex items-center gap-1">
+          <div className="h-11 w-11 rounded-xl flex items-center justify-center">
+            <GradientGem className="h-6 w-6 " />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">
+              {booking.benefits.pointsBalance > 0
+                ? `Tienes ${booking.benefits.pointsBalance.toLocaleString()} pts en ${booking.branch?.name}`
+                : "Aún no tienes puntos acumulados en esta sucursal"}
+            </p>
+          </div>
+
+          <ChevronRight className="text-muted-foreground shrink-0" />
+        </div>
+      )}
+
+      {/* Gift cards */}
+      {!booking.benefitsLoading && booking.benefits.giftCards.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold">Gift cards</h2>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {booking.benefits.giftCards.map((gc) => {
+              const isSelected = booking.selectedGiftCardId === gc.id;
+              return (
+                <button
+                  key={gc.id}
+                  type="button"
+                  onClick={() =>
+                    dispatch({
+                      type: "SELECT_GIFT_CARD",
+                      payload: { id: gc.id },
+                    })
+                  }
+                  className="min-w-[240px] max-w-[260px] focus:outline-none"
+                >
+                  <div
+                    className={cn(
+                      "relative w-full h-[140px] rounded-2xl p-4 text-white flex flex-col justify-between border shadow-sm",
+                      isSelected ? "border-white" : "border-white/30",
+                    )}
+                    style={{
+                      background: "linear-gradient(135deg, #5b5bf7, #c14ef0)",
+                    }}
+                  >
+                    <div className="absolute top-3 right-3">
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-full border flex items-center justify-center",
+                          isSelected
+                            ? "bg-white border-white"
+                            : "border-white/70",
+                        )}
+                      >
+                        {isSelected && (
+                          <div className="w-2 h-2 bg-indigo-600 rounded-full" />
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-sm font-medium truncate">
+                      {booking.branch?.name ?? "Tu negocio"}
+                    </p>
+
+                    <p className="text-2xl font-semibold">
+                      ${(gc.balanceCents / 100).toFixed(0)}
+                    </p>
+
+                    <p className="text-[11px] font-mono opacity-80">
+                      {gc.code}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Coupons */}
+      {!booking.benefitsLoading && booking.benefits.coupons.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold">Cupones</h2>
+          <div className="space-y-2">
+            {booking.benefits.coupons.map((c) => {
+              const selected = booking.selectedCouponId === c.id;
+
+              const discount =
+                c.type === "percentage"
+                  ? `${c.value}%`
+                  : `$${(c.value / 100).toFixed(0)}`;
+
+              const fromTier = booking.benefits.tierRewards.some((tr) => {
+                const config = tr.config as any;
+                if (
+                  config?.type === "coupon_percentage" &&
+                  c.type === "percentage"
+                ) {
+                  return config.value === c.value;
+                }
+                if (config?.type === "coupon_fixed" && c.type === "fixed") {
+                  return config.value === c.value;
+                }
+                return false;
+              });
+
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() =>
+                    dispatch({
+                      type: "SELECT_COUPON",
+                      payload: c.id,
+                    })
+                  }
+                  className={cn(
+                    "w-full rounded-2xl border p-4 flex justify-between items-center gap-3 text-left",
+                    selected
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "hover:bg-gray-50",
+                  )}
+                >
+                  <div>
+                    <p className="font-medium">{c.code}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {fromTier ? "Cupón de tu tier" : "Cupón disponible"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {fromTier && (
+                      <span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                        Tier
+                      </span>
+                    )}
+                    <p className="font-semibold text-indigo-600">{discount}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Empty state */}
+      {!booking.benefitsLoading &&
+        booking.benefits.giftCards.length === 0 &&
+        booking.benefits.coupons.length === 0 &&
+        booking.benefits.hasActiveProgram && (
+          <div className="text-sm text-muted-foreground">
+            No tienes beneficios disponibles.
+          </div>
+        )}
+
       {/* Código de descuento */}
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Código de descuento</h2>
@@ -200,9 +405,9 @@ export function ConfirmBookingMobilePage() {
 
       {/* Sticky confirm */}
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-black/10 bg-white/95 backdrop-blur-md">
-        <div className="px-4 pt-4 pb-[calc(16px+env(safe-area-inset-bottom))] space-y-3">
+        <div className=" pt-4 pb-[calc(16px+env(safe-area-inset-bottom))] space-y-3">
           {/* RESUMEN */}
-          <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
+          <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 mx-4 ">
             <div className="flex items-start justify-between gap-4">
               {/* Left */}
               <div className="min-w-0">
@@ -233,7 +438,7 @@ export function ConfirmBookingMobilePage() {
             <div className="mt-3 space-y-2">
               {booking.services.map((serviceId: string) => {
                 const srv = booking.catalog.find(
-                  (s: any) => s.id === serviceId
+                  (s: any) => s.id === serviceId,
                 );
 
                 const staffId = booking.staffByService?.[serviceId];
@@ -256,8 +461,8 @@ export function ConfirmBookingMobilePage() {
                         {staffId === "ANY"
                           ? "Profesional: Cualquiera"
                           : staff
-                          ? `Profesional: ${staff.name}`
-                          : "Profesional: Sin asignar"}
+                            ? `Profesional: ${staff.name}`
+                            : "Profesional: Sin asignar"}
                       </p>
                     </div>
 
@@ -286,7 +491,7 @@ export function ConfirmBookingMobilePage() {
                       const srv = booking.catalog.find((s: any) => s.id === id);
                       return acc + (srv?.priceCents ?? 0);
                     },
-                    0
+                    0,
                   );
 
                   return total > 0
@@ -296,6 +501,26 @@ export function ConfirmBookingMobilePage() {
               </p>
             </div>
           </div>
+
+          {booking.benefits.redeemableRewards.availableCount > 0 && (
+            <div
+              className="w-full text-white px-4 py-4"
+              style={{
+                background: "linear-gradient(135deg, #5b5bf7, #c14ef0)",
+              }}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  <span className="text-sm font-normal">
+                    {booking.benefits.redeemableRewards.availableCount}{" "}
+                    recompensas disponibles
+                  </span>
+                </div>
+                <ChevronRight className="text-white/90" />
+              </div>
+            </div>
+          )}
 
           <Button
             className="w-full rounded-full py-6"
@@ -369,13 +594,13 @@ function PaymentCardMobile({
         "w-full rounded-2xl border p-4 text-left transition flex items-start gap-3",
         active
           ? "border-indigo-500 bg-indigo-50"
-          : "border-black/10 bg-white active:bg-black/[0.02]"
+          : "border-black/10 bg-white active:bg-black/[0.02]",
       )}
     >
       <div
         className={cn(
           "mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-          active ? "bg-indigo-500 text-white" : "bg-gray-100 text-gray-700"
+          active ? "bg-indigo-500 text-white" : "bg-gray-100 text-gray-700",
         )}
       >
         {icon}
@@ -388,3 +613,31 @@ function PaymentCardMobile({
     </button>
   );
 }
+
+const GradientGem = ({
+  style,
+  className,
+  ...props
+}: LucideProps & { style?: { text?: string } & React.CSSProperties }) => {
+  const gradientId = "gem-gradient-inline";
+
+  return (
+    <>
+      <svg width="0" height="0" style={{ position: "absolute" }}>
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#5b5bf7" />
+            <stop offset="100%" stopColor="#c14ef0" />
+          </linearGradient>
+        </defs>
+      </svg>
+
+      <Gem
+        {...props}
+        className={className}
+        style={style}
+        stroke={`url(#${gradientId})`}
+      />
+    </>
+  );
+};

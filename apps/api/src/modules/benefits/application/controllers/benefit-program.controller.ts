@@ -37,6 +37,7 @@ import { GetBenefitRuleByIdUseCase } from '../../core/use-cases/get-rule-by-id.u
 import { UpdateBenefitRewardUseCase } from '../../core/use-cases/update-benefit-reward.use-case';
 import { DeleteBenefitRewardUseCase } from '../../core/use-cases/delete-benefit-reward.use-case';
 import { GetBenefitRewardByIdUseCase } from '../../core/use-cases/get-benefit-reward-by-id.use-case';
+import { GetUserBranchBenefitsUseCase } from '../../core/use-cases/get-user-branch-benefits.use-case';
 
 @Controller('benefits/program')
 export class BenefitProgramController {
@@ -52,12 +53,25 @@ export class BenefitProgramController {
     private readonly updateReward: UpdateBenefitRewardUseCase,
     private readonly deleteReward: DeleteBenefitRewardUseCase,
     private readonly getRewardByIdUseCase: GetBenefitRewardByIdUseCase,
+    private readonly getUserBranchBenefits: GetUserBranchBenefitsUseCase,
   ) {}
 
   @UseGuards(PublicAuthGuard)
   @Get('wallet')
   async getMyPoints(@PublicUser() user: PublicSession) {
     return this.getUserPoints.execute(user.publicUserId);
+  }
+
+  @UseGuards(PublicAuthGuard)
+  @Get('branch-summary')
+  async getMyBranchBenefits(
+    @PublicUser() user: PublicSession,
+    @Query('branchId') branchId: string,
+  ) {
+    return this.getUserBranchBenefits.execute({
+      branchId,
+      userId: user.publicUserId,
+    });
   }
 
   // =========================

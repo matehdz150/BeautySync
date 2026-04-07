@@ -37,8 +37,13 @@ export class GetAvailablePaymentBenefitsUseCase {
     // =========================
     if (!publicUserId) {
       return {
+        hasActiveProgram: false,
         giftCards: [],
         coupons: [],
+        pointsBalance: 0,
+        redeemableRewards: { availableCount: 0, rewards: [] },
+        tier: null,
+        tierRewards: [],
         isAuthenticated: false,
       };
     }
@@ -73,11 +78,16 @@ export class GetAvailablePaymentBenefitsUseCase {
     }
 
     // =========================
-    // 🎯 DOMAIN ACTION
+    // 🎯 BENEFICIOS (repo agrega puntos, tiers y rewards)
     // =========================
-    return this.paymentsRepo.getAvailableBenefits({
+    const benefits = await this.paymentsRepo.getAvailableBenefits({
       branchId,
       publicUserId,
     });
+
+    return {
+      ...benefits,
+      isAuthenticated: true,
+    };
   }
 }

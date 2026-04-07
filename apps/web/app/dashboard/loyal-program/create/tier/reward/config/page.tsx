@@ -2,6 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState } from "react";
+import { useTierDraft } from "../../TierDraftContext";
 
 type RewardConfigType = "gift_card" | "coupon_percentage" | "coupon_fixed";
 type TierRewardType = "ONE_TIME" | "RECURRING";
@@ -9,6 +10,7 @@ type TierRewardType = "ONE_TIME" | "RECURRING";
 export default function RewardConfigPage() {
   const params = useSearchParams();
   const router = useRouter();
+  const { addReward } = useTierDraft();
 
   const configType = params.get("type") as RewardConfigType | null;
 
@@ -43,12 +45,10 @@ export default function RewardConfigPage() {
               : {}),
           };
 
-    const reward = {
+    addReward({
       type: rewardType,
       config,
-    };
-
-    sessionStorage.setItem("newReward", JSON.stringify(reward));
+    });
 
     router.push("/dashboard/loyal-program/create/tier");
   };
@@ -73,8 +73,10 @@ export default function RewardConfigPage() {
   };
 
   const getHelperText = () => {
-    if (configType === "gift_card") return "Se convertirá a centavos automáticamente";
-    if (configType === "coupon_percentage") return "Ingresa el porcentaje de descuento";
+    if (configType === "gift_card")
+      return "Se convertirá a centavos automáticamente";
+    if (configType === "coupon_percentage")
+      return "Ingresa el porcentaje de descuento";
     return "Ingresa el monto fijo del descuento en MXN";
   };
 
@@ -89,9 +91,7 @@ export default function RewardConfigPage() {
         </div>
 
         <div className="space-y-3">
-          <label className="text-sm text-black block">
-            Tipo de entrega
-          </label>
+          <label className="text-sm text-black block">Tipo de entrega</label>
 
           <div className="grid grid-cols-2 gap-3">
             <button

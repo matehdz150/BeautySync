@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq, and, or, isNull, gt } from 'drizzle-orm';
+import { desc, eq, and, or, isNull, gt, inArray } from 'drizzle-orm';
 
 import {
   payments,
@@ -7,6 +7,12 @@ import {
   PaymentMethod,
   giftCards,
   coupons,
+  benefitUserBalance,
+  benefitPrograms,
+  benefitRewards,
+  benefitTiers,
+  benefitTierRewards,
+  userTierRewardsGranted,
 } from 'src/modules/db/schema';
 import type { DB } from 'src/modules/db/client';
 
@@ -243,6 +249,22 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
     const now = new Date();
 
     // =========================
+    // 📊 PUNTOS EN BRANCH
+    // =========================
+    const balanceRow = await this.db
+      .select({ pointsBalance: benefitUserBalance.pointsBalance })
+      .from(benefitUserBalance)
+      .where(
+        and(
+          eq(benefitUserBalance.branchId, input.branchId),
+          eq(benefitUserBalance.userId, input.publicUserId),
+        ),
+      )
+      .limit(1);
+
+    const pointsBalance = balanceRow[0]?.pointsBalance ?? 0;
+
+    // =========================
     // 🎁 GIFT CARDS
     // =========================
     const giftCardsRows = await this.db
@@ -290,9 +312,163 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
         ),
       );
 
+    // =========================
+    // 🏆 PROGRAMA Y REWARDS
+    // =========================
+    const program = await this.db.query.benefitPrograms.findFirst({
+      where: (p, { and, eq }) =>
+        and(eq(p.branchId, input.branchId), eq(p.isActive, true)),
+    });
+    const hasActiveProgram = !!program;
+
+    let redeemableRewards: {
+      availableCount: number;
+      rewards: {
+        id: string;
+        name: string;
+        pointsCost: number;
+        type: 'SERVICE' | 'PRODUCT' | 'COUPON' | 'GIFT_CARD' | 'CUSTOM';
+        referenceId?: string | null;
+        config?: Record<string, unknown>;
+      }[];
+    } = {
+      availableCount: 0,
+      rewards: [],
+    };
+
+    if (program) {
+      const rewards = await this.db
+        .select({
+          id: benefitRewards.id,
+          name: benefitRewards.name,
+          pointsCost: benefitRewards.pointsCost,
+          type: benefitRewards.type,
+          referenceId: benefitRewards.referenceId,
+          config: benefitRewards.config,
+          stock: benefitRewards.stock,
+        })
+        .from(benefitRewards)
+        .where(
+          and(
+            eq(benefitRewards.programId, program.id),
+            eq(benefitRewards.isActive, true),
+            or(isNull(benefitRewards.stock), gt(benefitRewards.stock, 0)),
+          ),
+        );
+
+      const affordable = rewards.filter((r) => pointsBalance >= r.pointsCost);
+
+      redeemableRewards = {
+        availableCount: affordable.length,
+        rewards: affordable.map((r) => ({
+          id: r.id,
+          name: r.name,
+          pointsCost: r.pointsCost,
+          type: r.type,
+          referenceId: r.referenceId ?? null,
+          config:
+            r.config && typeof r.config === 'object'
+              ? (r.config as Record<string, unknown>)
+              : undefined,
+        })),
+      };
+    }
+
+    // =========================
+    // 🏅 TIER ACTUAL
+    // =========================
+    const tierState = await this.db.query.userTierState.findFirst({
+      where: (t, { and, eq }) =>
+        and(eq(t.userId, input.publicUserId), eq(t.branchId, input.branchId)),
+    });
+
+    let tier: {
+      id: string;
+      name: string;
+      color: string | null;
+      icon: string | null;
+    } | null = null;
+
+    if (tierState?.currentTierId) {
+      const tierRow = await this.db.query.benefitTiers.findFirst({
+        where: (t, { eq }) => eq(t.id, tierState.currentTierId!),
+      });
+
+      if (tierRow) {
+        tier = {
+          id: tierRow.id,
+          name: tierRow.name,
+          color: tierRow.color,
+          icon: tierRow.icon,
+        };
+      }
+    }
+
+    // =========================
+    // 🎁 TIER REWARDS (GRANTED / AVAILABLE)
+    // =========================
+    let tierRewards: {
+      id: string;
+      type: 'ONE_TIME' | 'RECURRING';
+      config: Record<string, unknown>;
+      granted: boolean;
+      grantedAt: Date | null;
+      used: boolean;
+    }[] = [];
+
+    if (tier?.id) {
+      const rewards = await this.db
+        .select({
+          id: benefitTierRewards.id,
+          type: benefitTierRewards.type,
+          config: benefitTierRewards.config,
+        })
+        .from(benefitTierRewards)
+        .where(eq(benefitTierRewards.tierId, tier.id));
+
+      const granted =
+        rewards.length > 0
+          ? await this.db
+              .select({
+                tierRewardId: userTierRewardsGranted.tierRewardId,
+                grantedAt: userTierRewardsGranted.grantedAt,
+              })
+              .from(userTierRewardsGranted)
+              .where(
+                and(
+                  eq(userTierRewardsGranted.userId, input.publicUserId),
+                  eq(userTierRewardsGranted.branchId, input.branchId),
+                  inArray(
+                    userTierRewardsGranted.tierRewardId,
+                    rewards.map((r) => r.id),
+                  ),
+                ),
+              )
+          : [];
+
+      const grantedMap = new Map(
+        granted.map((g) => [g.tierRewardId, g.grantedAt]),
+      );
+
+      // TODO: marcar "used" cuando existan redenciones específicas; por ahora false
+      tierRewards = rewards.map((r) => ({
+        id: r.id,
+        type: r.type,
+        config: r.config as Record<string, unknown>,
+        granted: r.type === 'RECURRING' ? true : grantedMap.has(r.id),
+        grantedAt: grantedMap.get(r.id) ?? null,
+        used: false,
+      }));
+    }
+
     return {
+      hasActiveProgram,
       giftCards: giftCardsRows,
       coupons: couponsRows,
+      pointsBalance,
+      redeemableRewards,
+      tier,
+      tierRewards,
     };
   }
 
