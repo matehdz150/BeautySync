@@ -97,5 +97,6 @@ import { GetServiceCategoriesUseCase } from './core/use-cases/public/get-all-cat
       useClass: ServicesPublicDrizzleRepository,
     },
   ],
+  exports: [SERVICE_REPOSITORY],
 })
 export class ServicesModule {}

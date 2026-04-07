@@ -107,6 +107,10 @@ import { GetTierByIdUseCase } from './core/use-cases/tiers/get-tier-by-id.use-ca
 import { UpdateBenefitEarnRuleUseCase } from './core/use-cases/update-benefit-earn-rule.use-case';
 import { DeleteBenefitEarnRuleUseCase } from './core/use-cases/delete-benefit-earn-rule.use-case';
 import { GetBenefitRuleByIdUseCase } from './core/use-cases/get-rule-by-id.use-case';
+import { UpdateBenefitRewardUseCase } from './core/use-cases/update-benefit-reward.use-case';
+import { DeleteBenefitRewardUseCase } from './core/use-cases/delete-benefit-reward.use-case';
+import { GetBenefitRewardByIdUseCase } from './core/use-cases/get-benefit-reward-by-id.use-case';
+import { ServicesModule } from '../services/services.module';
 
 @Module({
   imports: [
@@ -117,6 +121,7 @@ import { GetBenefitRuleByIdUseCase } from './core/use-cases/get-rule-by-id.use-c
     BranchesModule,
     CacheModule,
     PaymentsModule,
+    ServicesModule,
   ],
   controllers: [BenefitProgramController, BenefitTiersController],
 
@@ -283,6 +288,9 @@ import { GetBenefitRuleByIdUseCase } from './core/use-cases/get-rule-by-id.use-c
     OnlinePaymentConfigValidator,
     ReferralConfigValidator,
     CreateBenefitRewardUseCase,
+    UpdateBenefitRewardUseCase,
+    DeleteBenefitRewardUseCase,
+    GetBenefitRewardByIdUseCase,
     GetUserWalletSummaryUseCase,
     CreateTierWithRewardsUseCase,
     GiftCardRewardValidator,

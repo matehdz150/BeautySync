@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
 import {
-  createBenefitReward,
+  updateBenefitReward,
+  getBenefitRewardById,
   BenefitRewardType,
 } from "@/lib/services/benefits";
 import { useBranch } from "@/context/BranchContext";
@@ -41,7 +42,6 @@ const toSafeNumber = (v: string) => {
   return n;
 };
 
-// 🔥 nombre automático
 const buildRewardName = (
   type: BenefitRewardType,
   config: Record<string, any>,
@@ -62,7 +62,6 @@ const buildRewardName = (
     case "PRODUCT":
       return "Producto gratis";
 
-    case "CUSTOM":
     default:
       return "Recompensa";
   }
@@ -72,18 +71,21 @@ const buildRewardName = (
 // PAGE
 // ===============================
 
-export default function CreateRewardPage() {
+export default function EditRewardPage() {
   const router = useRouter();
-  const { branch } = useBranch();
+  const params = useParams();
 
+  const rewardId = params?.rewardId as string;
+
+  const { branch } = useBranch();
   const branchId = branch?.id ?? "";
 
-  const [loading, setLoading] = useState(false);
-
-  const [type, setType] = useState<BenefitRewardType>("CUSTOM");
-
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
+
+  const [type, setType] = useState<BenefitRewardType>("CUSTOM");
 
   const [form, setForm] = useState({
     pointsCost: 0,
@@ -92,16 +94,53 @@ export default function CreateRewardPage() {
   });
 
   const [config, setConfig] = useState<Record<string, any>>({});
+  const [isActive, setIsActive] = useState(true);
+
+  // ===============================
+  // LOAD 🔥
+  // ===============================
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const reward = await getBenefitRewardById({
+          rewardId,
+        });
+
+        console.log(reward);
+
+        setType(reward.type);
+
+        setForm({
+          pointsCost: reward.pointsCost,
+          stock: reward.stock ?? undefined,
+          referenceId: reward.referenceId ?? "",
+        });
+
+        setConfig(reward.config ?? {});
+        setIsActive(reward.isActive);
+
+        if (reward.type === "SERVICE" && reward.service) {
+          setSelectedService(reward.service);
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Error cargando recompensa");
+        router.back();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [branchId, rewardId]);
 
   // ===============================
   // VALIDATION
   // ===============================
 
   const validate = () => {
-    if (!branchId) {
-      alert("Sucursal inválida");
-      return false;
-    }
+    if (!branchId) return false;
 
     if (!form.pointsCost || form.pointsCost <= 0) {
       alert("Los puntos deben ser mayores a 0");
@@ -137,10 +176,6 @@ export default function CreateRewardPage() {
     return true;
   };
 
-  // ===============================
-  // DISABLED
-  // ===============================
-
   const isInvalid =
     !branchId ||
     form.pointsCost <= 0 ||
@@ -150,36 +185,38 @@ export default function CreateRewardPage() {
     (type === "COUPON" && (!config.type || !config.value || config.value <= 0));
 
   // ===============================
-  // SUBMIT
+  // SUBMIT 🔥
   // ===============================
 
   const handleSubmit = async () => {
     try {
       if (!validate()) return;
 
-      setLoading(true);
+      setSaving(true);
 
-      await createBenefitReward({
+      await updateBenefitReward({
+        rewardId,
         branchId,
         type,
-        name: buildRewardName(type, config), // 🔥 automático
+        name: buildRewardName(type, config),
         pointsCost: form.pointsCost,
         referenceId:
-          type === "SERVICE" || type === "PRODUCT"
-            ? form.referenceId || undefined
-            : undefined,
+          type === "SERVICE" || type === "PRODUCT" ? form.referenceId : null,
         stock: form.stock,
         config: type === "GIFT_CARD" || type === "COUPON" ? config : undefined,
+        isActive,
       });
 
       router.push("/dashboard/loyal-program");
     } catch (err) {
       console.error(err);
-      alert("Error al crear recompensa");
+      alert("Error al actualizar recompensa");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  if (loading) return <div className="p-10">Cargando recompensa...</div>;
 
   // ===============================
   // UI
@@ -188,36 +225,25 @@ export default function CreateRewardPage() {
   return (
     <div className="min-h-screen bg-white px-6 py-10">
       <div className="max-w-4xl mx-auto space-y-8">
-        {/* TOP ACTIONS */}
+        {/* ACTIONS */}
         <div className="flex justify-end gap-3">
-          <Button
-            onClick={() => router.back()}
-            className="px-6 py-6 text-sm border rounded-lg shadow-none"
-            variant={"outline"}
-          >
+          <Button onClick={() => router.back()} variant="outline">
             Cerrar
           </Button>
 
           <button
             onClick={handleSubmit}
-            disabled={loading || isInvalid}
+            disabled={saving || isInvalid}
             className="px-6 py-2 text-sm bg-black text-white rounded-lg disabled:opacity-50"
           >
-            {loading ? "Guardando..." : "Guardar"}
+            {saving ? "Guardando..." : "Guardar cambios"}
           </button>
         </div>
 
         {/* HEADER */}
         <div>
-          <h1 className="text-3xl font-semibold leading-tight">
-            Crear recompensa
-          </h1>
+          <h1 className="text-3xl font-semibold">Editar recompensa</h1>
 
-          <p className="text-gray-500 text-sm mt-2">
-            Define cómo los clientes pueden canjear sus puntos.
-          </p>
-
-          {/* 🔥 PREVIEW */}
           <p className="text-sm text-indigo-500 mt-2 font-medium">
             {buildRewardName(type, config)}
           </p>
@@ -234,7 +260,6 @@ export default function CreateRewardPage() {
 
         {/* BASE */}
         <div className="grid grid-cols-2 gap-4">
-          {/* COSTO */}
           <FancyInput
             label="Costo en puntos"
             suffix="pts"
@@ -257,10 +282,11 @@ export default function CreateRewardPage() {
                 <Input
                   value={selectedService?.name ?? ""}
                   placeholder="Selecciona un servicio"
-                  onClick={() => setPickerOpen(true)}
                   readOnly
+                  onClick={() => setPickerOpen(true)}
                   className="py-6"
                 />
+
               </div>
 
               {selectedService && (
@@ -272,16 +298,19 @@ export default function CreateRewardPage() {
             </div>
           )}
 
-          {/* SERVICE / PRODUCT */}
           {["PRODUCT"].includes(type) && (
             <FancyInput
-              label="Referencia (ID externo)"
+              label="Referencia"
               value={form.referenceId}
-              onChange={(v) => setForm((prev) => ({ ...prev, referenceId: v }))}
+              onChange={(v) =>
+                setForm((prev) => ({
+                  ...prev,
+                  referenceId: v,
+                }))
+              }
             />
           )}
 
-          {/* GIFT CARD */}
           {type === "GIFT_CARD" && (
             <FancyInput
               label="Monto gift card"
@@ -295,10 +324,8 @@ export default function CreateRewardPage() {
             />
           )}
 
-          {/* COUPON */}
           {type === "COUPON" && (
             <>
-              {/* tipo */}
               <div>
                 <label className="text-sm text-gray-600 block mb-1">Tipo</label>
 
@@ -308,8 +335,8 @@ export default function CreateRewardPage() {
                     setConfig((prev) => ({ ...prev, type: v }))
                   }
                 >
-                  <SelectTrigger className="w-full rounded-xl px-4 py-6 text-sm">
-                    <SelectValue placeholder="Selecciona tipo" />
+                  <SelectTrigger>
+                    <SelectValue />
                   </SelectTrigger>
 
                   <SelectContent>
@@ -319,7 +346,6 @@ export default function CreateRewardPage() {
                 </Select>
               </div>
 
-              {/* valor */}
               <FancyInput
                 label="Valor"
                 suffix={config.type === "percentage" ? "%" : "MXN"}
@@ -333,6 +359,16 @@ export default function CreateRewardPage() {
               />
             </>
           )}
+        </div>
+
+        {/* ACTIVE */}
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />
+          <span className="text-sm text-gray-600">Activo</span>
         </div>
       </div>
       <ResourcePickerModal
@@ -376,7 +412,7 @@ function FancyInput({
         <Input
           value={value === 0 ? "" : value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full border rounded-xl px-4 py-6 text-sm pr-16 shadow-none"
+          className="w-full border rounded-xl px-4 py-6 text-sm pr-16"
         />
 
         {suffix && (
@@ -402,14 +438,14 @@ function RewardTypeDropdown({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-full rounded-xl px-4 py-6 text-sm">
-        <SelectValue placeholder="Selecciona tipo" />
+      <SelectTrigger>
+        <SelectValue />
       </SelectTrigger>
 
       <SelectContent>
-        {REWARD_OPTIONS.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
+        {REWARD_OPTIONS.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
           </SelectItem>
         ))}
       </SelectContent>
