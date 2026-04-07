@@ -109,22 +109,11 @@ type BookingState = {
     }[];
   };
 
-  tier: {
+  validatedCoupon: {
     id: string;
-    name: string;
-    color: string | null;
-    icon: string | null;
+    discountCents: number;
+    code: string;
   } | null;
-
-  tierRewards: {
-    id: string;
-    type: "ONE_TIME" | "RECURRING";
-    config: Record<string, unknown>;
-    granted: boolean;
-    grantedAt: string | null;
-    used: boolean;
-  }[];
-};
 
   benefitsLoading: boolean;
   selectedCouponId: string | null;
@@ -157,6 +146,14 @@ type BookingAction =
   | {
       type: "SET_STAFF_CATALOG";
       payload: { id: string; name: string; avatarUrl?: string }[];
+    }
+  | {
+      type: "SET_VALIDATED_COUPON";
+      payload: {
+        id: string;
+        code: string;
+        discountCents: number;
+      } | null;
     }
   | { type: "SET_BENEFITS"; payload: BookingState["benefits"] }
   | { type: "SELECT_GIFT_CARD"; payload: { id: string; amount: number } }
@@ -199,6 +196,11 @@ const initialState: BookingState = {
     redeemableRewards: { availableCount: 0, rewards: [] },
     tier: null,
     tierRewards: [],
+  },
+  validatedCoupon: {
+    id: "",
+    code: "",
+    discountCents: 0,
   },
   benefitsLoading: false,
   selectedCouponId: null,
@@ -403,6 +405,16 @@ function bookingReducer(
       nextState = {
         ...state,
         giftCardAmountCents: action.payload,
+      };
+      break;
+
+    case "SET_VALIDATED_COUPON":
+      nextState = {
+        ...state,
+        validatedCoupon: action.payload,
+        selectedCouponId: action.payload?.id ?? null,
+        selectedGiftCardId: null,
+        giftCardAmountCents: 0,
       };
       break;
 

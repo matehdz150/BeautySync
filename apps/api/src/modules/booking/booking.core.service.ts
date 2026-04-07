@@ -274,7 +274,7 @@ export class BookingsCoreService {
       });
 
       couponDiscount = result.discountCents;
-      couponId = result.couponId;
+      couponId = result.coupon.id;
     }
 
     // =========================
@@ -376,7 +376,7 @@ export class BookingsCoreService {
         });
 
         if (couponId) {
-          await this.applyCoupon.execute(couponId);
+          await this.applyCoupon.execute(couponId, tx);
         }
 
         const created = await Promise.all(

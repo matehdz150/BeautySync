@@ -93,7 +93,12 @@ export class ValidateCouponUseCase {
     }
 
     return {
-      couponId: coupon.id,
+      coupon: {
+        id: coupon.id,
+        code: coupon.code,
+        type: coupon.type, // "percentage" | "fixed"
+        value: coupon.value, // 20 o 500
+      },
       discountCents: discount,
       finalAmount: input.amountCents - discount,
     };
