@@ -12,6 +12,7 @@ import {
   PaymentBenefits,
 } from "@/lib/services/public/payments";
 import { CategoryIcon } from "@/components/shared/Icon";
+import { AvailableRewardsSheet } from "@/components/loyal-program/AvailableRewardsSheet";
 
 type PaymentMethod = "ONSITE" | "ONLINE";
 
@@ -24,6 +25,7 @@ export function ConfirmBookingDesktopPage() {
   const [discountCode, setDiscountCode] = useState("");
   const [notes, setNotes] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
+  const [rewardsSheetOpen, setRewardsSheetOpen] = useState(false);
 
   useEffect(() => {
     async function loadBenefits() {
@@ -84,7 +86,7 @@ export function ConfirmBookingDesktopPage() {
     );
   }
 
-  return (
+  const content = (
     <div className="space-y-8">
       <motion.div
         aria-hidden
@@ -236,25 +238,29 @@ export function ConfirmBookingDesktopPage() {
               {/* TIER & POINTS */}
               {/* ========================= */}
               {booking.benefits.hasActiveProgram && (
-              <div className="w-full border border-x-0 px-5 py-4 flex items-center gap-3 cursor-pointer ">
-                <div className="h-12 w-12 rounded-xl flex items-center justify-center">
-                  <GradientGem className="h-8 w-8" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm sm:text-base font-medium truncate">
+                <button
+                  type="button"
+                  onClick={() => setRewardsSheetOpen(true)}
+                  className="w-full border border-x-0 px-5 py-4 flex items-center gap-3 cursor-pointer text-left"
+                >
+                  <div className="h-12 w-12 rounded-xl flex items-center justify-center">
+                    <GradientGem className="h-8 w-8" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm sm:text-base font-medium truncate">
+                      {booking.benefits.pointsBalance > 0
+                        ? `Tienes ${booking.benefits.pointsBalance.toLocaleString()} pts en ${booking.branch?.name.toLowerCase()}`
+                        : "Aún no tienes puntos acumulados en esta sucursal"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm font-medium text-indigo-600 cursor-pointer">
+                    <Sparkles className="h-4 w-4" />
                     {booking.benefits.pointsBalance > 0
-                      ? `Tienes ${booking.benefits.pointsBalance.toLocaleString()} pts en ${booking.branch?.name.toLowerCase()}`
-                      : "Aún no tienes puntos acumulados en esta sucursal"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-sm font-medium text-indigo-600 cursor-pointer">
-                  <Sparkles className="h-4 w-4" />
-                  {booking.benefits.pointsBalance > 0
-                    ? `${booking.benefits.redeemableRewards.availableCount} recompensas`
+                      ? `${booking.benefits.redeemableRewards.availableCount} recompensas`
                       : "Cómo ganar puntos"}
                   </div>
-                  <ChevronRight className="text-muted-foreground shrink-0 cursor-pointer"/>
-                </div>
+                  <ChevronRight className="text-muted-foreground shrink-0 cursor-pointer" />
+                </button>
               )}
               {/* ========================= */}
               {/* GIFT CARDS */}
@@ -425,6 +431,17 @@ export function ConfirmBookingDesktopPage() {
         />
       </section>
     </div>
+  );
+
+  return (
+    <>
+      {content}
+      <AvailableRewardsSheet
+        open={rewardsSheetOpen}
+        onOpenChange={setRewardsSheetOpen}
+        branchId={booking.branch?.id}
+      />
+    </>
   );
 }
 

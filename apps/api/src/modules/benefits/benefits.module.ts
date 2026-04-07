@@ -111,6 +111,8 @@ import { UpdateBenefitRewardUseCase } from './core/use-cases/update-benefit-rewa
 import { DeleteBenefitRewardUseCase } from './core/use-cases/delete-benefit-reward.use-case';
 import { GetBenefitRewardByIdUseCase } from './core/use-cases/get-benefit-reward-by-id.use-case';
 import { ServicesModule } from '../services/services.module';
+import { GetUserBranchBenefitsUseCase } from './core/use-cases/get-user-branch-benefits.use-case';
+import { ProductsModule } from '../products/products.module';
 
 @Module({
   imports: [
@@ -122,6 +124,7 @@ import { ServicesModule } from '../services/services.module';
     CacheModule,
     PaymentsModule,
     ServicesModule,
+    ProductsModule,
   ],
   controllers: [BenefitProgramController, BenefitTiersController],
 
@@ -291,6 +294,7 @@ import { ServicesModule } from '../services/services.module';
     UpdateBenefitRewardUseCase,
     DeleteBenefitRewardUseCase,
     GetBenefitRewardByIdUseCase,
+    GetUserBranchBenefitsUseCase,
     GetUserWalletSummaryUseCase,
     CreateTierWithRewardsUseCase,
     GiftCardRewardValidator,

@@ -57,6 +57,6 @@ import { BranchesModule } from '../branches/branches.module';
     },
   ],
 
-  exports: [CreateProductUseCase, GetProductsByBranchUseCase],
+  exports: [PRODUCT_REPOSITORY, CreateProductUseCase, GetProductsByBranchUseCase],
 })
 export class ProductsModule {}
