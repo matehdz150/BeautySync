@@ -52,6 +52,8 @@ export function BookingRightSummary({
     selectedGiftCardId,
     validatedCoupon,
     selectedCouponId,
+    appliedCouponCode,
+    appliedCouponDiscountCents,
     benefits,
   } = booking as any;
 
@@ -139,7 +141,27 @@ export function BookingRightSummary({
 
   const subtotalCents = confirmTotalCents;
 
+<<<<<<< HEAD
   const couponDiscount = booking.validatedCoupon?.discountCents ?? 0;
+=======
+  const selectedCoupon = benefits?.coupons?.find(
+    (c: any) => c.id === selectedCouponId,
+  );
+
+  const couponDiscount = useMemo(() => {
+    if (appliedCouponCode && appliedCouponDiscountCents > 0) {
+      return appliedCouponDiscountCents;
+    }
+
+    if (!selectedCoupon) return 0;
+
+    if (selectedCoupon.type === "percentage") {
+      return Math.floor(subtotalCents * (selectedCoupon.value / 100));
+    }
+
+    return selectedCoupon.value;
+  }, [selectedCoupon, subtotalCents, appliedCouponCode, appliedCouponDiscountCents]);
+>>>>>>> 8316d89 (feat[benefits] benefits on booking working)
 
   const afterCoupon = Math.max(subtotalCents - couponDiscount, 0);
 
@@ -199,7 +221,13 @@ export function BookingRightSummary({
         branchSlug: branch!.slug,
         date: date!,
         paymentMethod: (paymentMethod ?? "ONSITE") as "ONSITE" | "ONLINE",
+<<<<<<< HEAD
         discountCode: validatedCoupon?.code ?? null,
+=======
+        discountCode:
+          appliedCouponCode ??
+          (discountCode?.trim() ? discountCode.trim() : null),
+>>>>>>> 8316d89 (feat[benefits] benefits on booking working)
         notes: notes?.trim() ? notes.trim() : null,
         giftCardCode: selectedGiftCard?.code ?? "",
         giftCardAmountCents: giftCardUsed,

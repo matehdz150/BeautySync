@@ -160,6 +160,9 @@ export function TimeSlots() {
                     booking.dispatch({
                       type: "SET_APPOINTMENTS_DRAFT",
                       payload: plan.assignments.map((a) => ({
+                        priceCents:
+                          booking.catalog.find((s) => s.id === a.serviceId)
+                            ?.priceCents ?? 0,
                         serviceId: a.serviceId,
                         staffId: a.staffId,
                         startIso: a.startLocalIso,

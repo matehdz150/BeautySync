@@ -1,24 +1,63 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   BranchBenefitsSummaryResponse,
   getBranchBenefitsSummary,
+  redeemBenefitReward,
 } from "@/lib/services/public/benefits";
 import { DialogTitle } from "@radix-ui/react-dialog";
 import { PublicApiError } from "@/lib/errors";
+import React from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle as ModalTitle,
+} from "@/components/ui/dialog";
+import {
+  Diamond,
+  Gift,
+  LucideProps,
+  Package,
+  Percent,
+  Scissors,
+  Star,
+} from "lucide-react";
+import { Button } from "../ui/button";
+import { cn } from "@/lib/utils";
 
 type RewardItem = BranchBenefitsSummaryResponse["rewards"]["all"][number];
+type RewardFilter = "ALL" | "SERVICE" | "PRODUCT" | "COUPON" | "GIFT_CARD";
+type PendingRedeem = {
+  reward: RewardItem;
+  branchId: string;
+  idempotencyKey: string;
+};
+
+function buildIdempotencyKey(rewardId: string, branchId: string) {
+  const entropy =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  return `redeem:${branchId}:${rewardId}:${entropy}`;
+}
 
 export function AvailableRewardsSheet({
   open,
   onOpenChange,
   branchId,
+  side = "right",
+  contentClassName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   branchId?: string;
+  side?: "right" | "bottom";
+  contentClassName?: string;
 }) {
   const [summary, setSummary] = useState<BranchBenefitsSummaryResponse | null>(
     null,
@@ -26,7 +65,12 @@ export function AvailableRewardsSheet({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unauthenticated, setUnauthenticated] = useState(false);
-  const [selectedRewardId, setSelectedRewardId] = useState<string | null>(null);
+  const [redeemModalOpen, setRedeemModalOpen] = useState(false);
+  const [pendingRedeem, setPendingRedeem] = useState<PendingRedeem | null>(
+    null,
+  );
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !branchId) return;
@@ -39,7 +83,7 @@ export function AvailableRewardsSheet({
     getBranchBenefitsSummary(branchId)
       .then((data) => {
         if (cancelled) return;
-        console.log(data)
+        console.log(data);
         setSummary(data);
       })
       .catch((err: unknown) => {
@@ -67,30 +111,54 @@ export function AvailableRewardsSheet({
     [summary],
   );
 
+  const [filter, setFilter] = useState<RewardFilter>("ALL");
+
+  const filteredRewards = useMemo(() => {
+    if (filter === "ALL") return available;
+    return available.filter((r) => r.type === filter);
+  }, [available, filter]);
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-[420px] sm:w-[480px] flex flex-col p-5"
-      >
-        <DialogTitle>
-          <div className="space-y-1 mb-4">
-            <h2 className="text-xl font-semibold">Descuentos y recompensas</h2>
-            <p className="text-sm text-gray-500">
-              Usa tus recompensas disponibles y revisa cuáles te faltan.
-            </p>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side={side}
+          className={cn(
+            side === "bottom"
+              ? "h-[80vh] w-full flex flex-col rounded-t-2xl"
+              : "min-w-120 w-full flex flex-col",
+            contentClassName,
+          )}
+        >
+        <DialogTitle className="p-5 pb-0">
+          <div className="flex items-center justify-between mb-2">
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold">Canjea tus puntos</h2>
+              <p className="text-sm text-gray-500">
+                Usa tus puntos para obtener beneficios y recompensas.
+              </p>
+            </div>
+
+            <button className="text-sm font-medium text-indigo-500 hover:underline">
+              Ver más
+            </button>
           </div>
         </DialogTitle>
 
         {loading && (
-          <div className="text-sm text-gray-500 py-6">Cargando recompensas...</div>
+          <div className="text-sm text-gray-500 py-6">
+            Cargando recompensas...
+          </div>
         )}
 
         {!loading && unauthenticated && (
           <div className="py-6 space-y-2">
-            <p className="text-sm font-medium">Inicia sesión para ver tus recompensas.</p>
+            <p className="text-sm font-medium">
+              Inicia sesión para ver tus recompensas.
+            </p>
             <p className="text-xs text-gray-500">
-              Necesitas una sesión activa para consultar tus puntos y beneficios.
+              Necesitas una sesión activa para consultar tus puntos y
+              beneficios.
             </p>
           </div>
         )}
@@ -101,93 +169,188 @@ export function AvailableRewardsSheet({
 
         {!loading && !unauthenticated && !error && summary && (
           <>
-            <div className="mb-4 rounded-xl border p-3 bg-gray-50">
-              <p className="text-sm font-medium">
-                {summary.points.toLocaleString()} puntos disponibles
-              </p>
-              <p className="text-xs text-gray-500">
-                {summary.currentTier
-                  ? `Tier actual: ${summary.currentTier.name}`
-                  : "Sin tier asignado"}
-              </p>
-              <p className="text-xs text-gray-500">
-                {summary.nextTier
-                  ? `Te faltan ${summary.pointsToNextTier} pts para ${summary.nextTier.name}`
-                  : "Ya estás en el tier más alto"}
-              </p>
+            <div className="mb-4 px-2 flex flex-col gap2">
+              <div
+                className="w-full rounded-2xl p-6 flex items-center justify-between 
+bg-gradient-to-br from-black via-gray-800 to-gray-500 text-white"
+              >
+                {/* LEFT */}
+                <div className="space-y-1">
+                  <p className="text-sm opacity-80">Puntos disponibles</p>
+
+                  <h2 className="text-4xl font-semibold leading-none">
+                    {summary.points.toLocaleString()}
+                    <span className="text-lg ml-1 font-normal">pts</span>
+                  </h2>
+
+                  <p className="text-sm opacity-80">Listos para canjear</p>
+                </div>
+
+                {/* RIGHT (decorativo) */}
+                <div className="text-white/30 text-6xl select-none">
+                  <Diamond className="h-10 w-10" />
+                </div>
+              </div>
+            </div>
+            {/* ========================= */}
+            {/* 🧭 TABS */}
+            {/* ========================= */}
+            <div className="flex gap-6 px-2 border-b mb-2 overflow-x-auto">
+              {[
+                { key: "ALL", label: "Todos" },
+                { key: "SERVICE", label: "Servicios" },
+                { key: "PRODUCT", label: "Productos" },
+                { key: "COUPON", label: "Cupones" },
+                { key: "GIFT_CARD", label: "Gift cards" },
+              ].map((tab) => {
+                const active = filter === tab.key;
+
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setFilter(tab.key as RewardFilter)}
+                    className={`pb-3 text-sm whitespace-nowrap transition relative
+          ${active ? "text-black font-medium" : "text-gray-400"}
+        `}
+                  >
+                    {tab.label}
+
+                    {active && (
+                      <div className="absolute left-0 bottom-0 w-full h-[2px] bg-black rounded-full" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="space-y-2 mb-6">
-              <p className="text-sm font-semibold">Disponibles ahora</p>
-              {available.length === 0 && (
+            {/* ========================= */}
+            {/* 📦 LISTA */}
+            {/* ========================= */}
+            <div className="space-y-2 px-2">
+              {filteredRewards.length === 0 && (
                 <p className="text-sm text-gray-500">
-                  No tienes recompensas alcanzables con tus puntos actuales.
+                  No hay recompensas en esta categoría.
                 </p>
               )}
-              {available.map((reward) => (
+
+              {filteredRewards.map((reward) => (
                 <RewardCard
                   key={reward.id}
                   reward={reward}
-                  selected={selectedRewardId === reward.id}
-                  onSelect={() =>
-                    setSelectedRewardId(
-                      selectedRewardId === reward.id ? null : reward.id,
-                    )
-                  }
+                  onRedeemClick={() => {
+                    if (!branchId) return;
+                    const idempotencyKey = buildIdempotencyKey(
+                      reward.id,
+                      branchId,
+                    );
+
+                    setActionMessage(null);
+                    setPendingRedeem({
+                      reward,
+                      branchId,
+                      idempotencyKey,
+                    });
+                    setRedeemModalOpen(true);
+                  }}
                 />
               ))}
             </div>
 
-            <div className="mt-2 border-t pt-4 space-y-2">
-              <p className="text-sm font-semibold">Te falta para desbloquear</p>
-              {unavailable.length === 0 && (
-                <p className="text-sm text-gray-500">
-                  No hay recompensas bloqueadas.
-                </p>
-              )}
+            <div className="">
               {unavailable.map((reward) => (
-                <LockedRewardCard key={reward.id} reward={reward} points={summary.points} />
+                <LockedRewardCard
+                  key={reward.id}
+                  reward={reward}
+                  points={summary.points}
+                />
               ))}
             </div>
           </>
         )}
 
-        <div className="mt-auto pt-6 flex gap-3">
-          <button
-            onClick={() => onOpenChange(false)}
-            className="flex-1 border rounded-xl py-3"
-          >
-            Cerrar
-          </button>
-
-          <button
-            disabled={!selectedRewardId}
-            className="flex-1 bg-black text-white rounded-xl py-3 disabled:opacity-50"
-          >
-            Aplicar
-          </button>
+        <div className="mt-auto px-5 pb-3">
+          {actionMessage && <p className="text-xs text-gray-600">{actionMessage}</p>}
         </div>
-      </SheetContent>
-    </Sheet>
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={redeemModalOpen} onOpenChange={setRedeemModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <ModalTitle>Confirmar canje</ModalTitle>
+            <DialogDescription>
+              {pendingRedeem
+                ? `Vas a canjear "${rewardLabel(pendingRedeem.reward)}" por ${pendingRedeem.reward.pointsCost} puntos.`
+                : "Confirma si quieres canjear esta recompensa."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setRedeemModalOpen(false)}
+              disabled={isRedeeming}
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={!pendingRedeem || isRedeeming}
+              onClick={async () => {
+                if (!pendingRedeem) return;
+
+                setIsRedeeming(true);
+                setActionMessage(null);
+
+                try {
+                  const res = await redeemBenefitReward({
+                    rewardId: pendingRedeem.reward.id,
+                    branchId: pendingRedeem.branchId,
+                    idempotencyKey: pendingRedeem.idempotencyKey,
+                  });
+
+                  console.log(res)
+
+                  const updated = await getBranchBenefitsSummary(
+                    pendingRedeem.branchId,
+                  );
+
+                  setSummary(updated);
+                  setActionMessage("Recompensa canjeada correctamente.");
+                  setRedeemModalOpen(false);
+                  setPendingRedeem(null);
+                } catch (err: unknown) {
+                  if (err instanceof PublicApiError) {
+                    setActionMessage(err.message);
+                  } else {
+                    setActionMessage("No se pudo canjear la recompensa.");
+                  }
+                } finally {
+                  setIsRedeeming(false);
+                }
+              }}
+            >
+              {isRedeeming ? "Canjeando..." : "Confirmar canje"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 function RewardCard({
   reward,
-  selected,
-  onSelect,
+  onRedeemClick,
 }: {
   reward: RewardItem;
-  selected: boolean;
-  onSelect: () => void;
+  onRedeemClick: () => void;
 }) {
   return (
-    <div
-      onClick={onSelect}
-      className="flex items-center justify-between p-3 rounded-xl border cursor-pointer"
-    >
+    <div className="flex items-center justify-between p-3">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="text-lg">{rewardIcon(reward.type)}</div>
+        <div className="text-lg">
+          <RewardIcon type={reward.type} className="w-5 h-5" />
+        </div>
 
         <div className="min-w-0">
           <p className="font-medium truncate">{rewardLabel(reward)}</p>
@@ -195,7 +358,14 @@ function RewardCard({
         </div>
       </div>
 
-      <div className={`w-5 h-5 rounded border ${selected ? "bg-black" : ""}`} />
+      <Button
+        variant="outline"
+        size="sm"
+        className="rounded-full px-5 py-5 text-sm shadow-none"
+        onClick={onRedeemClick}
+      >
+        Canjear
+      </Button>
     </div>
   );
 }
@@ -209,9 +379,11 @@ function LockedRewardCard({
 }) {
   const missing = Math.max(reward.pointsCost - points, 0);
   return (
-    <div className="flex items-center justify-between p-3 rounded-xl border border-dashed">
+    <div className="flex items-center justify-between p-3">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="text-lg opacity-60">{rewardIcon(reward.type)}</div>
+        <div className="text-lg opacity-60">
+          <RewardIcon type={reward.type} className="w-5 h-5" />
+        </div>
         <div className="min-w-0">
           <p className="font-medium truncate">{rewardLabel(reward)}</p>
           <p className="text-xs text-gray-500 truncate">
@@ -224,18 +396,79 @@ function LockedRewardCard({
   );
 }
 
-function rewardIcon(type: RewardItem["type"]) {
+type GradientIconProps = LucideProps & {
+  colors?: [string, string];
+};
+
+export function GradientIcon({
+  children,
+  colors = ["#5b5bf7", "#c14ef0"],
+  ...props
+}: GradientIconProps & { children: React.ReactElement }) {
+  const reactId = useId();
+  const gradientId = `grad-${reactId.replace(/:/g, "")}`;
+
+  return (
+    <>
+      <svg width="0" height="0" style={{ position: "absolute" }}>
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={colors[0]} />
+            <stop offset="100%" stopColor={colors[1]} />
+          </linearGradient>
+        </defs>
+      </svg>
+
+      {React.cloneElement(children, {
+        ...props,
+        stroke: `url(#${gradientId})`,
+      })}
+    </>
+  );
+}
+
+function RewardIcon({
+  type,
+  className,
+}: {
+  type: RewardItem["type"];
+  className?: string;
+}) {
   switch (type) {
     case "SERVICE":
-      return "✂️";
+      return (
+        <GradientIcon>
+          <Scissors className={className} />
+        </GradientIcon>
+      );
+
     case "PRODUCT":
-      return "🧴";
+      return (
+        <GradientIcon colors={["#10B981", "#34D399"]}>
+          <Package className={className} />
+        </GradientIcon>
+      );
+
     case "COUPON":
-      return "%";
+      return (
+        <GradientIcon colors={["#3B82F6", "#60A5FA"]}>
+          <Percent className={className} />
+        </GradientIcon>
+      );
+
     case "GIFT_CARD":
-      return "🎁";
+      return (
+        <GradientIcon colors={["#F59E0B", "#FBBF24"]}>
+          <Gift className={className} />
+        </GradientIcon>
+      );
+
     default:
-      return "⭐";
+      return (
+        <GradientIcon colors={["#9CA3AF", "#D1D5DB"]}>
+          <Star className={className} />
+        </GradientIcon>
+      );
   }
 }
 

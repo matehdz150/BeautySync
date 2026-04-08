@@ -200,3 +200,22 @@ export async function getBranchBenefitsSummary(
     `/benefits/program/branch-summary?branchId=${branchId}`,
   );
 }
+
+export type RedeemBenefitRewardPayload = {
+  rewardId: string;
+  branchId: string;
+  idempotencyKey?: string;
+};
+
+export type RedeemBenefitRewardResponse = {
+  id: string;
+};
+
+export async function redeemBenefitReward(
+  payload: RedeemBenefitRewardPayload,
+): Promise<RedeemBenefitRewardResponse> {
+  return publicFetch<RedeemBenefitRewardResponse>("/benefits/program/redeem", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

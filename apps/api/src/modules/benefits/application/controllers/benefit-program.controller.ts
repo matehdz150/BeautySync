@@ -38,6 +38,7 @@ import { UpdateBenefitRewardUseCase } from '../../core/use-cases/update-benefit-
 import { DeleteBenefitRewardUseCase } from '../../core/use-cases/delete-benefit-reward.use-case';
 import { GetBenefitRewardByIdUseCase } from '../../core/use-cases/get-benefit-reward-by-id.use-case';
 import { GetUserBranchBenefitsUseCase } from '../../core/use-cases/get-user-branch-benefits.use-case';
+import { RedeemBenefitRewardUseCase } from '../../core/use-cases/reedem-benefit.use-case';
 
 @Controller('benefits/program')
 export class BenefitProgramController {
@@ -54,6 +55,7 @@ export class BenefitProgramController {
     private readonly deleteReward: DeleteBenefitRewardUseCase,
     private readonly getRewardByIdUseCase: GetBenefitRewardByIdUseCase,
     private readonly getUserBranchBenefits: GetUserBranchBenefitsUseCase,
+    private readonly redeemBenefitReward: RedeemBenefitRewardUseCase,
   ) {}
 
   @UseGuards(PublicAuthGuard)
@@ -71,6 +73,25 @@ export class BenefitProgramController {
     return this.getUserBranchBenefits.execute({
       branchId,
       userId: user.publicUserId,
+    });
+  }
+
+  @UseGuards(PublicAuthGuard)
+  @Post('redeem')
+  async redeemReward(
+    @PublicUser() user: PublicSession,
+    @Body()
+    body: {
+      rewardId: string;
+      branchId: string;
+      idempotencyKey?: string;
+    },
+  ) {
+    return this.redeemBenefitReward.execute({
+      rewardId: body.rewardId,
+      branchId: body.branchId,
+      idempotencyKey: body.idempotencyKey,
+      user: new AuthenticatedUser(user.publicUserId, 'public', null),
     });
   }
 

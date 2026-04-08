@@ -9,7 +9,7 @@ export type ActivateBenefitProgramInput = {
 export type RedeemBenefitRewardInput = {
   rewardId: string;
   branchId: string;
-  idempotencyKey: string; // 🔥 clave
+  idempotencyKey?: string; // si no llega, backend genera una
   user: AuthenticatedUser;
 };
 export interface BenefitProgramRepository {

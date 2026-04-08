@@ -53,6 +53,7 @@ export class CouponsController {
       assignedToUserId?: string;
 
       expiresAt?: string;
+      serviceIds?: string[];
     },
     @Req() req: { user: AuthenticatedUser },
   ) {
@@ -75,11 +76,17 @@ export class CouponsController {
       branchId: string;
       amountCents: number;
       services?: string[];
+      serviceIds?: string[];
+      serviceItems?: Array<{ serviceId: string; amountCents: number }>;
     },
     @PublicUser() user: { publicUserId: string },
   ) {
     return this.validateCoupon.execute({
-      ...body,
+      code: body.code,
+      branchId: body.branchId,
+      amountCents: body.amountCents,
+      serviceIds: body.serviceIds ?? body.services,
+      serviceItems: body.serviceItems,
       publicUserId: user.publicUserId,
     });
   }

@@ -7,6 +7,8 @@ import {
   PaymentMethod,
   giftCards,
   coupons,
+  couponServices,
+  services,
   benefitUserBalance,
   benefitPrograms,
   benefitRewards,
@@ -312,6 +314,39 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
         ),
       );
 
+    const couponServiceRows =
+      couponsRows.length > 0
+        ? await this.db
+            .select({
+              couponId: couponServices.couponId,
+              serviceName: services.name,
+            })
+            .from(couponServices)
+            .innerJoin(services, eq(services.id, couponServices.serviceId))
+            .where(
+              inArray(
+                couponServices.couponId,
+                couponsRows.map((coupon) => coupon.id),
+              ),
+            )
+        : [];
+
+    const serviceNamesByCouponId = new Map<string, string[]>();
+    for (const row of couponServiceRows) {
+      const current = serviceNamesByCouponId.get(row.couponId) ?? [];
+      current.push(row.serviceName);
+      serviceNamesByCouponId.set(row.couponId, current);
+    }
+
+    const couponsWithServices = couponsRows.map((coupon) => {
+      const serviceNames = serviceNamesByCouponId.get(coupon.id) ?? [];
+      return {
+        ...coupon,
+        serviceNames,
+        serviceName: serviceNames[0] ?? null,
+      };
+    });
+
     // =========================
     // 🏆 PROGRAMA Y REWARDS
     // =========================
@@ -464,7 +499,7 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
     return {
       hasActiveProgram,
       giftCards: giftCardsRows,
-      coupons: couponsRows,
+      coupons: couponsWithServices,
       pointsBalance,
       redeemableRewards,
       tier,
