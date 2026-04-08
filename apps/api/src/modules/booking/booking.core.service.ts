@@ -264,7 +264,16 @@ export class BookingsCoreService {
 
     if (dto.discountCode) {
       const serviceIds = normalized.map((a) => a.serviceId);
-      const result = await this.validateCoupon.execute({
+      type CouponExecuteInput = Parameters<
+        ValidateCouponUseCase['execute']
+      >[0] & {
+        serviceItems?: Array<{
+          serviceId: string;
+          amountCents: number;
+        }>;
+      };
+
+      const couponInput: CouponExecuteInput = {
         code: dto.discountCode,
         branchId: branch.id,
         amountCents: bookingTotalCents,
@@ -274,10 +283,11 @@ export class BookingsCoreService {
           serviceId: a.serviceId,
           amountCents: a.priceCents ?? 0,
         })),
-      });
+      };
+      const result = await this.validateCoupon.execute(couponInput);
 
       couponDiscount = result.discountCents;
-      couponId = result.coupon.id;
+      couponId = result.couponId;
     }
 
     // =========================

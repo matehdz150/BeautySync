@@ -10,6 +10,31 @@ import {
 import { COUPON_REPOSITORY } from '../ports/tokens';
 import { CouponRepository } from '../ports/coupon.repository';
 
+export type ValidateCouponInput = {
+  code: string;
+  branchId: string;
+  amountCents: number;
+  publicUserId?: string;
+  serviceIds?: string[];
+  serviceItems?: Array<{
+    serviceId: string;
+    amountCents: number;
+  }>;
+};
+
+export type ValidateCouponResult = {
+  couponId: string;
+  coupon: {
+    id: string;
+    code: string;
+    type: 'percentage' | 'fixed';
+    value: number;
+  };
+  discountCents: number;
+  finalAmount: number;
+  discountBaseAmountCents: number;
+};
+
 @Injectable()
 export class ValidateCouponUseCase {
   constructor(
@@ -17,17 +42,7 @@ export class ValidateCouponUseCase {
     private readonly repo: CouponRepository,
   ) {}
 
-  async execute(input: {
-    code: string;
-    branchId: string;
-    amountCents: number;
-    publicUserId?: string;
-    serviceIds?: string[];
-    serviceItems?: Array<{
-      serviceId: string;
-      amountCents: number;
-    }>;
-  }) {
+  async execute(input: ValidateCouponInput): Promise<ValidateCouponResult> {
     const toMoney = (cents: number) =>
       `$${(Math.max(cents, 0) / 100).toFixed(2)}`;
     const toDate = (date: Date) => date.toISOString().slice(0, 10);
@@ -131,6 +146,7 @@ export class ValidateCouponUseCase {
     }
 
     return {
+      couponId: coupon.id,
       coupon: {
         id: coupon.id,
         code: coupon.code,
