@@ -11,13 +11,9 @@ import {
   getPaymentBenefits,
   validatePublicCoupon,
 } from "@/lib/services/public/payments";
-<<<<<<< HEAD
-import { validateCoupon } from "@/lib/services/public/coupons";
-=======
 import { AvailableRewardsSheet } from "@/components/loyal-program/AvailableRewardsSheet";
 import { PublicApiError } from "@/lib/errors";
 import { BenefitsUnifiedSlider } from "@/components/book/BenefitsUnifiedSlider";
->>>>>>> 8316d89 (feat[benefits] benefits on booking working)
 
 type PaymentMethod = "ONSITE" | "ONLINE";
 type CouponDiagnostic = {
@@ -35,17 +31,6 @@ export function ConfirmBookingDesktopPage() {
   const [discountCode, setDiscountCode] = useState("");
   const [notes, setNotes] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
-<<<<<<< HEAD
-  const [couponMessage, setCouponMessage] = useState("");
-
-  function formatCouponMessage(type: string, value: number) {
-    if (type === "percentage") {
-      return `${value}% de descuento`;
-    }
-
-    const amount = Math.round(value / 100);
-    return `$${amount} MXN de descuento`;
-=======
   const [couponMessage, setCouponMessage] = useState<string | null>(null);
   const [couponMessageType, setCouponMessageType] = useState<
     "error" | "success" | null
@@ -146,7 +131,6 @@ export function ConfirmBookingDesktopPage() {
       setCouponMessageType("error");
       setCouponMessage(reason);
     }
->>>>>>> 8316d89 (feat[benefits] benefits on booking working)
   }
 
   useEffect(() => {
@@ -159,10 +143,6 @@ export function ConfirmBookingDesktopPage() {
           payload: true,
         });
         const data = await getPaymentBenefits(booking.branch.id);
-<<<<<<< HEAD
-        console.log(data);
-=======
->>>>>>> 8316d89 (feat[benefits] benefits on booking working)
 
         dispatch({
           type: "SET_BENEFITS",
@@ -324,125 +304,6 @@ export function ConfirmBookingDesktopPage() {
               disabled={!!couponMessage}
             />
 
-<<<<<<< HEAD
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 rounded-2xl px-6"
-              disabled={!discountCode.trim() || applyingDiscount}
-              onClick={async () => {
-                try {
-                  setApplyingDiscount(true);
-
-                  const subtotal = booking.appointmentsDraft.reduce(
-                    (acc, a) => {
-                      const srv = booking.catalog.find(
-                        (s) => s.id === a.serviceId,
-                      );
-                      return acc + (srv?.priceCents ?? 0);
-                    },
-                    0,
-                  );
-
-                  const res = await validateCoupon({
-                    code: discountCode.trim(),
-                    branchId: booking.branch!.id,
-                    amountCents: subtotal,
-                    services: booking.services,
-                  });
-
-                  console.log(res);
-
-                  // ✅ si llegó aquí → es válido (tu backend ya valida)
-                  setCouponMessage(
-                    formatCouponMessage(res.coupon.type, res.coupon.value),
-                  );
-
-                  dispatch({
-                    type: "SET_VALIDATED_COUPON",
-                    payload: {
-                      id: res.coupon.id,
-                      code: discountCode.trim(), // 🔥 IMPORTANTE
-                      discountCents: res.discountCents,
-                    },
-                  });
-                } catch (err) {
-                  console.error("Error validando cupón:", err);
-
-                  // limpia UI
-                  setCouponMessage("");
-
-                  dispatch({
-                    type: "SELECT_COUPON",
-                    payload: null,
-                  });
-                } finally {
-                  setApplyingDiscount(false);
-                }
-              }}
-            >
-              {applyingDiscount ? "Aplicando..." : "Aplicar"}
-            </Button>
-          </div>
-
-          {/* ✅ MENSAJE BONITO */}
-          {couponMessage && (
-            <div className="relative rounded-2xl overflow-hidden shadow-sm border w-full max-w-sm">
-              {/* BACKGROUND */}
-              <div
-                className="px-5 py-4 text-white"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #f87171, #fb7185, #f97316)",
-                }}
-              >
-                {/* badge */}
-                <div className="text-[10px] uppercase tracking-wide bg-white/20 inline-block px-2 py-1 rounded-full mb-2">
-                  Oferta aplicada
-                </div>
-
-                {/* main */}
-                <div className="space-y-1">
-                  <p className="text-lg font-semibold">Cupón activo</p>
-
-                  <p className="text-sm opacity-90">{couponMessage}</p>
-                </div>
-              </div>
-
-              {/* FOOTER */}
-              <div className="bg-white px-5 py-3 flex items-center justify-between text-xs">
-                <span className="text-gray-500">Descuento aplicado</span>
-
-                <button
-                  onClick={() => {
-                    setCouponMessage("");
-                    dispatch({
-                      type: "SELECT_COUPON",
-                      payload: null,
-                    });
-                  }}
-                  className="text-red-500 font-medium hover:underline"
-                >
-                  Quitar
-                </button>
-              </div>
-
-              {/* CLOSE ICON (opcional arriba) */}
-              <button
-                onClick={() => {
-                  setCouponMessage("");
-                  dispatch({
-                    type: "SELECT_COUPON",
-                    payload: null,
-                  });
-                }}
-                className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/80 text-gray-600 text-xs flex items-center justify-center hover:bg-white"
-              >
-                ×
-              </button>
-            </div>
-          )}
-=======
           <Button
             type="button"
             variant="outline"
@@ -496,8 +357,10 @@ export function ConfirmBookingDesktopPage() {
           >
             {applyingDiscount ? "Aplicando..." : "Aplicar"}
           </Button>
->>>>>>> 8316d89 (feat[benefits] benefits on booking working)
         </div>
+      </div>
+      </section>
+
         {/* BENEFICIOS */}
         <section className="space-y-2 pt-2">
           <h2 className="text-lg font-semibold">Tus beneficios</h2>
@@ -575,7 +438,6 @@ export function ConfirmBookingDesktopPage() {
             </div>
           )}
         </section>
-      </section>
 
       {/* NOTAS */}
       <section className="space-y-3">

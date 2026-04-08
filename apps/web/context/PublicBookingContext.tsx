@@ -87,25 +87,44 @@ type BookingState = {
       balanceCents: number;
       expiresAt?: string | null;
     }[];
-  coupons: {
-    id: string;
-    code: string;
-    type: "percentage" | "fixed";
-    value: number;
-    expiresAt?: string | null;
-  }[];
+    coupons: {
+      id: string;
+      code: string;
+      type: "percentage" | "fixed";
+      value: number;
+      expiresAt?: string | null;
+      serviceName?: string | null;
+      serviceNames?: string[];
+    }[];
 
-  pointsBalance: number;
+    pointsBalance: number;
 
-  redeemableRewards: {
-    availableCount: number;
-    rewards: {
+    redeemableRewards: {
+      availableCount: number;
+      rewards: {
+        id: string;
+        name: string;
+        pointsCost: number;
+        type: "SERVICE" | "PRODUCT" | "COUPON" | "GIFT_CARD" | "CUSTOM";
+        referenceId?: string | null;
+        config?: Record<string, unknown>;
+      }[];
+    };
+
+    tier: {
       id: string;
       name: string;
-      pointsCost: number;
-      type: "SERVICE" | "PRODUCT" | "COUPON" | "GIFT_CARD" | "CUSTOM";
-      referenceId?: string | null;
-      config?: Record<string, unknown>;
+      color: string | null;
+      icon: string | null;
+    } | null;
+
+    tierRewards: {
+      id: string;
+      type: "ONE_TIME" | "RECURRING";
+      config: Record<string, unknown>;
+      granted: boolean;
+      grantedAt: string | null;
+      used: boolean;
     }[];
   };
 
