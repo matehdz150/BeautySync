@@ -13,11 +13,19 @@ import {
 import { AppointmentsDrizzleAdapter } from './infrastructure/appointments.drizzle.adapter';
 import { TimeOffDrizzleAdapter } from './infrastructure/timeoff.drizzle.adapter';
 import { BranchSettingsDrizzleAdapter } from './infrastructure/branch-settings.drizzle.adapter';
+import { AuthModule } from '../auth/auth.module';
+import { CalendarSseService } from './calendar-sse.service';
+import { CalendarRealtimeBridge } from './calendar.realtime';
+import { CalendarRealtimePublisher } from './calendar-realtime.publisher';
 
 @Module({
+  imports: [AuthModule],
   controllers: [CalendarController],
   providers: [
     GetCalendarDayUseCase,
+    CalendarSseService,
+    CalendarRealtimeBridge,
+    CalendarRealtimePublisher,
 
     {
       provide: APPOINTMENTS_PORT,
@@ -32,5 +40,6 @@ import { BranchSettingsDrizzleAdapter } from './infrastructure/branch-settings.d
       useClass: BranchSettingsDrizzleAdapter,
     },
   ],
+  exports: [CalendarRealtimePublisher],
 })
 export class CalendarModule {}

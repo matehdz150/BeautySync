@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Inject,
   Param,
   Patch,
   Post,
@@ -25,9 +26,29 @@ import { UpdateStaffTimeOffRuleDto } from './dto/update-staff-time-off-rule.dto'
 import { GetStaffTimeOffDetailUseCase } from '../core/use-cases/get-staff-timeoff-details.use-case';
 import { GetAvailableTimeOffStartSlotsUseCase } from '../core/use-cases/availability/get-available-timeoff-slots.use-case';
 import { GetAvailableTimeOffEndSlotsUseCase } from '../core/use-cases/availability/get-available-timeoff-end.use-case';
+import { CalendarRealtimePublisher } from 'src/modules/calendar/calendar-realtime.publisher';
+import * as client from 'src/modules/db/client';
+import { eq } from 'drizzle-orm';
+import { staff, staffTimeOff } from 'src/modules/db/schema';
 
 @Controller('staff-time-off')
 export class StaffTimeOffController {
+  private async resolveBranchIdFromRuleId(ruleId: number) {
+    const rule = await this.db.query.staffTimeOffRules.findFirst({
+      where: (t, { eq }) => eq(t.id, ruleId),
+      columns: { staffId: true },
+    });
+
+    if (!rule?.staffId) return null;
+
+    const staffMember = await this.db.query.staff.findFirst({
+      where: eq(staff.id, rule.staffId),
+      columns: { branchId: true },
+    });
+
+    return staffMember?.branchId ?? null;
+  }
+
   constructor(
     private readonly createUseCase: CreateStaffTimeOffUseCase,
     private readonly updateUseCase: UpdateStaffTimeOffUseCase,
@@ -41,6 +62,8 @@ export class StaffTimeOffController {
 
     private readonly getStartSlotsUseCase: GetAvailableTimeOffStartSlotsUseCase,
     private readonly getEndSlotsUseCase: GetAvailableTimeOffEndSlotsUseCase,
+    private readonly calendarRealtime: CalendarRealtimePublisher,
+    @Inject('DB') private readonly db: client.DB,
   ) {}
 
   // -------------------------
@@ -79,8 +102,8 @@ export class StaffTimeOffController {
   // -------------------------
 
   @Post()
-  create(@Body() dto: CreateStaffTimeOffDto) {
-    return this.createUseCase.execute({
+  async create(@Body() dto: CreateStaffTimeOffDto) {
+    const result = await this.createUseCase.execute({
       branchId: dto.branchId,
       staffId: dto.staffId,
 
@@ -100,6 +123,13 @@ export class StaffTimeOffController {
           }
         : undefined,
     });
+
+    await this.calendarRealtime.emitInvalidate({
+      branchId: dto.branchId,
+      reason: 'timeoff.created',
+    });
+
+    return result;
   }
 
   // -------------------------
@@ -107,8 +137,13 @@ export class StaffTimeOffController {
   // -------------------------
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateStaffTimeOffDto) {
-    return this.updateUseCase.execute({
+  async update(@Param('id') id: string, @Body() dto: UpdateStaffTimeOffDto) {
+    const existing = await this.db.query.staffTimeOff.findFirst({
+      where: eq(staffTimeOff.id, Number(id)),
+      columns: { branchId: true },
+    });
+
+    const result = await this.updateUseCase.execute({
       id: Number(id),
 
       start: dto.start ? new Date(dto.start) : undefined,
@@ -126,6 +161,15 @@ export class StaffTimeOffController {
           }
         : undefined,
     });
+
+    if (existing?.branchId) {
+      await this.calendarRealtime.emitInvalidate({
+        branchId: existing.branchId,
+        reason: 'timeoff.updated',
+      });
+    }
+
+    return result;
   }
 
   // -------------------------
@@ -133,8 +177,22 @@ export class StaffTimeOffController {
   // -------------------------
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.deleteUseCase.execute(Number(id));
+  async remove(@Param('id') id: string) {
+    const existing = await this.db.query.staffTimeOff.findFirst({
+      where: eq(staffTimeOff.id, Number(id)),
+      columns: { branchId: true },
+    });
+
+    const result = await this.deleteUseCase.execute(Number(id));
+
+    if (existing?.branchId) {
+      await this.calendarRealtime.emitInvalidate({
+        branchId: existing.branchId,
+        reason: 'timeoff.deleted',
+      });
+    }
+
+    return result;
   }
 
   // =====================================================
@@ -146,12 +204,26 @@ export class StaffTimeOffController {
   // -------------------------
 
   @Patch('rules/:id')
-  updateRule(@Param('id') id: string, @Body() dto: UpdateStaffTimeOffRuleDto) {
-    return this.updateRuleUseCase.execute(Number(id), {
+  async updateRule(
+    @Param('id') id: string,
+    @Body() dto: UpdateStaffTimeOffRuleDto,
+  ) {
+    const branchId = await this.resolveBranchIdFromRuleId(Number(id));
+
+    const result = await this.updateRuleUseCase.execute(Number(id), {
       ...dto,
       startDate: dto.startDate ? new Date(dto.startDate) : undefined,
       endDate: dto.endDate ? new Date(dto.endDate) : undefined,
     });
+
+    if (branchId) {
+      await this.calendarRealtime.emitInvalidate({
+        branchId,
+        reason: 'timeoff.rule.updated',
+      });
+    }
+
+    return result;
   }
 
   // -------------------------
@@ -159,8 +231,19 @@ export class StaffTimeOffController {
   // -------------------------
 
   @Delete('rules/:id')
-  deleteRule(@Param('id') id: string) {
-    return this.deleteRuleUseCase.execute(Number(id));
+  async deleteRule(@Param('id') id: string) {
+    const branchId = await this.resolveBranchIdFromRuleId(Number(id));
+
+    const result = await this.deleteRuleUseCase.execute(Number(id));
+
+    if (branchId) {
+      await this.calendarRealtime.emitInvalidate({
+        branchId,
+        reason: 'timeoff.rule.deleted',
+      });
+    }
+
+    return result;
   }
 
   @Get('availability/start')

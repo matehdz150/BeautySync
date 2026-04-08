@@ -50,6 +50,7 @@ import { SLOT_LOCK_PORT } from '../cache/core/ports/tokens';
 import { SlotLockPort } from '../cache/core/ports/slot-lock.port';
 import { ValidateCouponUseCase } from '../cupons/core/use-cases/validate-cupon.use-case';
 import { DomainEventBus } from 'src/shared/domain-events/domain-event-bus';
+import { CalendarRealtimePublisher } from '../calendar/calendar-realtime.publisher';
 
 @Injectable()
 export class BookingsCoreService {
@@ -61,6 +62,7 @@ export class BookingsCoreService {
     @Inject(SLOT_LOCK_PORT)
     private readonly slotLock: SlotLockPort,
     private readonly eventBus: DomainEventBus,
+    private readonly calendarRealtime: CalendarRealtimePublisher,
   ) {}
 
   async createPublicBooking(dto: CreatePublicBookingDto, publicUserId: string) {
@@ -554,6 +556,11 @@ export class BookingsCoreService {
       totalCents: bookingTotalCents,
     });
 
+    await this.calendarRealtime.emitInvalidate({
+      branchId: branch.id,
+      reason: 'booking.created',
+    });
+
     return result;
   }
 
@@ -964,6 +971,11 @@ export class BookingsCoreService {
         endsAtUtc: bookingEndsAtUtc,
       });
     }
+
+    await this.calendarRealtime.emitInvalidate({
+      branchId: branch.id,
+      reason: 'booking.created',
+    });
 
     return result;
   }
@@ -1777,6 +1789,11 @@ export class BookingsCoreService {
       cancelledBy,
     });
 
+    await this.calendarRealtime.emitInvalidate({
+      branchId: booking.branchId,
+      reason: 'booking.cancelled',
+    });
+
     return {
       ok: true,
       bookingId,
@@ -2126,6 +2143,12 @@ export class BookingsCoreService {
         },
       },
     });
+
+    await this.calendarRealtime.emitInvalidate({
+      branchId: booking.branchId,
+      reason: 'booking.rescheduled',
+    });
+
     return {
       ok: true,
       bookingId: result.bookingId,

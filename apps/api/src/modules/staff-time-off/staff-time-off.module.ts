@@ -26,10 +26,11 @@ import { GetStaffTimeOffDetailUseCase } from './core/use-cases/get-staff-timeoff
 import { GetAvailableTimeOffStartSlotsUseCase } from './core/use-cases/availability/get-available-timeoff-slots.use-case';
 import { GetAvailableTimeOffEndSlotsUseCase } from './core/use-cases/availability/get-available-timeoff-end.use-case';
 import { AvailabilityModule } from '../availability/availability.module';
+import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
   controllers: [StaffTimeOffController],
-  imports: [AvailabilityModule],
+  imports: [AvailabilityModule, CalendarModule],
 
   providers: [
     // timeoff usecases
