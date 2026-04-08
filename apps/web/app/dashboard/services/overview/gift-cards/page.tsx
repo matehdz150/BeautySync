@@ -72,7 +72,7 @@ function GiftCardsPage() {
   }
 
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <main className="p-6 space-y-6 mx-auto h-dvh flex flex-col overflow-hidden">
       {/* ========================= */}
       {/* HEADER */}
       {/* ========================= */}
@@ -109,130 +109,111 @@ function GiftCardsPage() {
         </div>
       </div>
 
-      {/* ========================= */}
-      {/* EMPTY STATE */}
-      {/* ========================= */}
-      {giftCards.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center gap-6">
-          {/* 🔥 DEMO CARD */}
-          <div
-            className="w-[320px] h-[180px] rounded-3xl p-6 text-white flex flex-col justify-between shadow-lg"
-            style={{
-              background: "linear-gradient(135deg, #5b5bf7, #c14ef0)",
-            }}
-          >
-            <p className="text-lg font-semibold opacity-90">
-              {branch?.name ?? "Tu negocio"}
-            </p>
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-50">
+        {/* ========================= */}
+        {/* EMPTY STATE */}
+        {/* ========================= */}
+        {giftCards.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-center gap-6">
+            <div
+              className="w-[320px] h-[180px] rounded-3xl p-6 text-white flex flex-col justify-between shadow-lg"
+              style={{
+                background: "linear-gradient(135deg, #5b5bf7, #c14ef0)",
+              }}
+            >
+              <p className="text-lg font-semibold opacity-90">
+                {branch?.name ?? "Tu negocio"}
+              </p>
+              <p className="text-3xl font-bold">$500</p>
+              <p className="text-xs opacity-80 font-mono">XXXX-XXXX</p>
+            </div>
 
-            <p className="text-3xl font-bold">$500</p>
-
-            <p className="text-xs opacity-80 font-mono">XXXX-XXXX</p>
+            <div>
+              <p className="text-lg font-medium">No tienes gift cards</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Crea la primera para empezar a vender crédito a tus clientes
+              </p>
+            </div>
           </div>
+        )}
 
-          {/* 🔥 TEXT */}
-          <div>
-            <p className="text-lg font-medium">No tienes gift cards</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Crea la primera para empezar a vender crédito a tus clientes
-            </p>
-          </div>
-        </div>
-      )}
+        {/* ========================= */}
+        {/* LIST */}
+        {/* ========================= */}
+        {giftCards.length > 0 && (
+          <div className="rounded-2xl overflow-hidden">
+            <div className="grid grid-cols-7 gap-4 px-6 py-3 text-base font-medium text-black ">
+              <span>Gift Card</span>
+              <span>Código</span>
+              <span>Cliente</span>
+              <span>Saldo</span>
+              <span>Inicial</span>
+              <span>Estado</span>
+              <span>Acciones</span>
+            </div>
 
-      {/* ========================= */}
-      {/* LIST */}
-      {/* ========================= */}
-      {giftCards.length > 0 && (
-        <div className=" rounded-2xl overflow-hidden">
-          {/* ========================= */}
-          {/* HEADER */}
-          {/* ========================= */}
-          <div className="grid grid-cols-7 gap-4 px-6 py-3 text-base font-medium text-black ">
-            <span>Gift Card</span>
-            <span>Código</span>
-            <span>Cliente</span>
-            <span>Saldo</span>
-            <span>Inicial</span>
-            <span>Estado</span>
-            <span>Acciones</span>
-          </div>
+            {giftCards.map((card) => {
+              const balance = (card.balanceCents / 100).toFixed(2);
+              const initial = (card.initialAmountCents / 100).toFixed(2);
 
-          {/* ========================= */}
-          {/* ROWS */}
-          {/* ========================= */}
-          {giftCards.map((card) => {
-            const balance = (card.balanceCents / 100).toFixed(2);
-            const initial = (card.initialAmountCents / 100).toFixed(2);
-
-            return (
-              <div
-                key={card.id}
-                className="grid grid-cols-7 gap-4 items-center px-6 py-3 border-t hover:bg-muted/40 transition border-b"
-              >
-                {/* 🔥 MINI CARD */}
+              return (
                 <div
-                  className="w-[100px] h-[62px] rounded-md px-2 py-1.5 text-white flex flex-col justify-between"
-                  style={{
-                    background: "linear-gradient(135deg, #5b5bf7, #c14ef0)",
-                  }}
+                  key={card.id}
+                  className="grid grid-cols-7 gap-4 items-center px-6 py-3 border-t hover:bg-muted/40 transition border-b"
                 >
-                  <div className="flex justify-between items-start">
-                    <p className="text-[8px] opacity-80 truncate max-w-[60px]">
-                      {branch?.name ?? "Gift"}
+                  <div
+                    className="w-[100px] h-[62px] rounded-md px-2 py-1.5 text-white flex flex-col justify-between"
+                    style={{
+                      background: "linear-gradient(135deg, #5b5bf7, #c14ef0)",
+                    }}
+                  >
+                    <div className="flex justify-between items-start">
+                      <p className="text-[8px] opacity-80 truncate max-w-[60px]">
+                        {branch?.name ?? "Gift"}
+                      </p>
+                      <span className="text-[7px] opacity-70">MXN</span>
+                    </div>
+
+                    <p className="text-[11px] font-semibold leading-none">
+                      ${balance}
                     </p>
 
-                    <span className="text-[7px] opacity-70">MXN</span>
+                    <p className="text-[7px] opacity-70 font-mono truncate">
+                      {card.code.slice(0, 8)}
+                    </p>
                   </div>
 
-                  <p className="text-[11px] font-semibold leading-none">
-                    ${balance}
-                  </p>
+                  <div className="text-sm font-mono truncate">{card.code}</div>
 
-                  <p className="text-[7px] opacity-70 font-mono truncate">
-                    {card.code.slice(0, 8)}
-                  </p>
-                </div>
+                  <div className="text-sm">
+                    {card.ownerUser ? (
+                      <Button
+                        variant="ghost"
+                        tooltip={card.ownerUser.email ?? "Sin email"}
+                        className="h-auto px-2 py-1 flex items-center gap-2 justify-start"
+                      >
+                        <Avatar className="w-12 h-12">
+                          {card.ownerUser.avatarUrl && (
+                            <AvatarImage src={card.ownerUser.avatarUrl} />
+                          )}
+                          <AvatarFallback className="bg-indigo-100 text-xs">
+                            {getInitials(card.ownerUser.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Sin asignar
+                      </span>
+                    )}
+                  </div>
 
-                {/* CODE */}
-                <div className="text-sm font-mono truncate">{card.code}</div>
+                  <div className="text-sm font-semibold">${balance}</div>
+                  <div className="text-sm text-muted-foreground">${initial}</div>
 
-                {/* CLIENT */}
-                <div className="text-sm">
-                  {card.ownerUser ? (
-                    <Button
-                      variant="ghost"
-                      tooltip={card.ownerUser.email ?? "Sin email"}
-                      className="h-auto px-2 py-1 flex items-center gap-2 justify-start"
-                    >
-                      {/* AVATAR */}
-                      <Avatar className="w-12 h-12">
-                        {card.ownerUser.avatarUrl && (
-                          <AvatarImage src={card.ownerUser.avatarUrl} />
-                        )}
-
-                        <AvatarFallback className="bg-indigo-100 text-xs">
-                          {getInitials(card.ownerUser.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                    </Button>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">
-                      Sin asignar
-                    </span>
-                  )}
-                </div>
-
-                {/* BALANCE */}
-                <div className="text-sm font-semibold">${balance}</div>
-
-                {/* INITIAL */}
-                <div className="text-sm text-muted-foreground">${initial}</div>
-
-                {/* STATUS */}
-                <div>
-                  <span
-                    className={`
+                  <div>
+                    <span
+                      className={`
                 text-xs px-2 py-1 rounded-full
                 ${
                   card.status === "active"
@@ -240,24 +221,24 @@ function GiftCardsPage() {
                     : "bg-gray-200 text-gray-700"
                 }
               `}
-                  >
-                    {card.status}
-                  </span>
-                </div>
+                    >
+                      {card.status}
+                    </span>
+                  </div>
 
-                {/* ACTIONS */}
-                <GiftCardActionsDropdown card={card} onReload={load} />
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  <GiftCardActionsDropdown card={card} onReload={load} />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* ========================= */}
       {/* SHEET */}
       {/* ========================= */}
       <CreateGiftCardSheet onCreated={load} />
-    </div>
+    </main>
   );
 }
 
