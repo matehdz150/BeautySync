@@ -1,13 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { CreatePublicBookingDto } from '../dto/create-booking-public.dto';
 import { BookingsCoreService } from '../booking.core.service';
+import { metricsStore } from 'src/modules/metrics/metrics.store';
+import { trackAction } from 'src/modules/metrics/action-metrics';
 
 @Injectable()
 export class BookingsPublicService {
   constructor(private readonly core: BookingsCoreService) {}
 
   async createPublicBooking(dto: CreatePublicBookingDto, publicUserId: string) {
-    const res = await this.core.createPublicBooking(dto, publicUserId);
+    const res = await trackAction('CREATE_BOOKING', () =>
+      this.core.createPublicBooking(dto, publicUserId),
+    );
+    metricsStore.recordBooking();
 
     return {
       ok: true,

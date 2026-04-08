@@ -10,16 +10,15 @@ import {
 import type { Request, Response } from 'express';
 
 import { LoginGoogleUseCase } from 'src/modules/auth/core/use-cases/public/login-google.use-case';
-import { GetUserBySessionUseCase } from 'src/modules/auth/core/use-cases/public/get-user-by-session.use-case';
-import { LogoutPublicUseCase } from 'src/modules/auth/core/use-cases/public/logout-public.use-case';
+import { PublicSession, PublicUser } from '../../decorators/public-user.decorator';
 import { PublicAuthGuard } from '../../guards/public-auth.guard';
+import { TokensService } from '../../services/tokens.service';
 
 @Controller('public/auth')
 export class PublicAuthController {
   constructor(
     private readonly loginGoogleUseCase: LoginGoogleUseCase,
-    private readonly getUserBySessionUseCase: GetUserBySessionUseCase,
-    private readonly logoutPublicSessionUseCase: LogoutPublicUseCase,
+    private readonly tokensService: TokensService,
   ) {}
 
   /*
@@ -51,7 +50,15 @@ export class PublicAuthController {
 
     const cookieName = process.env.PUBLIC_SESSION_COOKIE_NAME ?? 'pubsid';
 
-    res.cookie(cookieName, result.sessionId, {
+    res.cookie(
+      cookieName,
+      this.tokensService.signPublicToken({
+        id: result.user.id,
+        email: result.user.email,
+        name: result.user.name,
+        avatarUrl: result.user.avatarUrl,
+      }),
+      {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -62,7 +69,8 @@ export class PublicAuthController {
         60 *
         24 *
         Number(process.env.PUBLIC_SESSION_TTL_DAYS ?? '30'),
-    });
+      },
+    );
 
     return { ok: true };
   }
@@ -74,21 +82,11 @@ export class PublicAuthController {
   */
   @UseGuards(PublicAuthGuard)
   @Get('me')
-  async me(@Req() req: Request) {
-    const cookieName = process.env.PUBLIC_SESSION_COOKIE_NAME ?? 'pubsid';
-
-    const sessionId = req.cookies?.[cookieName] ?? '';
-
-    const user = await this.getUserBySessionUseCase.execute(sessionId);
-
-    if (!user) {
-      return { ok: true, user: null };
-    }
-
+  async me(@PublicUser() user: PublicSession) {
     return {
       ok: true,
       user: {
-        id: user.id,
+        id: user.publicUserId,
         email: user.email,
         name: user.name,
         avatarUrl: user.avatarUrl,
@@ -103,12 +101,11 @@ export class PublicAuthController {
   */
 
   @Post('logout')
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async logout(
+    @Req() _req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const cookieName = process.env.PUBLIC_SESSION_COOKIE_NAME ?? 'pubsid';
-
-    const sessionId = req.cookies?.[cookieName] ?? '';
-
-    await this.logoutPublicSessionUseCase.execute(sessionId);
 
     res.clearCookie(cookieName, { path: '/' });
 

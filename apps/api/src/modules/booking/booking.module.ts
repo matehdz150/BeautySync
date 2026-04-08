@@ -12,6 +12,7 @@ import { CacheModule } from '../cache/cache.module';
 import { CouponsModule } from '../cupons/cupons.module';
 import { DomainEventsModule } from 'src/shared/domain-events/domain-events.module';
 import { CalendarModule } from '../calendar/calendar.module';
+import { AvailabilityModule } from '../availability/availability.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { CalendarModule } from '../calendar/calendar.module';
     CouponsModule,
     DomainEventsModule,
     CalendarModule,
+    AvailabilityModule,
   ],
   controllers: [BookingsPublicController, BookingsManagerController],
   providers: [

@@ -4,6 +4,9 @@ import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 import 'reflect-metadata';
 import { ensureBookingConstraints } from './modules/db/setupConstraints';
+import { MetricsInterceptor } from './modules/metrics/metrics.interceptor';
+import { metricsStore } from './modules/metrics/metrics.store';
+import { getMetricsSnapshotIntervalMs } from './modules/metrics/metrics.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -27,6 +30,9 @@ async function bootstrap() {
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   app.use(cookieParser());
+
+  app.useGlobalInterceptors(app.get(MetricsInterceptor));
+  metricsStore.startSnapshotLogger(getMetricsSnapshotIntervalMs());
 
   await app.listen(8000);
 }

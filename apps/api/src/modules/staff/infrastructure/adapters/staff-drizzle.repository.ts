@@ -42,6 +42,20 @@ function toIso(value: unknown): string {
   return new Date(value as string).toISOString();
 }
 
+function parseJsonArray<T>(value: unknown): T[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T[];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
 @Injectable()
 export class StaffDrizzleRepository implements StaffRepository {
   constructor(@Inject('DB') private db: client.DB) {}
@@ -152,6 +166,10 @@ export class StaffDrizzleRepository implements StaffRepository {
 
   async findByBranch(branchId: string, user: AuthenticatedUser) {
     const branchRow = await this.db.query.branches.findFirst({
+      columns: {
+        id: true,
+        organizationId: true,
+      },
       where: eq(branches.id, branchId),
     });
 
@@ -163,65 +181,106 @@ export class StaffDrizzleRepository implements StaffRepository {
       throw new ForbiddenException('You cannot access this branch');
     }
 
-    const rows = await this.db.query.staff.findMany({
-      where: and(eq(staff.branchId, branchId), eq(staff.isActive, true)),
-      with: {
-        schedules: true,
-        services: {
-          with: {
-            service: {
-              with: {
-                category: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    const ratings = await this.db.execute<{
-      staffId: string;
-      avgRating: number | null;
+    const rows = await this.db.execute<{
+      id: string;
+      name: string;
+      email: string | null;
+      avatarUrl: string | null;
+      status: 'pending' | 'active' | 'disabled';
+      jobRole: string | null;
+      isActive: boolean;
+      rating: number | null;
+      schedules: unknown;
+      services: unknown;
     }>(sql`
-  SELECT 
-    prs.staff_id as "staffId",
-    AVG(pbr.rating)::float as "avgRating"
-  FROM public_booking_rating_staff prs
-  JOIN public_booking_ratings pbr 
-    ON pbr.id = prs.rating_id
-  GROUP BY prs.staff_id
-`);
+      SELECT
+        s.id AS "id",
+        s.name AS "name",
+        s.email AS "email",
+        s.avatar_url AS "avatarUrl",
+        s.status AS "status",
+        s."jobRole" AS "jobRole",
+        s.is_active AS "isActive",
+        COALESCE(r.avg_rating, 0)::float AS "rating",
+        COALESCE(sch.items, '[]'::json) AS "schedules",
+        COALESCE(srv.items, '[]'::json) AS "services"
+      FROM staff s
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', ss.id,
+            'dayOfWeek', ss.day_of_week,
+            'startTime', ss.start_time,
+            'endTime', ss.end_time
+          )
+          ORDER BY ss.day_of_week, ss.start_time
+        ) AS items
+        FROM staff_schedules ss
+        WHERE ss.staff_id = s.id
+      ) sch ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', sv.id,
+            'name', sv.name,
+            'durationMin', sv.duration_min,
+            'priceCents', sv.price_cents,
+            'category', sc.name,
+            'categoryColor', sc.color_hex,
+            'categoryIcon', sc.icon
+          )
+          ORDER BY sv.name
+        ) AS items
+        FROM staff_services ssv
+        JOIN services sv
+          ON sv.id = ssv.service_id
+        LEFT JOIN service_categories sc
+          ON sc.id = sv.category_id
+        WHERE ssv.staff_id = s.id
+      ) srv ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT AVG(pbr.rating)::float AS avg_rating
+        FROM public_booking_rating_staff prs
+        JOIN public_booking_ratings pbr
+          ON pbr.id = prs.rating_id
+        WHERE prs.staff_id = s.id
+      ) r ON TRUE
+      WHERE s.branch_id = ${branchId}
+        AND s.is_active = TRUE
+      ORDER BY s.name ASC
+    `);
 
-    const ratingMap = new Map<string, number>();
+    return rows.map((row) => {
+      const schedules = parseJsonArray<{
+        id: number;
+        dayOfWeek: number;
+        startTime: string;
+        endTime: string;
+      }>(row.schedules);
+      const services = parseJsonArray<{
+        id: string;
+        name: string;
+        durationMin: number;
+        priceCents?: number | null;
+        category?: string | null;
+        categoryColor?: string | null;
+        categoryIcon?: string | null;
+      }>(row.services);
 
-    for (const r of ratings) {
-      ratingMap.set(r.staffId, r.avgRating ?? 0);
-    }
-
-    return rows.map((s) => ({
-      id: s.id,
-      name: s.name,
-      email: s.email,
-      avatarUrl: s.avatarUrl,
-      status: s.status,
-      jobRole: s.jobRole,
-      schedule: resumirHorario(s.schedules),
-      isActive: s.isActive,
-
-      services: s.services.map((ss) => ({
-        id: ss.service.id,
-        name: ss.service.name,
-        durationMin: ss.service.durationMin,
-        priceCents: ss.service.priceCents,
-
-        category: ss.service.category?.name ?? null,
-        categoryColor: ss.service.category?.colorHex ?? null,
-        categoryIcon: ss.service.category?.icon ?? null,
-      })),
-
-      // 🔥 REAL
-      rating: ratingMap.get(s.id) ?? 0,
-    }));
+      return {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        avatarUrl: row.avatarUrl,
+        status: row.status,
+        jobRole: row.jobRole,
+        schedule: resumirHorario(schedules),
+        isActive: row.isActive,
+        schedules,
+        services,
+        rating: row.rating ?? 0,
+      };
+    });
   }
 
   async update(

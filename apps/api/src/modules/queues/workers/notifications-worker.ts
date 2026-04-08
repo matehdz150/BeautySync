@@ -8,6 +8,7 @@ import { redis } from '../redis/redis.provider';
 import { db } from '../../db/client';
 import { notifications } from '../../db/schema/notifications/notifications';
 import { sql } from 'drizzle-orm';
+import { trackJobMetric } from '../../metrics/bullmq-metrics';
 
 /* =========================================================
    🔎 HELPERS
@@ -295,7 +296,7 @@ async function main() {
 
   const worker = new Worker(
     'notifications',
-    async (job) => handler(job.name, job.data),
+    async (job) => trackJobMetric(job.name, () => handler(job.name, job.data)),
     {
       connection: redis,
       concurrency: 10,

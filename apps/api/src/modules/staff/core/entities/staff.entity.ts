@@ -37,7 +37,16 @@ export interface StaffListItem {
   email: string | null;
   avatarUrl: string | null;
   jobRole: string | null;
+  status: 'pending' | 'active' | 'disabled';
   isActive: boolean;
+  schedule: string;
+  schedules: {
+    id: number;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+  }[];
+  rating: number;
 
   services: {
     id: string;

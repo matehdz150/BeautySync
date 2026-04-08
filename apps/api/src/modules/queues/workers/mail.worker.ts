@@ -19,6 +19,7 @@ import {
   buildGiftCardMail,
   GiftCardPayload,
 } from '../mail/gift-card/gift-card-mail.builder';
+import { trackJobMetric } from '../../metrics/bullmq-metrics';
 
 const transporter: Transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
@@ -45,68 +46,74 @@ function isBookingMail(name: string): name is BookingMailName {
 
 export const mailWorker = new BullWorker(
   'mail-queue',
-  async (job) => {
-    console.log('📩 Procesando correo:', job.name, job.data);
+  async (job) =>
+    trackJobMetric(job.name, async () => {
+      console.log('📩 Procesando correo:', job.name, job.data);
 
-    // =============================
-    // STAFF INVITE
-    // =============================
-    if (job.name === 'invite-staff') {
-      const data = job.data as StaffInviteMailPayload;
+      // =============================
+      // STAFF INVITE
+      // =============================
+      if (job.name === 'invite-staff') {
+        const data = job.data as StaffInviteMailPayload;
 
-      const { subject, html } = await buildStaffInviteMail(data);
+        const { subject, html } = await buildStaffInviteMail(data);
 
-      await transporter.sendMail({
-        from: '"Belza" <no-reply@belza.com>',
-        to: data.to,
-        subject,
-        html,
-      });
+        await transporter.sendMail({
+          from: '"Belza" <no-reply@belza.com>',
+          to: data.to,
+          subject,
+          html,
+        });
 
-      console.log('📨 Invite email sent →', data.to);
-      return;
-    }
+        console.log('📨 Invite email sent →', data.to);
+        return;
+      }
 
-    if (job.name === 'gift-card-issued') {
-      const data = job.data as GiftCardPayload;
+      if (job.name === 'gift-card-issued') {
+        const data = job.data as GiftCardPayload;
 
-      const { subject, html } = await buildGiftCardMail(data);
+        const { subject, html } = await buildGiftCardMail(data);
 
-      await transporter.sendMail({
-        from: '"Belza" <no-reply@belza.com>',
-        to: data.to,
-        subject,
-        html,
-      });
+        await transporter.sendMail({
+          from: '"Belza" <no-reply@belza.com>',
+          to: data.to,
+          subject,
+          html,
+        });
 
-      console.log('📨 giftcard email sent →', data.to);
-      return;
-    }
+        console.log('📨 giftcard email sent →', data.to);
+        return;
+      }
 
-    // =============================
-    // BOOKING MAILS (REACT EMAIL)
-    // =============================
-    if (isBookingMail(job.name)) {
-      const data = job.data as BookingMailPayload;
+      // =============================
+      // BOOKING MAILS (REACT EMAIL)
+      // =============================
+      if (isBookingMail(job.name)) {
+        const data = job.data as BookingMailPayload;
 
-      const { subject, html } = await buildBookingMail(job.name, data);
+        const { subject, html } = await buildBookingMail(job.name, data);
 
-      console.log('HTML type:', typeof html);
-      console.log('HTML preview:', html?.slice?.(0, 80));
+        console.log('HTML type:', typeof html);
+        console.log('HTML preview:', html?.slice?.(0, 80));
 
-      await transporter.sendMail({
-        from: '"Belza" <no-reply@belza.com>',
-        to: data.to,
-        subject,
-        html,
-      });
+        await transporter.sendMail({
+          from: '"Belza" <no-reply@belza.com>',
+          to: data.to,
+          subject,
+          html,
+        });
 
-      console.log('📨 Booking email sent →', job.name, data.to, data.bookingId);
-      return;
-    }
+        console.log(
+          '📨 Booking email sent →',
+          job.name,
+          data.to,
+          data.bookingId,
+        );
+        return;
+      }
 
-    console.log('⚠️ Job no manejado:', job.name);
-  },
+      console.log('⚠️ Job no manejado:', job.name);
+    }),
   { connection: redis },
 );
 

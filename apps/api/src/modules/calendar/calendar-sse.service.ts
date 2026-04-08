@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Response } from 'express';
+import { logMetric } from '../metrics/structured-metrics.logger';
+import { metricsStore } from '../metrics/metrics.store';
 
 interface Client {
   res: Response;
@@ -9,6 +11,16 @@ interface Client {
 @Injectable()
 export class CalendarSseService {
   private branches = new Map<string, Set<Client>>();
+
+  private getActiveConnections() {
+    let total = 0;
+
+    for (const clients of this.branches.values()) {
+      total += clients.size;
+    }
+
+    return total;
+  }
 
   addClient(branchId: string, res: Response) {
     if (!this.branches.has(branchId)) {
@@ -34,6 +46,14 @@ export class CalendarSseService {
     if (!clients) return;
 
     const payload = `event: ${evt.event}\ndata: ${JSON.stringify(evt.data)}\n\n`;
+    const connections = this.getActiveConnections();
+
+    metricsStore.recordSseEvent();
+    logMetric({
+      type: 'sse_event',
+      event: evt.event,
+      connections,
+    });
 
     for (const client of clients) {
       client.res.write(payload);

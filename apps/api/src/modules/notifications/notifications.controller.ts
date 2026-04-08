@@ -11,7 +11,6 @@ import {
   Query,
   Res,
   UnauthorizedException,
-  Inject,
 } from '@nestjs/common';
 import express from 'express';
 
@@ -22,9 +21,7 @@ import { JwtAuthGuard } from '../auth/application/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/application/guards/roles.guard';
 import { Roles } from '../auth/application/decorators/roles.decorator';
 import { NotificationsSseService } from './notifications-sse.service';
-import { and, eq } from 'drizzle-orm';
-import { branches } from '../db/schema';
-import * as client from 'src/modules/db/client';
+import { AuthenticatedUser } from '../auth/core/entities/authenticatedUser.entity';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('owner', 'manager')
@@ -33,7 +30,6 @@ export class NotificationsController {
   constructor(
     private readonly service: NotificationsService,
     private readonly sseService: NotificationsSseService,
-    @Inject('DB') private db: client.DB,
   ) {}
 
   /**
@@ -51,21 +47,10 @@ export class NotificationsController {
     @Res() res: express.Response,
     @Query('branchId') branchId?: string,
   ) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const user = req.user as any;
+    const user = req.user as AuthenticatedUser | undefined;
 
     if (!branchId) throw new UnauthorizedException('branchId requerido');
-
-    // 🔐 Validar que la branch pertenece a su organización
-    const branch = await this.db.query.branches.findFirst({
-      where: and(
-        eq(branches.id, branchId),
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-        eq(branches.organizationId, user.orgId),
-      ),
-    });
-
-    if (!branch) throw new UnauthorizedException('branch no válida');
+    if (!user?.orgId) throw new UnauthorizedException('organization requerida');
 
     // 🔥 headers SSE correctos
     res.setHeader('Content-Type', 'text/event-stream');
@@ -87,13 +72,13 @@ export class NotificationsController {
    */
   @Get()
   findMine(
-    @Req() req: { user: { id: string } },
+    @Req() req: { user: AuthenticatedUser },
     @Query('unread') unread?: string,
     @Query('kind') kind?: 'ALL' | 'BOOKING' | 'CHAT',
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.service.findForManager(req.user.id, {
+    return this.service.findForManager(req.user.orgId, {
       unread: unread === 'true',
       kind,
       cursor,
@@ -104,9 +89,9 @@ export class NotificationsController {
   @Get('item/:id')
   getListItem(
     @Param('id') notificationId: string,
-    @Req() req: { user: { id: string } },
+    @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.service.getNotificationListItem(notificationId, req.user.id);
+    return this.service.getNotificationListItem(notificationId, req.user.orgId);
   }
 
   /**
@@ -115,9 +100,9 @@ export class NotificationsController {
   @Patch(':id/read')
   markAsRead(
     @Param('id') notificationId: string,
-    @Req() req: { user: { id: string } },
+    @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.service.markAsRead(notificationId, req.user.id);
+    return this.service.markAsRead(notificationId, req.user.orgId);
   }
 
   /**
@@ -131,8 +116,8 @@ export class NotificationsController {
   @Get(':id')
   getDetail(
     @Param('id') notificationId: string,
-    @Req() req: { user: { id: string } },
+    @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.service.getNotificationDetail(notificationId, req.user.id);
+    return this.service.getNotificationDetail(notificationId, req.user.orgId);
   }
 }

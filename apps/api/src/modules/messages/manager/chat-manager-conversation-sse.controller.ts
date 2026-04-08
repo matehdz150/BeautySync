@@ -14,6 +14,7 @@ import express from 'express';
 import { eq } from 'drizzle-orm';
 
 import { JwtAuthGuard } from 'src/modules/auth/application/guards/jwt-auth.guard';
+import { logRealtimeDebug } from 'src/modules/metrics/metrics.config';
 import { ChatSseService } from '../core/ChatSse.service';
 
 import * as client from 'src/modules/db/client';
@@ -33,7 +34,7 @@ export class ChatConversationSseController {
     @Res() res: express.Response,
     @Param('conversationId') conversationId: string,
   ) {
-    console.log('SSE CONNECT PID', process.pid);
+    logRealtimeDebug('SSE CONNECT PID', process.pid);
     const user = req.user as any;
 
     const conversation = await this.db.query.conversations.findFirst({

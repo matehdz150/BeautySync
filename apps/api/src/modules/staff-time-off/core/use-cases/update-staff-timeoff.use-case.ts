@@ -9,6 +9,7 @@ import {
 } from '../ports/tokens';
 
 import { CreateStaffTimeOffUseCase } from './create-staff-timeoff.use-case';
+import { AvailabilityCacheService } from 'src/modules/availability/infrastructure/adapters/availability-cache.service';
 
 @Injectable()
 export class UpdateStaffTimeOffUseCase {
@@ -20,6 +21,7 @@ export class UpdateStaffTimeOffUseCase {
     private rulesRepo: StaffTimeOffRulesRepository,
 
     private readonly createUseCase: CreateStaffTimeOffUseCase,
+    private readonly availabilityCache: AvailabilityCacheService,
   ) {}
 
   async execute(params: {
@@ -61,13 +63,15 @@ export class UpdateStaffTimeOffUseCase {
 
       try {
         // 🔥 recrear con misma lógica que create
-        return await this.createUseCase.execute({
+        const recreated = await this.createUseCase.execute({
           branchId,
           staffId,
           start,
           end,
           reason,
         });
+        await this.availabilityCache.invalidate(branchId);
+        return recreated;
       } catch (e) {
         // 🔥 rollback
         await this.repo.create({
@@ -103,11 +107,13 @@ export class UpdateStaffTimeOffUseCase {
     }
 
     // 🔥 recrear con lógica completa de reglas
-    return this.createUseCase.execute({
+    const result = await this.createUseCase.execute({
       branchId,
       staffId,
       reason,
       rule,
     });
+    await this.availabilityCache.invalidate(branchId);
+    return result;
   }
 }

@@ -31,6 +31,7 @@ import { AcceptInviteUseCase } from 'src/modules/auth/core/use-cases/manager/acc
 
 import { TokensService } from '../../services/tokens.service';
 import { RefreshJwtGuard } from '../../guards/refresh-jwt.guard';
+import { BranchCacheService } from 'src/modules/cache/application/branch-cache.service';
 
 @Controller('auth')
 export class AuthController {
@@ -41,6 +42,7 @@ export class AuthController {
     private validateInviteUseCase: ValidateInviteUseCase,
     private acceptInviteUseCase: AcceptInviteUseCase,
     private tokensService: TokensService,
+    private readonly branchCache: BranchCacheService,
   ) {}
 
   /*
@@ -68,11 +70,15 @@ export class AuthController {
     @Res({ passthrough: true }) res: express.Response,
   ) {
     const user = await this.registerOwnerUseCase.execute(dto);
+    const branchIds = user.organizationId
+      ? await this.branchCache.getBranchIds(user.organizationId)
+      : [];
 
-    const tokens = this.tokensService.signTokens({
+    const tokens = this.tokensService.signManagerTokens({
       id: user.id,
       role: user.role,
       organizationId: user.organizationId ?? null,
+      branchIds,
     });
 
     res.cookie('accessToken', tokens.accessToken, {
@@ -111,11 +117,15 @@ export class AuthController {
     @Res({ passthrough: true }) res: express.Response,
   ) {
     const result = await this.loginUseCase.execute(dto.email, dto.password);
+    const branchIds = result.user.organizationId
+      ? await this.branchCache.getBranchIds(result.user.organizationId)
+      : [];
 
-    const tokens = this.tokensService.signTokens({
+    const tokens = this.tokensService.signManagerTokens({
       id: result.user.id,
       role: result.user.role,
       organizationId: result.user.organizationId,
+      branchIds,
     });
 
     res.cookie('accessToken', tokens.accessToken, {
@@ -173,19 +183,27 @@ export class AuthController {
 
   @Post('refresh')
   @UseGuards(RefreshJwtGuard)
-  refresh(@Req() req: any, @Res({ passthrough: true }) res: express.Response) {
+  async refresh(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: express.Response,
+  ) {
     type JwtPayload = {
       sub: string;
       role: string;
       orgId: string | null;
+      branchIds: string[];
     };
 
     const payload = req.user as JwtPayload;
+    const branchIds = payload.orgId
+      ? await this.branchCache.getBranchIds(payload.orgId)
+      : [];
 
-    const tokens = this.tokensService.signTokens({
+    const tokens = this.tokensService.signManagerTokens({
       id: payload.sub,
       role: payload.role,
       organizationId: payload.orgId,
+      branchIds,
     });
 
     res.cookie('accessToken', tokens.accessToken, {

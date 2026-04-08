@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
@@ -21,6 +20,7 @@ import { staff } from '../../db/schema/staff/staff';
 
 import type { BookingMailPayload } from '../mail/types/mail.types';
 import { randomUUID } from 'crypto';
+import { trackJobMetric } from '../../metrics/bullmq-metrics';
 
 const mailQueue = new Queue('mail-queue', {
   connection: redis,
@@ -522,7 +522,7 @@ async function main() {
 
   const worker = new Worker(
     'booking-events',
-    async (job) => handler(job.name, job.data),
+    async (job) => trackJobMetric(job.name, () => handler(job.name, job.data)),
     {
       connection: redis,
       concurrency: 10,

@@ -15,19 +15,23 @@ import {
 } from '../../core/ports/branches.repository';
 import { BranchMapper } from '../mappers/branch.mapper';
 import { Branch } from '../../core/entities/branch.entity';
+import {
+  BranchCacheService,
+} from 'src/modules/cache/application/branch-cache.service';
 
 @Injectable()
 export class BranchesDrizzleRepository implements BranchesRepository {
-  constructor(@Inject('DB') private db: client.DB) {}
+  constructor(
+    @Inject('DB') private db: client.DB,
+    private readonly branchCache: BranchCacheService,
+  ) {}
 
   findAll() {
     return this.db.select().from(branches);
   }
 
-  findByOrg(orgId: string) {
-    return this.db.query.branches.findMany({
-      where: eq(branches.organizationId, orgId),
-    });
+  async findByOrg(orgId: string) {
+    return this.branchCache.getBranches(orgId);
   }
 
   async create(data: CreateBranchInput) {

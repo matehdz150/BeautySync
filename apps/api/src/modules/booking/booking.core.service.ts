@@ -51,6 +51,48 @@ import { SlotLockPort } from '../cache/core/ports/slot-lock.port';
 import { ValidateCouponUseCase } from '../cupons/core/use-cases/validate-cupon.use-case';
 import { DomainEventBus } from 'src/shared/domain-events/domain-event-bus';
 import { CalendarRealtimePublisher } from '../calendar/calendar-realtime.publisher';
+import { PublicBranchCacheService } from '../cache/application/public-branch-cache.service';
+import { BranchSettingsCacheService } from '../cache/application/branch-settings-cache.service';
+import { BranchServicesCacheService } from '../cache/application/branch-services-cache.service';
+import { BranchStaffCacheService } from '../cache/application/branch-staff-cache.service';
+import { AvailabilityCacheService } from '../availability/infrastructure/adapters/availability-cache.service';
+
+function parseJsonArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T[];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+type PublicBookingAppointmentRow = {
+  id: string;
+  status: string;
+  startUtc: string;
+  endUtc: string;
+  priceCents: number | null;
+  service: { id: string; name: string };
+  staff: { id: string; name: string; avatarUrl: string | null };
+};
+
+type ManagerBookingAppointmentRow = {
+  id: string;
+  status: string;
+  paymentStatus: string;
+  startUtc: string;
+  endUtc: string;
+  priceCents: number | null;
+  service: { id: string; name: string; categoryColor: string };
+  staff: { id: string; name: string; avatarUrl: string | null };
+};
 
 @Injectable()
 export class BookingsCoreService {
@@ -63,13 +105,21 @@ export class BookingsCoreService {
     private readonly slotLock: SlotLockPort,
     private readonly eventBus: DomainEventBus,
     private readonly calendarRealtime: CalendarRealtimePublisher,
+    private readonly publicBranchCache: PublicBranchCacheService,
+    private readonly branchSettingsCache: BranchSettingsCacheService,
+    private readonly branchServicesCache: BranchServicesCacheService,
+    private readonly branchStaffCache: BranchStaffCacheService,
+    private readonly availabilityCache: AvailabilityCacheService,
   ) {}
 
   async createPublicBooking(dto: CreatePublicBookingDto, publicUserId: string) {
     async function getOrCreateClientForPublicUser(params: {
       tx: any;
       publicUser: typeof publicUsers.$inferSelect;
-      branch: typeof branches.$inferSelect;
+      branch: {
+        id: string;
+        organizationId: string;
+      };
     }) {
       const { tx, publicUser, branch } = params;
 
@@ -122,22 +172,18 @@ export class BookingsCoreService {
       });
     }
 
-    const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.publicSlug, branchSlug),
-    });
+    const branch = await this.publicBranchCache.getBySlug(branchSlug);
 
     if (!branch) throw new NotFoundException('Branch not found');
     if (!branch.publicPresenceEnabled) {
       throw new ForbiddenException('Branch is not public');
     }
 
-    const settings = await this.db.query.branchSettings.findFirst({
-      where: eq(branchSettings.branchId, branch.id),
-    });
+    const settings = await this.branchSettingsCache.get(branch.id);
 
-    const tz = settings?.timezone ?? 'America/Mexico_City';
-    const bufferBefore = settings?.bufferBeforeMin ?? 0;
-    const bufferAfter = settings?.bufferAfterMin ?? 0;
+    const tz = settings.timezone;
+    const bufferBefore = settings.bufferBeforeMin;
+    const bufferAfter = settings.bufferAfterMin;
 
     const BLOCK_MINUTES = 15;
 
@@ -149,26 +195,29 @@ export class BookingsCoreService {
 
     const bookingId = randomUUID();
 
-    const normalized = await Promise.all(
-      drafts.map(async (a) => {
-        const service = await this.db.query.services.findFirst({
-          where: and(
-            eq(services.id, a.serviceId),
-            eq(services.branchId, branch.id),
-            eq(services.isActive, true),
-          ),
-        });
+    const requestedServiceIds = [...new Set(drafts.map((draft) => draft.serviceId))];
+    const requestedStaffIds = [...new Set(drafts.map((draft) => draft.staffId))];
+    const servicesMap = await this.branchServicesCache.getActiveMap(branch.id);
+    const staffMap = await this.branchStaffCache.getActiveMap(branch.id);
 
-        const staffRow = await this.db.query.staff.findFirst({
-          where: and(eq(staff.id, a.staffId), eq(staff.branchId, branch.id)),
-        });
+    for (const serviceId of requestedServiceIds) {
+      if (!servicesMap.has(serviceId)) {
+        throw new BadRequestException(`Service not found: ${serviceId}`);
+      }
+    }
+
+    for (const staffId of requestedStaffIds) {
+      if (!staffMap.has(staffId)) {
+        throw new BadRequestException(`Staff not found: ${staffId}`);
+      }
+    }
+
+    const normalized = drafts.map((a) => {
+        const service = servicesMap.get(a.serviceId);
+        const staffRow = staffMap.get(a.staffId);
 
         if (!staffRow) {
           throw new BadRequestException(`Staff not found: ${a.staffId}`);
-        }
-
-        if (!staffRow.isActive) {
-          throw new BadRequestException(`Staff is not available for booking`);
         }
 
         if (!service) {
@@ -211,9 +260,9 @@ export class BookingsCoreService {
           endUtc,
           priceCents: service.priceCents,
           notes: dto.notes ?? null,
+          serviceName: service.name,
         };
-      }),
-    );
+      });
 
     normalized.sort((x, y) =>
       x.startUtc.toISO()!.localeCompare(y.startUtc.toISO()),
@@ -401,45 +450,44 @@ export class BookingsCoreService {
             .where(eq(coupons.id, couponId));
         }
 
-        const created = await Promise.all(
-          normalized.map(async (a) => {
-            try {
-              const [row] = await tx
-                .insert(appointments)
-                .values({
-                  publicBookingId: a.publicBookingId,
-                  publicUserId,
-                  clientId,
-                  branchId: a.branchId,
-                  staffId: a.staffId,
-                  serviceId: a.serviceId,
-                  start: a.startUtc.toJSDate(),
-                  end: a.endUtc.toJSDate(),
-                  status: 'CONFIRMED',
-                  paymentStatus:
-                    dto.paymentMethod === PublicPaymentMethodEnum.ONLINE
-                      ? 'PAID'
-                      : 'UNPAID',
-                  notes: a.notes,
-                  priceCents: a.priceCents,
-                })
-                .returning();
+        let created: (typeof appointments.$inferSelect)[];
+        try {
+          created = await tx
+            .insert(appointments)
+            .values(
+              normalized.map((a) => ({
+                publicBookingId: a.publicBookingId,
+                publicUserId,
+                clientId,
+                branchId: a.branchId,
+                staffId: a.staffId,
+                serviceId: a.serviceId,
+                start: a.startUtc.toJSDate(),
+                end: a.endUtc.toJSDate(),
+                status: 'CONFIRMED' as const,
+                paymentStatus:
+                  dto.paymentMethod === PublicPaymentMethodEnum.ONLINE
+                    ? ('PAID' as const)
+                    : ('UNPAID' as const),
+                notes: a.notes,
+                priceCents: a.priceCents,
+              })),
+            )
+            .returning();
+        } catch (e: any) {
+          if (e?.code === '23P01') {
+            throw new BadRequestException('Timeslot already booked');
+          }
 
-              await tx.insert(appointmentStatusHistory).values({
-                appointmentId: row.id,
-                newStatus: 'CONFIRMED',
-                reason: 'Public booking',
-              });
+          throw e;
+        }
 
-              return row;
-            } catch (e: any) {
-              if (e?.code === '23P01') {
-                throw new BadRequestException('Timeslot already booked');
-              }
-
-              throw e;
-            }
-          }),
+        await tx.insert(appointmentStatusHistory).values(
+          created.map((row) => ({
+            appointmentId: row.id,
+            newStatus: 'CONFIRMED',
+            reason: 'Public booking',
+          })),
         );
 
         return {
@@ -488,40 +536,25 @@ export class BookingsCoreService {
     // =========================
     // 🔔 BUILD NOTIFICATION DATA (READ ONLY)
     // =========================
-
-    // 1️⃣ Servicios usados
-    const serviceIds = [
-      ...new Set(result.appointments.map((a) => a.serviceId)),
+    const staffUserIds = [
+      ...new Set(
+        requestedStaffIds
+          .map((staffId) => staffMap.get(staffId)?.userId)
+          .filter((value): value is string => Boolean(value)),
+      ),
     ];
 
-    const servicesUsed = await this.db
-      .select({
-        id: services.id,
-        name: services.name,
-        durationMin: services.durationMin,
-        priceCents: services.priceCents,
-      })
-      .from(services)
-      .where(inArray(services.id, serviceIds));
-
-    // 2️⃣ Staff asignado
-    const staffIds = [...new Set(result.appointments.map((a) => a.staffId))];
-
-    const staffMembers = await this.db
-      .select({
-        id: users.id,
-        name: users.name,
-        avatarUrl: users.avatarUrl,
-      })
-      .from(users)
-      .where(inArray(users.id, staffIds));
-
-    // 3️⃣ Cliente
-    const client = result.clientId
-      ? await this.db.query.clients.findFirst({
-          where: eq(clients.id, result.clientId),
-        })
-      : null;
+    const staffMembers =
+      staffUserIds.length > 0
+        ? await this.db
+            .select({
+              id: users.id,
+              name: users.name,
+              avatarUrl: users.avatarUrl,
+            })
+            .from(users)
+            .where(inArray(users.id, staffUserIds))
+        : [];
 
     await this.notificationsJobService.bookingCreated({
       bookingId,
@@ -532,18 +565,21 @@ export class BookingsCoreService {
         endsAt: bookingEndsAtUtc,
       },
 
-      services: servicesUsed.map((s) => ({
-        id: s.id,
-        name: s.name,
-        durationMin: s.durationMin,
-        priceCents: s.priceCents ?? 0,
-      })),
+      services: requestedServiceIds.map((serviceId) => {
+        const service = servicesMap.get(serviceId)!;
+        return {
+          id: service.id,
+          name: service.name,
+          durationMin: service.durationMin,
+          priceCents: service.priceCents ?? 0,
+        };
+      }),
 
-      client: client
+      client: result.clientId
         ? {
-            id: client.id,
-            name: client.name,
-            avatarUrl: client.avatarUrl,
+            id: result.clientId,
+            name: publicUser.name ?? 'Cliente',
+            avatarUrl: publicUser.avatarUrl ?? null,
           }
         : undefined,
 
@@ -561,6 +597,8 @@ export class BookingsCoreService {
       reason: 'booking.created',
     });
 
+    await this.availabilityCache.invalidate(branch.id);
+
     return result;
   }
 
@@ -573,127 +611,132 @@ export class BookingsCoreService {
     if (!bookingId) throw new BadRequestException('bookingId is required');
     if (!publicUserId) throw new ForbiddenException('Not authenticated');
 
-    // ✅ 0) Traer booking (source of truth)
-    const booking = await this.db.query.publicBookings.findFirst({
-      where: and(
-        eq(publicBookings.id, bookingId),
-        eq(publicBookings.publicUserId, publicUserId),
-      ),
-    });
+    const [booking] = (await this.db.execute(sql`
+      SELECT
+        pb.id,
+        pb.status,
+        pb.starts_at as "startsAt",
+        pb.ends_at as "endsAt",
+        pb.payment_method as "paymentMethod",
+        pb.notes,
+        pb.total_cents as "totalCents",
+        b.id as "branchId",
+        b.name as "branchName",
+        b.public_slug as "branchSlug",
+        b.address as "branchAddress",
+        (
+          SELECT bi.url
+          FROM branch_images bi
+          WHERE bi.branch_id = b.id
+          ORDER BY bi.is_cover DESC, bi.position ASC NULLS LAST, bi.created_at ASC
+          LIMIT 1
+        ) as "imageUrl",
+        bs.timezone,
+        COALESCE(bs.cancelation_window_min, 120) as "cancelationWindowMin",
+        COALESCE(bs.reschedule_window_min, 480) as "rescheduleWindowMin",
+        pbr.rating as "ratingValue",
+        pbr.comment as "ratingComment",
+        pbr.created_at as "ratingCreatedAt",
+        COALESCE((
+          SELECT json_agg(
+            json_build_object(
+              'id', a.id,
+              'status', a.status,
+              'startUtc', a.start,
+              'endUtc', a."end",
+              'priceCents', a.price_cents,
+              'service', json_build_object(
+                'id', s.id,
+                'name', s.name
+              ),
+              'staff', json_build_object(
+                'id', st.id,
+                'name', st.name,
+                'avatarUrl', st.avatar_url
+              )
+            )
+            ORDER BY a.start ASC
+          )
+          FROM appointments a
+          INNER JOIN services s ON s.id = a.service_id
+          INNER JOIN staff st ON st.id = a.staff_id
+          WHERE a.public_booking_id = pb.id
+        ), '[]'::json) as appointments
+      FROM public_bookings pb
+      INNER JOIN branches b ON b.id = pb.branch_id
+      LEFT JOIN branch_settings bs ON bs.branch_id = b.id
+      LEFT JOIN public_booking_ratings pbr ON pbr.booking_id = pb.id
+      WHERE pb.id = ${bookingId}
+        AND pb.public_user_id = ${publicUserId}
+        AND b.public_presence_enabled = true
+      LIMIT 1
+    `)) as Array<{
+      id: string;
+      status: string;
+      startsAt: Date;
+      endsAt: Date;
+      paymentMethod: string | null;
+      notes: string | null;
+      totalCents: number | null;
+      branchId: string;
+      branchName: string;
+      branchSlug: string | null;
+      branchAddress: string | null;
+      imageUrl: string | null;
+      timezone: string | null;
+      cancelationWindowMin: number | null;
+      rescheduleWindowMin: number | null;
+      ratingValue: number | null;
+      ratingComment: string | null;
+      ratingCreatedAt: Date | null;
+      appointments:
+        | Array<{
+            id: string;
+            status: string;
+            startUtc: string;
+            endUtc: string;
+            priceCents: number | null;
+            service: { id: string; name: string };
+            staff: { id: string; name: string; avatarUrl: string | null };
+          }>
+        | string
+        | null;
+    }>;
 
     if (!booking) {
-      // same message para no filtrar info
       throw new NotFoundException('Booking not found');
     }
 
-    // 1) Traer appointments del booking
-    const rows = await this.db.query.appointments.findMany({
-      where: eq(appointments.publicBookingId, bookingId),
-    });
-
-    if (!rows.length) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    // (defensivo) ownership check extra
-    if (rows.some((r) => r.publicUserId !== publicUserId)) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    // 2) Branch
-    const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.id, booking.branchId),
-      with: { images: true },
-    });
-
-    if (!branch) throw new NotFoundException('Branch not found');
-    if (!branch.publicPresenceEnabled) {
-      throw new ForbiddenException('Branch is not public');
-    }
-
-    // 3) Settings (timezone)
-    const settings = await this.db.query.branchSettings.findFirst({
-      where: eq(branchSettings.branchId, branch.id),
-    });
-
-    const policies = {
-      cancelationWindowMin: settings?.cancelationWindowMin ?? 120,
-      rescheduleWindowMin: settings?.rescheduleWindowMin ?? 480,
-    };
-
-    const tz = settings?.timezone ?? 'America/Mexico_City';
-
-    // 4) cargar services y staff de los appointments
-    const serviceIds = Array.from(new Set(rows.map((r) => r.serviceId)));
-    const staffIds = Array.from(new Set(rows.map((r) => r.staffId)));
-
-    const servicesRows = await this.db.query.services.findMany({
-      where: inArray(services.id, serviceIds),
-    });
-
-    const staffRows = await this.db.query.staff.findMany({
-      where: inArray(staff.id, staffIds),
-    });
-
-    const rating = await this.db.query.publicBookingRatings.findFirst({
-      where: eq(publicBookingRatings.bookingId, bookingId),
-    });
-
-    const servicesMap = new Map(servicesRows.map((s) => [s.id, s]));
-    const staffMap = new Map(staffRows.map((s) => [s.id, s]));
-
-    // 5) ordenar appointments por start
-    const ordered = [...rows].sort((a, b) => {
-      const aIso = new Date(a.start).toISOString();
-      const bIso = new Date(b.start).toISOString();
-      return aIso.localeCompare(bIso);
-    });
-
-    // 6) construir payload appointments (con ISO local en tz)
-    const appointmentPayload = ordered.map((a) => {
-      const srv = servicesMap.get(a.serviceId);
-      const st = staffMap.get(a.staffId);
-
-      const startUtc = DateTime.fromJSDate(a.start, { zone: 'utc' });
-      const endUtc = DateTime.fromJSDate(a.end, { zone: 'utc' });
+    const tz = booking.timezone ?? 'America/Mexico_City';
+    const appointmentsPayload = parseJsonArray<PublicBookingAppointmentRow>(
+      booking.appointments,
+    ).map((appointment) => {
+      const startUtc = DateTime.fromISO(String(appointment.startUtc), {
+        zone: 'utc',
+      });
+      const endUtc = DateTime.fromISO(String(appointment.endUtc), {
+        zone: 'utc',
+      });
 
       return {
-        id: a.id,
-        status: a.status,
-
+        id: appointment.id,
+        status: appointment.status,
         startIso: startUtc.setZone(tz).toISO()!,
         endIso: endUtc.setZone(tz).toISO()!,
-
         durationMin: Math.round(endUtc.diff(startUtc, 'minutes').minutes),
-
-        priceCents: a.priceCents ?? srv?.priceCents ?? 0,
-
-        service: {
-          id: srv?.id ?? a.serviceId,
-          name: srv?.name ?? 'Servicio',
+        priceCents: appointment.priceCents ?? 0,
+        service: appointment.service,
+        staff: {
+          ...appointment.staff,
+          avatarUrl: appointment.staff.avatarUrl ?? null,
         },
-
-        staff: st
-          ? {
-              id: st.id,
-              name: st.name,
-              avatarUrl: st.avatarUrl ?? null,
-            }
-          : {
-              id: a.staffId,
-              name: 'Staff',
-              avatarUrl: null,
-            },
       };
     });
 
-    // 7) cover
-    const coverUrl =
-      branch.images?.find((img) => img.isCover)?.url ??
-      branch.images?.[0]?.url ??
-      null;
+    if (!appointmentsPayload.length) {
+      throw new NotFoundException('Booking not found');
+    }
 
-    // 8) date del booking usando startsAt del booking (source of truth)
     const bookingDate = DateTime.fromJSDate(booking.startsAt, { zone: 'utc' })
       .setZone(tz)
       .toISODate();
@@ -702,41 +745,40 @@ export class BookingsCoreService {
       ok: true,
       booking: {
         id: bookingId,
-
-        status: booking.status, // ✅ viene de public_bookings
+        status: booking.status,
         startsAtISO: DateTime.fromJSDate(booking.startsAt, {
           zone: 'utc',
         }).toISO()!,
         endsAtISO: DateTime.fromJSDate(booking.endsAt, {
           zone: 'utc',
         }).toISO()!,
-        rating: rating
+        rating: booking.ratingValue !== null
           ? {
-              value: rating.rating,
-              comment: rating.comment ?? null,
-              createdAt: rating.createdAt
-                ? rating.createdAt.toISOString()
+              value: booking.ratingValue,
+              comment: booking.ratingComment ?? null,
+              createdAt: booking.ratingCreatedAt
+                ? booking.ratingCreatedAt.toISOString()
                 : null,
             }
           : null,
 
         branch: {
-          id: branch.id,
-          slug: branch.publicSlug,
-          name: branch.name,
-          address: branch.address ?? '',
-          imageUrl: coverUrl,
+          id: booking.branchId,
+          slug: booking.branchSlug,
+          name: booking.branchName,
+          address: booking.branchAddress ?? '',
+          imageUrl: booking.imageUrl,
         },
 
-        policies,
-
+        policies: {
+          cancelationWindowMin: booking.cancelationWindowMin ?? 120,
+          rescheduleWindowMin: booking.rescheduleWindowMin ?? 480,
+        },
         date: bookingDate,
-
-        paymentMethod: booking.paymentMethod, // ✅ source of truth
-        notes: booking.notes ?? null, // ✅ source of truth
-
-        totalCents: booking.totalCents, // ✅ source of truth
-        appointments: appointmentPayload,
+        paymentMethod: booking.paymentMethod,
+        notes: booking.notes ?? null,
+        totalCents: booking.totalCents,
+        appointments: appointmentsPayload,
       },
     };
   }
@@ -1320,131 +1362,127 @@ export class BookingsCoreService {
       throw new BadRequestException('bookingId is required');
     }
 
-    // 1) Appointments del booking
-    const rows = await this.db.query.appointments.findMany({
-      where: eq(appointments.publicBookingId, bookingId),
-    });
+    const [booking] = (await this.db.execute(sql`
+      SELECT
+        pb.id,
+        pb.status,
+        pb.starts_at as "startsAt",
+        pb.ends_at as "endsAt",
+        b.id as "branchId",
+        b.name as "branchName",
+        bs.timezone,
+        c.id as "clientId",
+        c.name as "clientName",
+        c.phone as "clientPhone",
+        c.email as "clientEmail",
+        COALESCE(c.avatar_url, pu.avatar_url) as "clientAvatarUrl",
+        CASE WHEN pu.id IS NULL THEN false ELSE true END as "hasPublicUser",
+        COALESCE((
+          SELECT json_agg(
+            json_build_object(
+              'id', a.id,
+              'status', a.status,
+              'paymentStatus', a.payment_status,
+              'startUtc', a.start,
+              'endUtc', a."end",
+              'priceCents', a.price_cents,
+              'service', json_build_object(
+                'id', s.id,
+                'name', s.name,
+                'categoryColor', COALESCE(sc.color_hex, '#A78BFA')
+              ),
+              'staff', json_build_object(
+                'id', st.id,
+                'name', st.name,
+                'avatarUrl', st.avatar_url
+              )
+            )
+            ORDER BY a.start ASC
+          )
+          FROM appointments a
+          INNER JOIN services s ON s.id = a.service_id
+          LEFT JOIN service_categories sc ON sc.id = s.category_id
+          INNER JOIN staff st ON st.id = a.staff_id
+          WHERE a.public_booking_id = pb.id
+        ), '[]'::json) as appointments
+      FROM public_bookings pb
+      INNER JOIN branches b ON b.id = pb.branch_id
+      LEFT JOIN branch_settings bs ON bs.branch_id = b.id
+      LEFT JOIN clients c ON c.id = (
+        SELECT a.client_id
+        FROM appointments a
+        WHERE a.public_booking_id = pb.id
+        LIMIT 1
+      )
+      LEFT JOIN public_user_clients puc ON puc.client_id = c.id
+      LEFT JOIN public_users pu ON pu.id = puc.public_user_id
+      WHERE pb.id = ${bookingId}
+      LIMIT 1
+    `)) as Array<{
+      id: string;
+      status: string;
+      startsAt: Date;
+      endsAt: Date;
+      branchId: string;
+      branchName: string;
+      timezone: string | null;
+      clientId: string | null;
+      clientName: string | null;
+      clientPhone: string | null;
+      clientEmail: string | null;
+      clientAvatarUrl: string | null;
+      hasPublicUser: boolean;
+      appointments:
+        | Array<{
+            id: string;
+            status: string;
+            paymentStatus: string;
+            startUtc: string;
+            endUtc: string;
+            priceCents: number | null;
+            service: { id: string; name: string; categoryColor: string };
+            staff: { id: string; name: string; avatarUrl: string | null };
+          }>
+        | string
+        | null;
+    }>;
 
-    if (!rows.length) {
+    if (!booking) {
       throw new NotFoundException('Booking not found');
     }
 
-    // 1.5) Booking (source of truth)
-    const bookingRow = await this.db.query.publicBookings.findFirst({
-      where: eq(publicBookings.id, bookingId),
-    });
-
-    if (!bookingRow) {
-      throw new NotFoundException('Public booking not found');
-    }
-
-    // 2) Branch
-    const branchId = rows[0].branchId;
-
-    const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.id, branchId),
-    });
-
-    if (!branch) throw new NotFoundException('Branch not found');
-
-    // 3) Settings (timezone)
-    const settings = await this.db.query.branchSettings.findFirst({
-      where: eq(branchSettings.branchId, branch.id),
-    });
-
-    const tz = settings?.timezone ?? 'America/Mexico_City';
-
-    // 4) Cliente (puede ser null)
-    const clientId = rows[0].clientId;
-
-    const clientRow = clientId
-      ? await this.db.query.clients.findFirst({
-          where: eq(clients.id, clientId),
-          with: {
-            publicUsers: {
-              with: {
-                publicUser: true,
-              },
-            },
-          },
-        })
-      : null;
-
-    const hasPublicUser = !!clientRow?.publicUsers?.length;
-
-    // 🔑 resolver avatar del cliente
-    const publicUserAvatar =
-      clientRow?.publicUsers?.[0]?.publicUser?.avatarUrl ?? null;
-
-    const clientAvatar = clientRow?.avatarUrl ?? publicUserAvatar ?? null;
-
-    // 5) Services & Staff
-    const serviceIds = Array.from(new Set(rows.map((r) => r.serviceId)));
-    const staffIds = Array.from(new Set(rows.map((r) => r.staffId)));
-
-    const servicesRows = await this.db.query.services.findMany({
-      where: inArray(services.id, serviceIds),
-      with: { category: true },
-    });
-
-    const staffRows = await this.db.query.staff.findMany({
-      where: inArray(staff.id, staffIds),
-    });
-
-    const servicesMap = new Map(servicesRows.map((s) => [s.id, s]));
-    const staffMap = new Map(staffRows.map((s) => [s.id, s]));
-
-    // 6) Ordenar appointments
-    const ordered = [...rows].sort(
-      (a, b) => a.start.getTime() - b.start.getTime(),
-    );
-
-    // 7) Appointments payload
-    const appointmentPayload = ordered.map((a) => {
-      const srv = servicesMap.get(a.serviceId);
-      const st = staffMap.get(a.staffId);
-
-      const startUtc = DateTime.fromJSDate(a.start, { zone: 'utc' });
-      const endUtc = DateTime.fromJSDate(a.end, { zone: 'utc' });
+    const tz = booking.timezone ?? 'America/Mexico_City';
+    const appointmentPayload = parseJsonArray<ManagerBookingAppointmentRow>(
+      booking.appointments,
+    ).map((appointment) => {
+      const startUtc = DateTime.fromISO(String(appointment.startUtc), {
+        zone: 'utc',
+      });
+      const endUtc = DateTime.fromISO(String(appointment.endUtc), {
+        zone: 'utc',
+      });
 
       return {
-        id: a.id,
-        status: a.status,
-        paymentStatus: a.paymentStatus,
-
+        id: appointment.id,
+        status: appointment.status,
+        paymentStatus: appointment.paymentStatus,
         startIso: startUtc.setZone(tz).toISO()!,
         endIso: endUtc.setZone(tz).toISO()!,
-
         durationMin: Math.round(endUtc.diff(startUtc, 'minutes').minutes),
-        priceCents: a.priceCents ?? srv?.priceCents ?? 0,
-
-        service: {
-          id: srv?.id ?? a.serviceId,
-          name: srv?.name ?? 'Servicio',
-          categoryColor: srv?.category?.colorHex ?? '#A78BFA',
+        priceCents: appointment.priceCents ?? 0,
+        service: appointment.service,
+        staff: {
+          ...appointment.staff,
+          avatarUrl: appointment.staff.avatarUrl ?? null,
         },
-
-        staff: st
-          ? {
-              id: st.id,
-              name: st.name,
-              avatarUrl: st.avatarUrl ?? null,
-            }
-          : {
-              id: a.staffId,
-              name: 'Staff',
-              avatarUrl: null,
-            },
       };
     });
 
-    // 8) Totales
-    const bookingStartsAtUtc = ordered[0].start;
-    const bookingEndsAtUtc = ordered[ordered.length - 1].end;
+    if (!appointmentPayload.length) {
+      throw new NotFoundException('Booking not found');
+    }
 
-    const totalCents = ordered.reduce((acc, a) => acc + (a.priceCents ?? 0), 0);
-
-    const bookingDate = DateTime.fromJSDate(bookingStartsAtUtc, { zone: 'utc' })
+    const bookingDate = DateTime.fromJSDate(booking.startsAt, { zone: 'utc' })
       .setZone(tz)
       .toISODate();
 
@@ -1453,38 +1491,35 @@ export class BookingsCoreService {
       ok: true,
       booking: {
         id: bookingId,
-        status: bookingRow.status,
-
+        status: booking.status,
         date: bookingDate,
-
-        startsAtISO: DateTime.fromJSDate(bookingStartsAtUtc, {
+        startsAtISO: DateTime.fromJSDate(booking.startsAt, {
           zone: 'utc',
         }).toISO()!,
-        endsAtISO: DateTime.fromJSDate(bookingEndsAtUtc, {
+        endsAtISO: DateTime.fromJSDate(booking.endsAt, {
           zone: 'utc',
         }).toISO()!,
-
         branch: {
-          id: branch.id,
-          name: branch.name,
+          id: booking.branchId,
+          name: booking.branchName,
         },
-
-        client: clientRow
+        client: booking.clientId
           ? {
-              id: clientRow.id,
-              name: clientRow.name,
-              phone: clientRow.phone,
-              email: clientRow.email,
-              avatarUrl: clientAvatar,
-              hasPublicUser,
+              id: booking.clientId,
+              name: booking.clientName,
+              phone: booking.clientPhone,
+              email: booking.clientEmail,
+              avatarUrl: booking.clientAvatarUrl,
+              hasPublicUser: booking.hasPublicUser,
             }
           : null,
-
-        paymentStatus: ordered.every((a) => a.paymentStatus === 'PAID')
+        paymentStatus: appointmentPayload.every((a) => a.paymentStatus === 'PAID')
           ? 'PAID'
           : 'UNPAID',
-
-        totalCents,
+        totalCents: appointmentPayload.reduce(
+          (acc, appointment) => acc + (appointment.priceCents ?? 0),
+          0,
+        ),
         appointments: appointmentPayload,
       },
     };
@@ -1793,6 +1828,8 @@ export class BookingsCoreService {
       branchId: booking.branchId,
       reason: 'booking.cancelled',
     });
+
+    await this.availabilityCache.invalidate(booking.branchId);
 
     return {
       ok: true,

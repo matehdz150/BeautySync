@@ -4,19 +4,20 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { BadRequestException, Injectable, Inject } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 
-import * as client from 'src/modules/db/client';
-import { services, staff, staffServices } from 'src/modules/db/schema';
-
 import { AvailabilityService } from './availability.service';
+import { GetSlotsForDayFromIndexUseCase } from '../../core/use-cases/get-slots-for-day-from-index.use-case';
+import { SLOT_LOCK_PORT } from 'src/modules/cache/core/ports/tokens';
+import { SlotLockPort } from 'src/modules/cache/core/ports/slot-lock.port';
 
 @Injectable()
 export class AvailabilityCoreService {
   constructor(
-    @Inject('DB') private db: client.DB,
     private availabilityService: AvailabilityService,
+    private readonly getSlotsForDayFromIndex: GetSlotsForDayFromIndexUseCase,
+    @Inject(SLOT_LOCK_PORT)
+    private readonly slotLock: SlotLockPort,
   ) {}
 
   async getAvailableTimes({
@@ -79,11 +80,6 @@ export class AvailabilityCoreService {
     }
 
     // =====================
-    // TIMEZONE CONSTANT (CHANGE HERE)
-    // =====================
-    const BRANCH_TZ = 'America/Mexico_City';
-
-    // =====================
     // TYPES (PLAN)
     // =====================
 
@@ -118,6 +114,12 @@ export class AvailabilityCoreService {
     // =====================
 
     const STEP_MIN = 15;
+    const index = await this.availabilityService.getAvailabilityIndex({
+      branchId,
+      date,
+    });
+    const settings = index.settings;
+    const BRANCH_TZ = settings.timezone;
 
     function ceilToStepIso(isoUtc: string, stepMin = STEP_MIN) {
       const dt = DateTime.fromISO(isoUtc, { zone: 'utc' });
@@ -216,84 +218,57 @@ export class AvailabilityCoreService {
     // 2️⃣ Load durations for each service
     // =====================
 
-    const durationByService = new Map<string, number>();
-
-    for (const step of chain) {
-      if (durationByService.has(step.serviceId)) continue;
-
-      const service = await this.db.query.services.findFirst({
-        where: and(
-          eq(services.id, step.serviceId),
-          eq(services.branchId, branchId),
-          eq(services.isActive, true),
+    const uniqueServiceIds = [...new Set(chain.map((s) => s.serviceId))];
+    const durationByService = new Map(
+      uniqueServiceIds
+        .map((serviceId) => {
+          const durationMin = index.serviceDurations.get(serviceId);
+          return typeof durationMin === 'number'
+            ? ([serviceId, durationMin] as const)
+            : null;
+        })
+        .filter(
+          (entry): entry is readonly [string, number] => entry !== null,
         ),
-      });
+    );
 
-      if (!service?.durationMin) {
-        throw new BadRequestException(
-          `Invalid service in chain: ${step.serviceId}`,
-        );
+    for (const id of uniqueServiceIds) {
+      if (!durationByService.has(id)) {
+        throw new BadRequestException(`Invalid service in chain: ${id}`);
       }
-
-      durationByService.set(step.serviceId, service.durationMin);
     }
 
+    const lockedByStaff = await this.slotLock.listLockedStarts({
+      branchId,
+      staffIds: [
+        ...new Set((index.byDay.get(date)?.slots ?? []).map((slot) => slot.staffId)),
+      ],
+      date,
+    });
+
+    const availability = this.getSlotsForDayFromIndex.execute({
+      index,
+      date,
+      branchId,
+      settings,
+      requiredDurationMin: 0,
+      lockedStartsByStaff: lockedByStaff,
+    });
+
+    const staffSlotsById = new Map<string, Set<string>>();
+    for (const s of availability.staff) {
+      staffSlotsById.set(s.staffId, buildSlotSet(s.slots));
+    }
+
+    const EMPTY_SLOT_SET = new Set<string>();
+    const getStaffSlotSet = (staffId: string): Set<string> =>
+      staffSlotsById.get(staffId) ?? EMPTY_SLOT_SET;
+
     // =====================
-    // 3️⃣ Cache: staff slots (availability)
+    // 4️⃣ Eligible staff for service (for ANY) - batch
     // =====================
 
-    const staffSlotsCache = new Map<string, Set<string>>();
-
-    const getStaffSlotSet = async (staffId: string): Promise<Set<string>> => {
-      const cached = staffSlotsCache.get(staffId);
-      if (cached) return cached;
-
-      const availability = await this.availabilityService.getAvailability({
-        branchId,
-        staffId,
-        date,
-        requiredDurationMin: 0,
-      });
-
-      const staffRow = availability.staff.find((s) => s.staffId === staffId);
-      const set = buildSlotSet(staffRow?.slots ?? []);
-
-      staffSlotsCache.set(staffId, set);
-      return set;
-    };
-
-    // =====================
-    // 4️⃣ Cache: eligible staff for service (for ANY)
-    // =====================
-
-    const eligibleStaffByService = new Map<string, string[]>();
-
-    const getEligibleStaffForService = async (
-      serviceId: string,
-    ): Promise<string[]> => {
-      const cached = eligibleStaffByService.get(serviceId);
-      if (cached) return cached;
-
-      const rows = await this.db
-        .select({
-          staffId: staffServices.staffId,
-        })
-        .from(staffServices)
-        .innerJoin(
-          staff,
-          and(
-            eq(staff.id, staffServices.staffId),
-            eq(staff.branchId, branchId),
-            eq(staff.isActive, true),
-          ),
-        )
-        .where(eq(staffServices.serviceId, serviceId));
-
-      const list = rows.map((r) => r.staffId);
-
-      eligibleStaffByService.set(serviceId, list);
-      return list;
-    };
+    const eligibleStaffByService = index.staffIdsByService;
 
     // =====================
     // 5️⃣ Build step candidates
@@ -307,22 +282,25 @@ export class AvailabilityCoreService {
 
     const steps: StepCandidate[] = [];
 
+    const fixedStaffIds = [
+      ...new Set(
+        chain.map((s) => s.staffId).filter((id): id is string => id !== 'ANY'),
+      ),
+    ];
+
+    if (fixedStaffIds.length) {
+      const activeStaffIds = new Set(index.activeStaffIds);
+      for (const id of fixedStaffIds) {
+        if (!activeStaffIds.has(id)) {
+          throw new BadRequestException(`Staff not available: ${id}`);
+        }
+      }
+    }
+
     for (const step of chain) {
       const durationMin = durationByService.get(step.serviceId)!;
 
       if (step.staffId !== 'ANY') {
-        const staffRow = await this.db.query.staff.findFirst({
-          where: and(
-            eq(staff.id, step.staffId),
-            eq(staff.branchId, branchId),
-            eq(staff.isActive, true),
-          ),
-        });
-
-        if (!staffRow) {
-          throw new BadRequestException(`Staff not available: ${step.staffId}`);
-        }
-
         steps.push({
           serviceId: step.serviceId,
           durationMin,
@@ -332,7 +310,7 @@ export class AvailabilityCoreService {
         continue;
       }
 
-      const eligibleStaff = await getEligibleStaffForService(step.serviceId);
+      const eligibleStaff = eligibleStaffByService.get(step.serviceId) ?? [];
 
       steps.push({
         serviceId: step.serviceId,
@@ -355,7 +333,7 @@ export class AvailabilityCoreService {
       const first = steps[0];
 
       for (const staffId of first.candidates) {
-        const slotSet = await getStaffSlotSet(staffId);
+        const slotSet = getStaffSlotSet(staffId);
         for (const slotIso of slotSet) {
           baseStartTimes.add(slotIso);
         }
@@ -389,10 +367,10 @@ export class AvailabilityCoreService {
 
     const memoFail = new Set<string>();
 
-    const solveFrom = async (
+    const solveFrom = (
       stepIndex: number,
       cursorIso: string,
-    ): Promise<ChainAssignment[] | null> => {
+    ): ChainAssignment[] | null => {
       if (stepIndex >= steps.length) return [];
 
       const memoKey = `${stepIndex}|${cursorIso}`;
@@ -401,7 +379,7 @@ export class AvailabilityCoreService {
       const step = steps[stepIndex];
 
       for (const staffId of step.candidates) {
-        const slotSet = await getStaffSlotSet(staffId);
+        const slotSet = getStaffSlotSet(staffId);
 
         const ok = canCoverDuration({
           slotSet,
@@ -416,7 +394,7 @@ export class AvailabilityCoreService {
         // 🔥 Opción C: redondear hacia arriba el inicio del siguiente servicio
         const nextCursorIso = ceilToStepIso(endIso, STEP_MIN);
 
-        const next = await solveFrom(stepIndex + 1, nextCursorIso);
+        const next = solveFrom(stepIndex + 1, nextCursorIso);
 
         if (next) {
           const current: ChainAssignment = {
@@ -451,7 +429,7 @@ export class AvailabilityCoreService {
         .toUTC()
         .toISO()!;
 
-      const assignments = await solveFrom(0, normalized);
+      const assignments = solveFrom(0, normalized);
 
       if (assignments?.length) {
         plans.push({

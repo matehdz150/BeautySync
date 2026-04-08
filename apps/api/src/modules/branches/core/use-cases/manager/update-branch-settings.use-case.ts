@@ -5,6 +5,8 @@ import { UpdateBranchSettingsInput } from '../../ports/branch-settings.repositor
 
 import { CACHE_PORT } from 'src/modules/cache/core/ports/tokens';
 import { CachePort } from 'src/modules/cache/core/ports/cache.port';
+import { BranchSettingsCacheService } from 'src/modules/cache/application/branch-settings-cache.service';
+import { AvailabilityCacheService } from 'src/modules/availability/infrastructure/adapters/availability-cache.service';
 
 @Injectable()
 export class UpdateBranchSettingsUseCase {
@@ -14,6 +16,9 @@ export class UpdateBranchSettingsUseCase {
 
     @Inject(CACHE_PORT)
     private readonly cache: CachePort,
+
+    private readonly branchSettingsCache: BranchSettingsCacheService,
+    private readonly availabilityCache: AvailabilityCacheService,
   ) {}
 
   async execute(branchId: string, input: UpdateBranchSettingsInput) {
@@ -21,7 +26,13 @@ export class UpdateBranchSettingsUseCase {
     const result = await this.repo.update(branchId, input);
 
     // 2️⃣ invalidate explore cache
-    await this.cache.delPattern('explore:*');
+    await Promise.all([
+      this.cache.delPattern('explore:*'),
+      this.branchSettingsCache.invalidate(branchId),
+      this.cache.delPattern(`calendar:day:${branchId}:*`),
+      this.cache.delPattern(`calendar:week:${branchId}:*`),
+      this.availabilityCache.invalidate(branchId),
+    ]);
 
     return result;
   }

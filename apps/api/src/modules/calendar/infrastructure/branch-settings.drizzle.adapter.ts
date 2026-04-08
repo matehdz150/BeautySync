@@ -1,16 +1,13 @@
-import { eq } from 'drizzle-orm';
-import { db } from 'src/modules/db/client';
-import { branchSettings } from 'src/modules/db/schema/branches/branchSettings';
+import { Injectable } from '@nestjs/common';
+import { BranchSettingsCacheService } from 'src/modules/cache/application/branch-settings-cache.service';
 
 import { BranchSettingsPort } from '../core/ports/branch-settings.port';
 
+@Injectable()
 export class BranchSettingsDrizzleAdapter implements BranchSettingsPort {
-  async getTimezone(branchId: string): Promise<string> {
-    const row = await db.query.branchSettings.findFirst({
-      where: eq(branchSettings.branchId, branchId),
-    });
+  constructor(private readonly branchSettingsCache: BranchSettingsCacheService) {}
 
-    // 🔥 fallback seguro
-    return row?.timezone ?? 'America/Mexico_City';
+  async getTimezone(branchId: string): Promise<string> {
+    return this.branchSettingsCache.getTimezone(branchId);
   }
 }

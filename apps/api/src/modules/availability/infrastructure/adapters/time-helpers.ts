@@ -22,45 +22,104 @@ export function dtToMinutesSinceDayStart(
 }
 
 /**
- * Resta intervalos ocupados de bloques libres.
+ * Check overlap between intervals [start, end).
+ */
+export function overlaps(a: MinuteInterval, b: MinuteInterval): boolean {
+  return a.startMin < b.endMin && b.startMin < a.endMin;
+}
+
+/**
+ * Merge touching or overlapping intervals in O(n log n).
+ */
+export function mergeIntervals(intervals: MinuteInterval[]): MinuteInterval[] {
+  if (intervals.length <= 1) return [...intervals];
+
+  const sorted = [...intervals].sort((a, b) => a.startMin - b.startMin);
+  const merged: MinuteInterval[] = [];
+
+  let current = { ...sorted[0] };
+  for (let i = 1; i < sorted.length; i++) {
+    const next = sorted[i];
+
+    if (next.startMin <= current.endMin) {
+      current.endMin = Math.max(current.endMin, next.endMin);
+      continue;
+    }
+
+    merged.push(current);
+    current = { ...next };
+  }
+
+  merged.push(current);
+  return merged;
+}
+
+/**
+ * Subtract exclusions from base intervals in O((b + e) log(b + e)).
+ */
+export function subtractIntervals(
+  baseIntervals: MinuteInterval[],
+  exclusions: MinuteInterval[],
+): MinuteInterval[] {
+  if (!baseIntervals.length) return [];
+  if (!exclusions.length) return mergeIntervals(baseIntervals);
+
+  const base = mergeIntervals(baseIntervals);
+  const exclude = mergeIntervals(exclusions);
+
+  const result: MinuteInterval[] = [];
+  let exclusionIdx = 0;
+
+  for (const interval of base) {
+    let cursor = interval.startMin;
+
+    while (exclusionIdx < exclude.length && exclude[exclusionIdx].endMin <= cursor) {
+      exclusionIdx++;
+    }
+
+    let scan = exclusionIdx;
+    while (scan < exclude.length && exclude[scan].startMin < interval.endMin) {
+      const ex = exclude[scan];
+
+      if (!overlaps({ startMin: cursor, endMin: interval.endMin }, ex)) {
+        scan++;
+        continue;
+      }
+
+      if (ex.startMin > cursor) {
+        result.push({
+          startMin: cursor,
+          endMin: Math.min(ex.startMin, interval.endMin),
+        });
+      }
+
+      cursor = Math.max(cursor, ex.endMin);
+      if (cursor >= interval.endMin) {
+        break;
+      }
+
+      scan++;
+    }
+
+    if (cursor < interval.endMin) {
+      result.push({
+        startMin: cursor,
+        endMin: interval.endMin,
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Backward-compatible alias used across the module.
  */
 export function subtractBusy(
   blocks: MinuteInterval[],
   busy: MinuteInterval[],
 ): MinuteInterval[] {
-  let result = [...blocks];
-
-  for (const b of busy) {
-    const next: MinuteInterval[] = [];
-
-    for (const block of result) {
-      // no hay solape
-      if (b.endMin <= block.startMin || b.startMin >= block.endMin) {
-        next.push(block);
-        continue;
-      }
-
-      // parte izquierda libre
-      if (b.startMin > block.startMin) {
-        next.push({
-          startMin: block.startMin,
-          endMin: b.startMin,
-        });
-      }
-
-      // parte derecha libre
-      if (b.endMin < block.endMin) {
-        next.push({
-          startMin: b.endMin,
-          endMin: block.endMin,
-        });
-      }
-    }
-
-    result = next;
-  }
-
-  return result;
+  return subtractIntervals(blocks, busy);
 }
 
 /**

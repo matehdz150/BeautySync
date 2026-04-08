@@ -2,16 +2,15 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
-  UnauthorizedException,
 } from '@nestjs/common';
 
 import { GqlExecutionContext } from '@nestjs/graphql';
-import { GetUserBySessionUseCase } from '../../core/use-cases/public/get-user-by-session.use-case';
 import { GraphQLContext } from 'src/types/graphql-context';
+import { TokensService } from '../services/tokens.service';
 
 @Injectable()
 export class GqlPublicAuthGuard implements CanActivate {
-  constructor(private readonly getUserBySession: GetUserBySessionUseCase) {}
+  constructor(private readonly tokensService: TokensService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const gqlCtx = GqlExecutionContext.create(context);
@@ -24,16 +23,19 @@ export class GqlPublicAuthGuard implements CanActivate {
 
     if (!sessionId) return true;
 
-    const user = await this.getUserBySession.execute(sessionId);
-
-    if (!user) {
-      throw new UnauthorizedException('Invalid session');
+    try {
+      const user = this.tokensService.verifyPublicToken(sessionId);
+      req.publicUser = {
+        publicUserId: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+      };
+      return true;
+    } catch {
+      // Public GraphQL queries must degrade to guest mode if the cookie is stale.
+      req.publicUser = undefined;
+      return true;
     }
-
-    req.publicUser = {
-      publicUserId: user.id,
-    };
-
-    return true;
   }
 }

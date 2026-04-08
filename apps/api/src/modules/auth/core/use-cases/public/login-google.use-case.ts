@@ -1,32 +1,25 @@
 import { Inject, UnauthorizedException } from '@nestjs/common';
 
 import * as publicUsersRepositoryPort from '../../ports/public-users.repository.port';
-import * as publicSessionsRepositoryPort from '../../ports/public-sessions.repository.port';
 import * as googleTokenVerifierPort from '../../ports/google-token-verifier.port';
 import {
   GOOGLE_TOKEN_VERIFIER,
-  PUBLIC_SESSIONS_REPOSITORY,
   PUBLIC_USERS_REPOSITORY,
 } from '../../ports/tokens';
 
 type LoginGoogleResult = {
-  userId: string;
-  sessionId: string;
-  expiresAt: Date;
+  user: {
+    id: string;
+    email: string | null;
+    name: string | null;
+    avatarUrl: string | null;
+  };
 };
-
-function addDays(date: Date, days: number) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
 
 export class LoginGoogleUseCase {
   constructor(
     @Inject(PUBLIC_USERS_REPOSITORY)
     private usersRepo: publicUsersRepositoryPort.PublicUsersRepositoryPort,
-    @Inject(PUBLIC_SESSIONS_REPOSITORY)
-    private sessionsRepo: publicSessionsRepositoryPort.PublicSessionsRepositoryPort,
     @Inject(GOOGLE_TOKEN_VERIFIER)
     private googleVerifier: googleTokenVerifierPort.GoogleTokenVerifierPort,
   ) {}
@@ -71,21 +64,13 @@ export class LoginGoogleUseCase {
       });
     }
 
-    const ttlDays = Number(process.env.PUBLIC_SESSION_TTL_DAYS ?? '30');
-
-    const expiresAt = addDays(new Date(), ttlDays);
-
-    const session = await this.sessionsRepo.create({
-      publicUserId: user.id,
-      expiresAt,
-      userAgent: input.userAgent ?? null,
-      ip: input.ip ?? null,
-    });
-
     return {
-      userId: user.id,
-      sessionId: session.id,
-      expiresAt: session.expiresAt,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+      },
     };
   }
 }

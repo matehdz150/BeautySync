@@ -2,11 +2,14 @@ import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedU
 
 declare module 'express' {
   interface Request {
+    requestId?: string;
     user?: AuthenticatedUser;
     publicUser?: {
       publicUserId: string;
+      email: string | null;
+      name: string | null;
+      avatarUrl: string | null;
     };
-    publicSessionId?: string;
     cookies: Record<string, string | undefined>;
   }
 }

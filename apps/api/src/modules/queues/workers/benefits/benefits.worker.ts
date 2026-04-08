@@ -17,6 +17,7 @@ import { TierRewardGrantRepositoryDrizzle } from '../../../benefits/infrastructu
 
 import { DrizzleGiftCardRepository } from '../../../gift-cards/infrastructure/adapters/drizzle-gift-card.repository';
 import { DrizzleCouponRepository } from '../../../cupons/infrastructure/adapters/drizzle-coupon.repository';
+import { trackJobMetric } from '../../../metrics/bullmq-metrics';
 
 // =========================
 // 🔥 INSTANCIAS
@@ -227,7 +228,7 @@ async function main() {
 
   const worker = new Worker(
     'benefits-queue',
-    async (job) => handler(job.name, job.data),
+    async (job) => trackJobMetric(job.name, () => handler(job.name, job.data)),
     {
       connection: redis,
       concurrency: 10,

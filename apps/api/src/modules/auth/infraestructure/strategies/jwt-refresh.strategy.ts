@@ -1,11 +1,7 @@
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, ExtractJwt } from 'passport-jwt';
-import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { Request } from 'express';
-import { eq } from 'drizzle-orm';
-
-import type { DB } from 'src/modules/db/client';
-import { users } from 'src/modules/db/schema';
 import { JwtPayload } from './jwt.strategy';
 
 @Injectable()
@@ -13,10 +9,7 @@ export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh', // 🔥 ESTE NOMBRE ES EL QUE TE FALTABA
 ) {
-  constructor(
-    @Inject('DB')
-    private readonly db: DB,
-  ) {
+  constructor() {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (req: Request) => req.cookies?.refreshToken ?? null, // 👈 refresh token
@@ -31,18 +24,11 @@ export class JwtRefreshStrategy extends PassportStrategy(
       throw new UnauthorizedException();
     }
 
-    const user = await this.db.query.users.findFirst({
-      where: eq(users.id, payload.sub),
-    });
-
-    if (!user) {
-      throw new UnauthorizedException();
-    }
-
     return {
-      sub: user.id,
-      role: user.role,
-      orgId: user.organizationId ?? null,
+      sub: payload.sub,
+      role: payload.role,
+      orgId: payload.orgId ?? null,
+      branchIds: payload.branchIds ?? [],
     };
   }
 }

@@ -143,6 +143,60 @@ export async function ensureBookingConstraints() {
       CREATE EXTENSION IF NOT EXISTS pg_trgm;
     `);
 
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_appointments_branch_staff_start
+      ON appointments (branch_id, staff_id, start);
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_appointments_active_range
+      ON appointments (branch_id, staff_id, start, "end")
+      WHERE status IN ('PENDING', 'CONFIRMED', 'COMPLETED');
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_appointments_staff_timerange_gist
+      ON appointments
+      USING gist (staff_id, tstzrange(start, "end", '[)'));
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_staff_time_off_range_gist
+      ON staff_time_off
+      USING gist (staff_id, tstzrange(start, "end", '[)'));
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_staff_schedules_staff_dow
+      ON staff_schedules (staff_id, day_of_week);
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_public_bookings_user_starts_at_desc
+      ON public_bookings (public_user_id, starts_at DESC);
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_public_bookings_branch_starts_at_desc
+      ON public_bookings (branch_id, starts_at DESC);
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_public_booking_ratings_booking
+      ON public_booking_ratings (booking_id);
+    `);
+
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_public_slug
+      ON branches (public_slug)
+      WHERE public_slug IS NOT NULL;
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_appointment_status_history_appointment_changed
+      ON appointment_status_history (appointment_id, changed_at DESC);
+    `);
+
     // 🔥 Crear constraint si no existe
     await db.execute(sql`
       DO $$

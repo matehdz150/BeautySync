@@ -10,7 +10,6 @@ import { db } from '../db/client';
 import { notifications } from '../db/schema/notifications/notifications';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { and, eq, isNull, lt, desc, inArray } from 'drizzle-orm';
-import { users } from '../db/schema/users';
 import { branches, branchImages } from '../db/schema/branches';
 import {
   appointments,
@@ -24,11 +23,13 @@ import {
 import { NotificationsSseService } from './notifications-sse.service';
 import * as client from 'src/modules/db/client';
 import { redis } from '../queues/redis/redis.provider';
+import { BranchCacheService } from '../cache/application/branch-cache.service';
 
 @Injectable()
 export class NotificationsService {
   constructor(
     private readonly sseService: NotificationsSseService,
+    private readonly branchCache: BranchCacheService,
     @Inject('DB') private db: client.DB,
   ) {}
   async create(dto: CreateNotificationDto) {
@@ -73,21 +74,21 @@ export class NotificationsService {
     return created;
   }
 
-  async markAsRead(notificationId: string, userId: string) {
-    // 1️⃣ organization del usuario
-    const [userRow] = await db
-      .select({ organizationId: users.organizationId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!userRow?.organizationId) {
+  async markAsRead(notificationId: string, organizationId: string | null) {
+    if (!organizationId) {
       throw new NotFoundException('Acceso inválido');
     }
 
-    // 2️⃣ obtener notificación
+    const branchIds = await this.branchCache.getBranchIds(organizationId);
+    if (!branchIds.length) {
+      throw new NotFoundException('No autorizado');
+    }
+
     const [notification] = await db
-      .select()
+      .select({
+        id: notifications.id,
+        branchId: notifications.branchId,
+      })
       .from(notifications)
       .where(eq(notifications.id, notificationId))
       .limit(1);
@@ -96,30 +97,16 @@ export class NotificationsService {
       throw new NotFoundException('Notificación no encontrada');
     }
 
-    // 3️⃣ validar que pertenece a su organización
-    const [branch] = await db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(
-        and(
-          eq(branches.id, notification.branchId),
-          eq(branches.organizationId, userRow.organizationId),
-        ),
-      )
-      .limit(1);
-
-    if (!branch) {
+    if (!branchIds.includes(notification.branchId)) {
       throw new NotFoundException('No autorizado');
     }
 
-    // 4️⃣ update
     const [updated] = await db
       .update(notifications)
       .set({ readAt: new Date() })
       .where(eq(notifications.id, notificationId))
       .returning();
 
-    // 5️⃣ realtime sync
     await redis.publish(
       'realtime.notifications',
       JSON.stringify({
@@ -152,7 +139,7 @@ export class NotificationsService {
   }
 
   async findForManager(
-    userId: string,
+    organizationId: string | null,
     options?: {
       unread?: boolean;
       limit?: number;
@@ -162,32 +149,15 @@ export class NotificationsService {
   ) {
     const limit = Math.min(options?.limit ?? 20, 50);
 
-    // 1️⃣ organizationId del user
-    const userRow = await db
-      .select({ organizationId: users.organizationId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!userRow.length || !userRow[0].organizationId) {
+    if (!organizationId) {
       return { items: [], nextCursor: null };
     }
 
-    const organizationId = userRow[0].organizationId;
-
-    // 2️⃣ branches de la organización
-    const branchRows = await db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(eq(branches.organizationId, organizationId));
-
-    if (!branchRows.length) {
+    const branchIds = await this.branchCache.getBranchIds(organizationId);
+    if (!branchIds.length) {
       return { items: [], nextCursor: null };
     }
 
-    const branchIds = branchRows.map((b) => b.id);
-
-    // 3️⃣ condiciones base
     const conditions = [
       eq(notifications.target, 'MANAGER'),
       inArray(notifications.branchId, branchIds),
@@ -220,9 +190,16 @@ export class NotificationsService {
       conditions.push(inArray(notifications.kind, kindGroups[options.kind]));
     }
 
-    // 4️⃣ query final (DEVUELVE TODO)
     const rows = await db
-      .select()
+      .select({
+        id: notifications.id,
+        bookingId: notifications.bookingId,
+        branchId: notifications.branchId,
+        kind: notifications.kind,
+        payload: notifications.payload,
+        readAt: notifications.readAt,
+        createdAt: notifications.createdAt,
+      })
       .from(notifications)
       .where(and(...conditions))
       .orderBy(desc(notifications.createdAt))
@@ -239,49 +216,48 @@ export class NotificationsService {
     };
   }
 
-  async getNotificationListItem(notificationId: string, userId: string) {
-    // 1️⃣ Obtener notificación
-    const [notification] = await db
-      .select()
+  async getNotificationListItem(
+    notificationId: string,
+    organizationId: string | null,
+  ) {
+    if (!organizationId) {
+      throw new NotFoundException('Acceso inválido');
+    }
+
+    const branchIds = await this.branchCache.getBranchIds(organizationId);
+    if (!branchIds.length) {
+      throw new NotFoundException('No autorizado');
+    }
+
+    const [result] = await db
+      .select({
+        id: notifications.id,
+        bookingId: notifications.bookingId,
+        branchId: notifications.branchId,
+        kind: notifications.kind,
+        payload: notifications.payload,
+        readAt: notifications.readAt,
+        createdAt: notifications.createdAt,
+      })
       .from(notifications)
       .where(eq(notifications.id, notificationId))
       .limit(1);
 
-    if (!notification) {
+    if (!result) {
       throw new NotFoundException('Notificación no encontrada');
     }
 
-    // 2️⃣ Validar acceso manager (igual que findForManager)
-    const [userRow] = await db
-      .select({ organizationId: users.organizationId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!userRow?.organizationId) {
-      throw new NotFoundException('Acceso inválido');
-    }
-
-    const [branch] = await db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(
-        and(
-          eq(branches.id, notification.branchId),
-          eq(branches.organizationId, userRow.organizationId),
-        ),
-      )
-      .limit(1);
-
-    if (!branch) {
+    if (!branchIds.includes(result.branchId)) {
       throw new NotFoundException('No autorizado');
     }
 
-    // 🔥 devolvemos EXACTAMENTE el mismo shape de la lista
-    return notification;
+    return result;
   }
 
-  async getNotificationDetail(notificationId: string, userId: string) {
+  async getNotificationDetail(
+    notificationId: string,
+    organizationId: string | null,
+  ) {
     // ============================
     // 1️⃣ Notification
     // ============================
@@ -300,26 +276,12 @@ export class NotificationsService {
     // 2️⃣ Validar acceso manager
     // ============================
 
-    const [userRow] = await db
-      .select({ organizationId: users.organizationId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!userRow?.organizationId) {
+    if (!organizationId) {
       throw new NotFoundException('Acceso inválido');
     }
 
-    const [branch] = await db
-      .select()
-      .from(branches)
-      .where(
-        and(
-          eq(branches.id, notification.branchId),
-          eq(branches.organizationId, userRow.organizationId),
-        ),
-      )
-      .limit(1);
+    const orgBranches = await this.branchCache.getBranches(organizationId);
+    const branch = orgBranches.find((item) => item.id === notification.branchId);
 
     if (!branch) {
       throw new NotFoundException('No autorizado');

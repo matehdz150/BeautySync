@@ -4,6 +4,7 @@ import * as branchesRepository from '../../ports/branches.repository';
 
 import { CACHE_PORT } from 'src/modules/cache/core/ports/tokens';
 import { CachePort } from 'src/modules/cache/core/ports/cache.port';
+import { BranchCacheService } from 'src/modules/cache/application/branch-cache.service';
 
 @Injectable()
 export class UpdateBranchUseCase {
@@ -13,6 +14,8 @@ export class UpdateBranchUseCase {
 
     @Inject(CACHE_PORT)
     private readonly cache: CachePort,
+
+    private readonly branchCache: BranchCacheService,
   ) {}
 
   async execute(branchId: string, dto: branchesRepository.UpdateBranchInput) {
@@ -20,7 +23,10 @@ export class UpdateBranchUseCase {
 
     // 🔥 solo invalidar si afecta explore
     if (dto.name !== undefined || dto.address !== undefined) {
-      await this.cache.delPattern('explore:*');
+      await Promise.all([
+        this.cache.delPattern('explore:*'),
+        this.branchCache.invalidate(result.organizationId),
+      ]);
     }
 
     return result;

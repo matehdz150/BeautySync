@@ -6,12 +6,11 @@ import {
 } from '@nestjs/common';
 
 import { Request } from 'express';
-
-import { GetUserBySessionUseCase } from '../../core/use-cases/public/get-user-by-session.use-case';
+import { TokensService } from '../services/tokens.service';
 
 @Injectable()
 export class PublicAuthGuard implements CanActivate {
-  constructor(private readonly getUserBySession: GetUserBySessionUseCase) {}
+  constructor(private readonly tokensService: TokensService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request>();
@@ -24,18 +23,17 @@ export class PublicAuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing session');
     }
 
-    const user = await this.getUserBySession.execute(sessionId);
-
-    if (!user) {
+    try {
+      const user = this.tokensService.verifyPublicToken(sessionId);
+      req.publicUser = {
+        publicUserId: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+      };
+      return true;
+    } catch {
       throw new UnauthorizedException('Invalid session');
     }
-
-    req.publicUser = {
-      publicUserId: user.id,
-    };
-
-    req.publicSessionId = sessionId;
-
-    return true;
   }
 }
