@@ -11,7 +11,6 @@ import {
   BENEFIT_BALANCE_REPOSITORY,
   BENEFIT_POINTS_REPOSITORY,
   BENEFIT_REDEMPTION_REPOSITORY,
-  BENEFIT_TRANSACTION_MANAGER,
 } from '../ports/tokens';
 import {
   BenefitProgramRepository,
@@ -21,7 +20,6 @@ import { BenefitRewardRepository } from '../ports/benefit-reward.repository';
 import { BenefitBalanceRepository } from '../ports/benefit-balance.repository';
 import { BenefitPointsRepository } from '../ports/benefit-points.repository';
 import { BenefitRedemptionRepository } from '../ports/benefit-redemption.repository';
-import { BenefitTransactionManager } from '../ports/benefit-transactiont-manager.repository';
 import { BenefitRewardEngine } from '../engine/benefit-reward-engine.service';
 import { randomUUID } from 'crypto';
 
@@ -43,9 +41,6 @@ export class RedeemBenefitRewardUseCase {
     @Inject(BENEFIT_REDEMPTION_REPOSITORY)
     private readonly redemptionRepo: BenefitRedemptionRepository,
 
-    @Inject(BENEFIT_TRANSACTION_MANAGER)
-    private readonly txManager: BenefitTransactionManager,
-
     private readonly rewardEngine: BenefitRewardEngine,
   ) {}
 
@@ -53,94 +48,119 @@ export class RedeemBenefitRewardUseCase {
     return `BEN-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
+  private resolveIdempotencyKey(input: RedeemBenefitRewardInput) {
+    const provided = input.idempotencyKey?.trim();
+
+    if (provided) return provided;
+
+    return `redeem:auto:${input.user.id}:${input.branchId}:${input.rewardId}:${randomUUID()}`;
+  }
+
   async execute(input: RedeemBenefitRewardInput) {
-    return this.txManager.runInTransaction(async () => {
-      // =========================
-      // PROGRAMA
-      // =========================
-      const program = await this.programRepo.findByBranchId(input.branchId);
+    const idempotencyKey = this.resolveIdempotencyKey(input);
 
-      if (!program || !program.isActive) {
-        throw new BadRequestException('No active benefit program');
-      }
+    const existingBeforeTx =
+      await this.redemptionRepo.findByIdempotencyKey?.(idempotencyKey);
 
-      // =========================
-      // REWARD
-      // =========================
-      const reward = await this.rewardRepo.findById(input.rewardId);
+    if (existingBeforeTx) return existingBeforeTx;
 
-      if (!reward) throw new BadRequestException('Reward not found');
-      if (!reward.isActive) throw new BadRequestException('Reward inactive');
+    // =========================
+    // PROGRAMA
+    // =========================
+    const program = await this.programRepo.findByBranchId(input.branchId);
 
-      if (reward.programId !== program.id) {
-        throw new ForbiddenException('Invalid reward for branch');
-      }
+    if (!program || !program.isActive) {
+      throw new BadRequestException('No active benefit program');
+    }
 
-      if (!reward.config) {
-        throw new BadRequestException('Invalid reward configuration');
-      }
+    // =========================
+    // REWARD
+    // =========================
+    const reward = await this.rewardRepo.findById(input.rewardId);
 
-      // =========================
-      // BALANCE
-      // =========================
-      const success = await this.balanceRepo.decrementIfEnough({
-        userId: input.user.id,
-        branchId: input.branchId,
-        points: reward.pointsCost,
-      });
+    if (!reward) throw new BadRequestException('Reward not found');
+    if (!reward.isActive) throw new BadRequestException('Reward inactive');
 
-      if (!success) {
-        throw new BadRequestException('Insufficient points');
-      }
+    if (reward.programId !== program.id) {
+      throw new ForbiddenException('Invalid reward for branch');
+    }
 
-      // =========================
-      // LEDGER
-      // =========================
-      await this.pointsRepo.addPoints({
-        userId: input.user.id,
-        branchId: input.branchId,
-        points: -reward.pointsCost,
-        source: 'REWARD_REDEEM',
-        idempotencyKey: input.idempotencyKey,
-        referenceId: reward.id,
-      });
+    if (!reward.config) {
+      throw new BadRequestException('Invalid reward configuration');
+    }
 
-      // =========================
-      // REDENCIÓN (PENDING)
-      // =========================
-      const redemption = await this.redemptionRepo.create({
-        rewardId: reward.id,
-        userId: input.user.id,
-        branchId: input.branchId,
-        pointsSpent: reward.pointsCost,
-        status: 'PENDING',
-        referenceCode: this.generateReferenceCode(),
-        metadata: {
-          idempotencyKey: input.idempotencyKey,
-        },
-      });
-
-      // =========================
-      // ENGINE
-      // =========================
-      try {
-        await this.rewardEngine.redeem({
-          userId: input.user.id,
-          branchId: input.branchId,
-          reward,
-          context: {},
-        });
-
-        // 🔥 CONFIRMAR
-        await this.redemptionRepo.updateStatus(redemption.id, 'CONFIRMED');
-      } catch {
-        // 🔥 OPCIONAL (muy pro)
-        await this.redemptionRepo.updateStatus(redemption.id, 'FAILED');
-
-        throw new BadRequestException('Reward execution failed');
-      }
-
-      return redemption;
+    // =========================
+    // LEDGER
+    // =========================
+    const wasLedgerInserted = await this.pointsRepo.addPoints({
+      userId: input.user.id,
+      branchId: input.branchId,
+      points: -reward.pointsCost,
+      source: 'REWARD_REDEEM',
+      idempotencyKey,
+      referenceId: reward.id,
+      updateBalanceCache: false,
     });
+
+    if (!wasLedgerInserted) {
+      const existingAfterLedgerConflict =
+        await this.redemptionRepo.findByIdempotencyKey?.(idempotencyKey);
+
+      if (existingAfterLedgerConflict) {
+        return existingAfterLedgerConflict;
+      }
+
+      throw new BadRequestException('Duplicate idempotency key');
+    }
+
+    // =========================
+    // BALANCE
+    // =========================
+    const success = await this.balanceRepo.decrementIfEnough({
+      userId: input.user.id,
+      branchId: input.branchId,
+      points: reward.pointsCost,
+    });
+
+    if (!success) {
+      throw new BadRequestException('Insufficient points');
+    }
+
+    // =========================
+    // REDENCIÓN (PENDING)
+    // =========================
+    const redemption = await this.redemptionRepo.create({
+      rewardId: reward.id,
+      userId: input.user.id,
+      branchId: input.branchId,
+      pointsSpent: reward.pointsCost,
+      status: 'PENDING',
+      referenceCode: this.generateReferenceCode(),
+      metadata: {
+        idempotencyKey,
+      },
+    });
+
+    // =========================
+    // ENGINE
+    // =========================
+    try {
+      await this.rewardEngine.redeem({
+        userId: input.user.id,
+        branchId: input.branchId,
+        reward,
+        context: {},
+      });
+
+      // 🔥 CONFIRMAR
+      await this.redemptionRepo.updateStatus(redemption.id, 'CONFIRMED');
+    } catch {
+      // 🔥 OPCIONAL (muy pro)
+      await this.redemptionRepo.updateStatus(redemption.id, 'FAILED');
+
+      throw new BadRequestException('Reward execution failed');
+    }
+
+    return redemption;
   }
 }

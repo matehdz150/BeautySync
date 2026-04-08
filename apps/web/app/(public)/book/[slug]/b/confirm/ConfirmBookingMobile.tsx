@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CreditCard,
@@ -22,17 +22,25 @@ import { BookingConfirmSplash } from "../../success/BookingConfirmSplash";
 import { PublicPhoneDialog } from "@/components/public/PublicPhoneDialog";
 import { PublicAuthDialog } from "@/components/public/PublicAuthDialog";
 import { PublicApiError } from "@/lib/errors";
-import { getPaymentBenefits } from "@/lib/services/public/payments";
-import { CategoryIcon } from "@/components/shared/Icon";
-
+import { AvailableRewardsMobileDrawer } from "@/components/loyal-program/AvailableRewardsMobileDrawer";
+import { BenefitsUnifiedSlider } from "@/components/book/BenefitsUnifiedSlider";
+import {
+  getPaymentBenefits,
+  validatePublicCoupon,
+} from "@/lib/services/public/payments";
 type PaymentMethod = "ONSITE" | "ONLINE";
+type CouponDiagnostic = {
+  valid: boolean;
+  reason: string;
+  discountCents?: number;
+};
 
 export function ConfirmBookingMobilePage() {
   const router = useRouter();
   const booking = usePublicBooking();
   const dispatch = booking.dispatch;
 
-  const { branch, date, appointmentsDraft } = booking as any;
+  const { branch, date, appointmentsDraft } = booking;
 
   // ✅ estos 3 deben ser estado local en este componente
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("ONSITE");
@@ -42,18 +50,141 @@ export function ConfirmBookingMobilePage() {
   const [applyingDiscount, setApplyingDiscount] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [couponMessage, setCouponMessage] = useState<string | null>(null);
+  const [couponMessageType, setCouponMessageType] = useState<
+    "error" | "success" | null
+  >(null);
+  const [couponDiagnostics, setCouponDiagnostics] = useState<
+    Record<string, CouponDiagnostic>
+  >({});
 
   const [showSplash, setShowSplash] = useState(false);
+  const [rewardsSheetOpen, setRewardsSheetOpen] = useState(false);
 
   const canConfirm = useMemo(() => {
     return Boolean(branch && date && appointmentsDraft?.length > 0);
   }, [branch, date, appointmentsDraft]);
+  const subtotalCents = useMemo(() => {
+    return booking.services.reduce((acc: number, id: string) => {
+      const srv = booking.catalog.find((s) => s.id === id);
+      return acc + (srv?.priceCents ?? 0);
+    }, 0);
+  }, [booking.services, booking.catalog]);
+  const couponDiscountCents = Math.min(
+    booking.appliedCouponDiscountCents ?? 0,
+    subtotalCents,
+  );
+  const totalAfterCouponCents = Math.max(subtotalCents - couponDiscountCents, 0);
+  const selectedGiftCard = booking.benefits.giftCards.find(
+    (gc) => gc.id === booking.selectedGiftCardId,
+  );
+  const giftCardUsedCents = Math.min(
+    selectedGiftCard?.balanceCents ?? 0,
+    totalAfterCouponCents,
+  );
+  const totalAfterDiscountCents = Math.max(
+    totalAfterCouponCents - giftCardUsedCents,
+    0,
+  );
 
   const [openAuth, setOpenAuth] = useState(false);
   const [openPhone, setOpenPhone] = useState(false);
 
   // para reintentar confirm cuando termine login / phone
   const [pendingConfirm, setPendingConfirm] = useState(false);
+
+  const validateCouponForCurrentDraft = useCallback(
+    async (code: string) => {
+      if (!booking.branch?.id) {
+        throw new Error("Sucursal inválida para validar cupón.");
+      }
+
+      const appointments = [...(booking.appointmentsDraft ?? [])];
+      const getAmountCents = (serviceId: string, draftAmount?: number | null) =>
+        typeof draftAmount === "number"
+          ? draftAmount
+          : (booking.catalog.find((s) => s.id === serviceId)?.priceCents ?? 0);
+      const subtotalCents = appointments.reduce(
+        (acc, a) => acc + getAmountCents(a.serviceId, a.priceCents),
+        0,
+      );
+
+      return validatePublicCoupon({
+        code,
+        branchId: booking.branch.id,
+        amountCents: subtotalCents,
+        serviceIds: appointments.map((a) => a.serviceId),
+        serviceItems: appointments.map((a) => ({
+          serviceId: a.serviceId,
+          amountCents: getAmountCents(a.serviceId, a.priceCents),
+        })),
+      });
+    },
+    [booking.branch?.id, booking.appointmentsDraft, booking.catalog],
+  );
+
+  function getCouponErrorMessage(err: unknown): string {
+    if (err instanceof PublicApiError) return err.message;
+    if (err instanceof Error) return err.message;
+    return "Cupón no aplicable para estos servicios.";
+  }
+
+  async function handleSelectCoupon(c: {
+    id: string;
+    code: string;
+    type: "percentage" | "fixed";
+    value: number;
+    expiresAt?: string | null;
+    serviceName?: string | null;
+    serviceNames?: string[];
+  }) {
+    setCouponMessage(null);
+    setCouponMessageType(null);
+
+    try {
+      const res = await validateCouponForCurrentDraft(c.code);
+      setCouponDiagnostics((prev) => ({
+        ...prev,
+        [c.id]: {
+          valid: true,
+          reason: `Aplica: -$${(res.discountCents / 100).toFixed(2)}`,
+          discountCents: res.discountCents,
+        },
+      }));
+      dispatch({
+        type: "SELECT_COUPON",
+        payload: c.id,
+      });
+      dispatch({
+        type: "SET_APPLIED_COUPON",
+        payload: {
+          code: c.code,
+          discountCents: res.discountCents,
+        },
+      });
+      setDiscountCode(c.code);
+      setCouponMessageType("success");
+      setCouponMessage(
+        `Cupón válido. Descuento: $${(res.discountCents / 100).toFixed(2)}`,
+      );
+    } catch (err: unknown) {
+      const reason = getCouponErrorMessage(err);
+      setCouponDiagnostics((prev) => ({
+        ...prev,
+        [c.id]: {
+          valid: false,
+          reason,
+        },
+      }));
+      dispatch({
+        type: "SELECT_COUPON",
+        payload: null,
+      });
+      dispatch({ type: "SET_APPLIED_COUPON", payload: null });
+      setCouponMessageType("error");
+      setCouponMessage(reason);
+    }
+  }
 
   // ===============================
   // Load benefits (public)
@@ -103,11 +234,24 @@ export function ConfirmBookingMobilePage() {
         a.startIso.localeCompare(b.startIso),
       );
 
+      const selectedCoupon = booking.benefits.coupons.find(
+        (c) => c.id === booking.selectedCouponId,
+      );
+
+      const couponCode =
+        selectedCoupon?.code ?? (discountCode?.trim() ? discountCode.trim() : "");
+
+      if (couponCode) {
+        await validateCouponForCurrentDraft(couponCode);
+      }
+
       const payload: CreatePublicBookingPayload = {
         branchSlug: branch!.slug,
         date: date!,
         paymentMethod: (paymentMethod ?? "ONSITE") as "ONSITE" | "ONLINE",
-        discountCode: discountCode?.trim() ? discountCode.trim() : null,
+        discountCode: couponCode ? couponCode : null,
+        giftCardCode: selectedGiftCard?.code ?? "",
+        giftCardAmountCents: giftCardUsedCents,
         notes: notes?.trim() ? notes.trim() : null,
         appointments,
       };
@@ -120,7 +264,7 @@ export function ConfirmBookingMobilePage() {
       if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
 
       router.push(`/me/bookings/${res.bookingId}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof PublicApiError) {
         if (err.code === "UNAUTHORIZED") {
           setShowSplash(false);
@@ -137,7 +281,11 @@ export function ConfirmBookingMobilePage() {
         }
       }
 
-      setSubmitError(err?.message ?? "No se pudo confirmar la reservación");
+      const message =
+        err instanceof Error
+          ? err.message
+          : "No se pudo confirmar la reservación";
+      setSubmitError(message);
       setShowSplash(false);
     } finally {
       setSubmitting(false);
@@ -200,7 +348,11 @@ export function ConfirmBookingMobilePage() {
       )}
 
       {!booking.benefitsLoading && booking.benefits.hasActiveProgram && (
-        <div className="w-full border border-x-0 border-black/10 px-2 py-4 flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setRewardsSheetOpen(true)}
+          className="w-full border border-x-0 border-black/10 px-2 py-4 flex items-center gap-1 text-left"
+        >
           <div className="h-11 w-11 rounded-xl flex items-center justify-center">
             <GradientGem className="h-6 w-6 " />
           </div>
@@ -213,146 +365,42 @@ export function ConfirmBookingMobilePage() {
           </div>
 
           <ChevronRight className="text-muted-foreground shrink-0" />
-        </div>
+        </button>
       )}
 
-      {/* Gift cards */}
-      {!booking.benefitsLoading && booking.benefits.giftCards.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-base font-semibold">Gift cards</h2>
-          <div className="flex gap-3 overflow-x-auto pb-1">
-            {booking.benefits.giftCards.map((gc) => {
-              const isSelected = booking.selectedGiftCardId === gc.id;
-              return (
-                <button
-                  key={gc.id}
-                  type="button"
-                  onClick={() =>
-                    dispatch({
-                      type: "SELECT_GIFT_CARD",
-                      payload: { id: gc.id },
-                    })
-                  }
-                  className="min-w-[240px] max-w-[260px] focus:outline-none"
-                >
-                  <div
-                    className={cn(
-                      "relative w-full h-[140px] rounded-2xl p-4 text-white flex flex-col justify-between border shadow-sm",
-                      isSelected ? "border-white" : "border-white/30",
-                    )}
-                    style={{
-                      background: "linear-gradient(135deg, #5b5bf7, #c14ef0)",
-                    }}
-                  >
-                    <div className="absolute top-3 right-3">
-                      <div
-                        className={cn(
-                          "w-5 h-5 rounded-full border flex items-center justify-center",
-                          isSelected
-                            ? "bg-white border-white"
-                            : "border-white/70",
-                        )}
-                      >
-                        {isSelected && (
-                          <div className="w-2 h-2 bg-indigo-600 rounded-full" />
-                        )}
-                      </div>
-                    </div>
-
-                    <p className="text-sm font-medium truncate">
-                      {booking.branch?.name ?? "Tu negocio"}
-                    </p>
-
-                    <p className="text-2xl font-semibold">
-                      ${(gc.balanceCents / 100).toFixed(0)}
-                    </p>
-
-                    <p className="text-[11px] font-mono opacity-80">
-                      {gc.code}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Coupons */}
-      {!booking.benefitsLoading && booking.benefits.coupons.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-base font-semibold">Cupones</h2>
-          <div className="space-y-2">
-            {booking.benefits.coupons.map((c) => {
-              const selected = booking.selectedCouponId === c.id;
-
-              const discount =
-                c.type === "percentage"
-                  ? `${c.value}%`
-                  : `$${(c.value / 100).toFixed(0)}`;
-
-              const fromTier = booking.benefits.tierRewards.some((tr) => {
-                const config = tr.config as any;
-                if (
-                  config?.type === "coupon_percentage" &&
-                  c.type === "percentage"
-                ) {
-                  return config.value === c.value;
-                }
-                if (config?.type === "coupon_fixed" && c.type === "fixed") {
-                  return config.value === c.value;
-                }
-                return false;
-              });
-
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() =>
-                    dispatch({
-                      type: "SELECT_COUPON",
-                      payload: c.id,
-                    })
-                  }
-                  className={cn(
-                    "w-full rounded-2xl border p-4 flex justify-between items-center gap-3 text-left",
-                    selected
-                      ? "border-indigo-500 bg-indigo-50"
-                      : "hover:bg-gray-50",
-                  )}
-                >
-                  <div>
-                    <p className="font-medium">{c.code}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {fromTier ? "Cupón de tu tier" : "Cupón disponible"}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {fromTier && (
-                      <span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded-full bg-amber-100 text-amber-700">
-                        Tier
-                      </span>
-                    )}
-                    <p className="font-semibold text-indigo-600">{discount}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Empty state */}
       {!booking.benefitsLoading &&
-        booking.benefits.giftCards.length === 0 &&
-        booking.benefits.coupons.length === 0 &&
-        booking.benefits.hasActiveProgram && (
-          <div className="text-sm text-muted-foreground">
-            No tienes beneficios disponibles.
-          </div>
+        booking.benefits.hasActiveProgram &&
+        (booking.benefits.giftCards.length > 0 ||
+          booking.benefits.coupons.length > 0) && (
+          <BenefitsUnifiedSlider
+            giftCards={booking.benefits.giftCards}
+            coupons={booking.benefits.coupons}
+            selectedGiftCardId={booking.selectedGiftCardId}
+            selectedCouponId={booking.selectedCouponId}
+            branchName={booking.branch?.name}
+            couponDiagnostics={couponDiagnostics}
+            onSelectGiftCard={(id) =>
+              dispatch({
+                type: "SELECT_GIFT_CARD",
+                payload: { id, amount: 0 },
+              })
+            }
+            onSelectCoupon={handleSelectCoupon}
+          />
         )}
+
+      {couponMessage && (
+        <p
+          className={cn(
+            "text-xs",
+            couponMessageType === "error"
+              ? "text-red-600"
+              : "text-emerald-700",
+          )}
+        >
+          {couponMessage}
+        </p>
+      )}
 
       {/* Código de descuento */}
       <section className="space-y-3">
@@ -374,13 +422,44 @@ export function ConfirmBookingMobilePage() {
             onClick={async () => {
               try {
                 setApplyingDiscount(true);
+                setCouponMessage(null);
+                setCouponMessageType(null);
 
-                console.log("APLICAR DESCUENTO:", {
-                  code: discountCode.trim(),
-                  branchSlug: booking.branch?.slug,
+                if (!booking.branch?.id) {
+                  setCouponMessage("Sucursal inválida para validar cupón.");
+                  return;
+                }
+
+                const res = await validateCouponForCurrentDraft(
+                  discountCode.trim(),
+                );
+
+                const foundCoupon = booking.benefits.coupons.find(
+                  (c) => c.code.toLowerCase() === discountCode.trim().toLowerCase(),
+                );
+                dispatch({
+                  type: "SELECT_COUPON",
+                  payload: foundCoupon?.id ?? null,
                 });
-
-                await new Promise((r) => setTimeout(r, 500));
+                dispatch({
+                  type: "SET_APPLIED_COUPON",
+                  payload: {
+                    code: discountCode.trim(),
+                    discountCents: res.discountCents,
+                  },
+                });
+                setCouponMessageType("success");
+                setCouponMessage(
+                  `Cupón válido. Descuento: $${(res.discountCents / 100).toFixed(2)}`,
+                );
+              } catch (err: unknown) {
+                dispatch({ type: "SET_APPLIED_COUPON", payload: null });
+                setCouponMessageType("error");
+                if (err instanceof PublicApiError) {
+                  setCouponMessage(err.message);
+                } else {
+                  setCouponMessage("No se pudo validar el cupón.");
+                }
               } finally {
                 setApplyingDiscount(false);
               }
@@ -405,106 +484,71 @@ export function ConfirmBookingMobilePage() {
 
       {/* Sticky confirm */}
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-black/10 bg-white/95 backdrop-blur-md">
-        <div className=" pt-4 pb-[calc(16px+env(safe-area-inset-bottom))] space-y-3">
+        <div className="pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] space-y-2">
           {/* RESUMEN */}
-          <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 mx-4 ">
-            <div className="flex items-start justify-between gap-4">
-              {/* Left */}
+          <div className="rounded-2xl border border-black/10 bg-white px-4 py-2.5 mx-3">
+            <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Tu reserva</p>
-
+                <p className="text-[11px] text-muted-foreground">Tu reserva</p>
                 <p className="text-sm font-semibold truncate">
-                  {booking.branch?.name ?? "Sucursal"}
+                  {booking.branch?.name ?? "Sucursal"} · {booking.services.length} servicios
                 </p>
-
-                <p className="mt-1 text-xs text-muted-foreground truncate">
+                <p className="text-[11px] text-muted-foreground truncate">
                   {booking.date ?? "Sin fecha"} ·{" "}
                   {booking.selectedPlan?.startLocalLabel ??
                     booking.time ??
                     "Sin hora"}
                 </p>
               </div>
-
-              {/* Right */}
-              <div className="shrink-0 text-right">
-                <p className="text-xs text-muted-foreground">Servicios</p>
+              <div className="text-right shrink-0">
+                <p className="text-[11px] text-muted-foreground">Total</p>
                 <p className="text-sm font-semibold">
-                  {booking.services.length}
+                  {totalAfterDiscountCents > 0
+                    ? `$${Math.round(totalAfterDiscountCents / 100)} MXN`
+                    : "Gratis"}
                 </p>
               </div>
             </div>
 
-            {/* LISTA DE SERVICIOS */}
-            <div className="mt-3 space-y-2">
-              {booking.services.map((serviceId: string) => {
-                const srv = booking.catalog.find(
-                  (s: any) => s.id === serviceId,
-                );
+            <div className="mt-2 pt-2 border-t border-black/10 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-muted-foreground">Subtotal</p>
+                <p className="text-xs font-medium">
+                  {subtotalCents > 0
+                    ? `$${Math.round(subtotalCents / 100)} MXN`
+                    : "Gratis"}
+                </p>
+              </div>
 
-                const staffId = booking.staffByService?.[serviceId];
-                const staff =
-                  staffId && staffId !== "ANY"
-                    ? booking.staffCatalog?.find((st: any) => st.id === staffId)
-                    : null;
+              {couponDiscountCents > 0 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] text-muted-foreground">
+                    Cupón {booking.appliedCouponCode ? `(${booking.appliedCouponCode})` : ""}
+                  </p>
+                  <p className="text-xs font-medium text-emerald-700">
+                    -${Math.round(couponDiscountCents / 100)} MXN
+                  </p>
+                </div>
+              )}
 
-                return (
-                  <div
-                    key={serviceId}
-                    className="flex items-start justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium truncate">
-                        {srv?.name ?? "Servicio"}
-                      </p>
-
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {staffId === "ANY"
-                          ? "Profesional: Cualquiera"
-                          : staff
-                            ? `Profesional: ${staff.name}`
-                            : "Profesional: Sin asignar"}
-                      </p>
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      <p className="text-xs font-semibold">
-                        {srv?.priceCents
-                          ? `$${Math.round(srv.priceCents / 100)} MXN`
-                          : "Gratis"}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {srv?.durationMin ?? 0} min
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* TOTAL */}
-            <div className="mt-3 pt-3 border-t border-black/10 flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">Total</p>
-              <p className="text-sm font-semibold">
-                {(() => {
-                  const total = booking.services.reduce(
-                    (acc: number, id: string) => {
-                      const srv = booking.catalog.find((s: any) => s.id === id);
-                      return acc + (srv?.priceCents ?? 0);
-                    },
-                    0,
-                  );
-
-                  return total > 0
-                    ? `$${Math.round(total / 100)} MXN`
-                    : "Gratis";
-                })()}
-              </p>
+              {giftCardUsedCents > 0 && selectedGiftCard && (
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] text-muted-foreground">
+                    Gift card ({selectedGiftCard.code})
+                  </p>
+                  <p className="text-xs font-medium text-emerald-700">
+                    -${Math.round(giftCardUsedCents / 100)} MXN
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
-          {booking.benefits.redeemableRewards.availableCount > 0 && (
-            <div
-              className="w-full text-white px-4 py-4"
+          {booking.benefits.pointsBalance > 0 && (
+            <button
+              type="button"
+              onClick={() => setRewardsSheetOpen(true)}
+              className="w-full text-white px-4 py-3"
               style={{
                 background: "linear-gradient(135deg, #5b5bf7, #c14ef0)",
               }}
@@ -513,17 +557,18 @@ export function ConfirmBookingMobilePage() {
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4" />
                   <span className="text-sm font-normal">
-                    {booking.benefits.redeemableRewards.availableCount}{" "}
-                    recompensas disponibles
+                    {booking.benefits.redeemableRewards.availableCount > 0
+                      ? `${booking.benefits.redeemableRewards.availableCount} recompensas disponibles`
+                      : "Desbloquea recompensas"}
                   </span>
                 </div>
-                <ChevronRight className="text-white/90" />
+                <ChevronRight className="text-white/90 h-4 w-4" />
               </div>
-            </div>
+            </button>
           )}
 
           <Button
-            className="w-full rounded-full py-6"
+            className="w-full rounded-full py-5"
             disabled={!canConfirm || submitting}
             onClick={handleConfirm}
           >
@@ -534,7 +579,7 @@ export function ConfirmBookingMobilePage() {
             <p className="text-xs text-red-600 text-center">{submitError}</p>
           )}
 
-          <p className="text-xs text-muted-foreground text-center">
+          <p className="text-[11px] text-muted-foreground text-center">
             Al confirmar, aceptas las condiciones del establecimiento.
           </p>
         </div>
@@ -568,6 +613,11 @@ export function ConfirmBookingMobilePage() {
             handleConfirm(); // 🔥 reintenta solo
           }
         }}
+      />
+      <AvailableRewardsMobileDrawer
+        open={rewardsSheetOpen}
+        onOpenChange={setRewardsSheetOpen}
+        branchId={booking.branch?.id}
       />
     </div>
   );

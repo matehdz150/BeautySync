@@ -13,7 +13,7 @@ import {
 
 import { randomUUID } from 'crypto';
 import { DateTime } from 'luxon';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import * as client from 'src/modules/db/client';
 
@@ -25,6 +25,7 @@ import {
   branchSettings,
   branches,
   clients,
+  coupons,
   giftCardTransactions,
   giftCards,
   payments,
@@ -48,7 +49,6 @@ import { NotificationsJobsService } from '../queues/notifications/notifications-
 import { SLOT_LOCK_PORT } from '../cache/core/ports/tokens';
 import { SlotLockPort } from '../cache/core/ports/slot-lock.port';
 import { ValidateCouponUseCase } from '../cupons/core/use-cases/validate-cupon.use-case';
-import { ApplyCouponUseCase } from '../cupons/core/use-cases/apply-coupon.use-case';
 import { DomainEventBus } from 'src/shared/domain-events/domain-event-bus';
 
 @Injectable()
@@ -57,7 +57,6 @@ export class BookingsCoreService {
     private readonly publicBookingJobsService: PublicBookingJobsService,
     private readonly notificationsJobService: NotificationsJobsService,
     private readonly validateCoupon: ValidateCouponUseCase,
-    private readonly applyCoupon: ApplyCouponUseCase,
     @Inject('DB') private readonly db: client.DB,
     @Inject(SLOT_LOCK_PORT)
     private readonly slotLock: SlotLockPort,
@@ -271,6 +270,10 @@ export class BookingsCoreService {
         amountCents: bookingTotalCents,
         publicUserId,
         serviceIds,
+        serviceItems: normalized.map((a) => ({
+          serviceId: a.serviceId,
+          amountCents: a.priceCents ?? 0,
+        })),
       });
 
       couponDiscount = result.discountCents;
@@ -376,7 +379,14 @@ export class BookingsCoreService {
         });
 
         if (couponId) {
-          await this.applyCoupon.execute(couponId, tx);
+          // Same transaction/connection to avoid lock waits on coupons row.
+          await tx
+            .update(coupons)
+            .set({
+              usedCount: sql`${coupons.usedCount} + 1`,
+              updatedAt: new Date(),
+            })
+            .where(eq(coupons.id, couponId));
         }
 
         const created = await Promise.all(

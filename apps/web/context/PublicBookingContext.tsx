@@ -87,25 +87,44 @@ type BookingState = {
       balanceCents: number;
       expiresAt?: string | null;
     }[];
-  coupons: {
-    id: string;
-    code: string;
-    type: "percentage" | "fixed";
-    value: number;
-    expiresAt?: string | null;
-  }[];
+    coupons: {
+      id: string;
+      code: string;
+      type: "percentage" | "fixed";
+      value: number;
+      expiresAt?: string | null;
+      serviceName?: string | null;
+      serviceNames?: string[];
+    }[];
 
-  pointsBalance: number;
+    pointsBalance: number;
 
-  redeemableRewards: {
-    availableCount: number;
-    rewards: {
+    redeemableRewards: {
+      availableCount: number;
+      rewards: {
+        id: string;
+        name: string;
+        pointsCost: number;
+        type: "SERVICE" | "PRODUCT" | "COUPON" | "GIFT_CARD" | "CUSTOM";
+        referenceId?: string | null;
+        config?: Record<string, unknown>;
+      }[];
+    };
+
+    tier: {
       id: string;
       name: string;
-      pointsCost: number;
-      type: "SERVICE" | "PRODUCT" | "COUPON" | "GIFT_CARD" | "CUSTOM";
-      referenceId?: string | null;
-      config?: Record<string, unknown>;
+      color: string | null;
+      icon: string | null;
+    } | null;
+
+    tierRewards: {
+      id: string;
+      type: "ONE_TIME" | "RECURRING";
+      config: Record<string, unknown>;
+      granted: boolean;
+      grantedAt: string | null;
+      used: boolean;
     }[];
   };
 
@@ -117,6 +136,8 @@ type BookingState = {
 
   benefitsLoading: boolean;
   selectedCouponId: string | null;
+  appliedCouponCode: string | null;
+  appliedCouponDiscountCents: number;
   selectedGiftCardId: string | null;
   giftCardAmountCents: number;
 };
@@ -159,6 +180,10 @@ type BookingAction =
   | { type: "SELECT_GIFT_CARD"; payload: { id: string; amount: number } }
   | { type: "SET_GIFT_CARD_AMOUNT"; payload: number }
   | { type: "SELECT_COUPON"; payload: string | null }
+  | {
+      type: "SET_APPLIED_COUPON";
+      payload: { code: string; discountCents: number } | null;
+    }
   | { type: "SET_BENEFITS_LOADING"; payload: boolean }
   | { type: "RESET_BOOKING" };
 
@@ -204,6 +229,8 @@ const initialState: BookingState = {
   },
   benefitsLoading: false,
   selectedCouponId: null,
+  appliedCouponCode: null,
+  appliedCouponDiscountCents: 0,
   selectedGiftCardId: null,
   giftCardAmountCents: 0,
 };
@@ -398,6 +425,8 @@ function bookingReducer(
         ...state,
         selectedGiftCardId: action.payload.id,
         selectedCouponId: null,
+        appliedCouponCode: null,
+        appliedCouponDiscountCents: 0,
       };
       break;
 
@@ -424,6 +453,14 @@ function bookingReducer(
         selectedCouponId: action.payload,
         selectedGiftCardId: null,
         giftCardAmountCents: 0,
+      };
+      break;
+
+    case "SET_APPLIED_COUPON":
+      nextState = {
+        ...state,
+        appliedCouponCode: action.payload?.code ?? null,
+        appliedCouponDiscountCents: action.payload?.discountCents ?? 0,
       };
       break;
 

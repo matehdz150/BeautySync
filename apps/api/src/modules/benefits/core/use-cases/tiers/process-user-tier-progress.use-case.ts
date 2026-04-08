@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { BENEFIT_BALANCE_REPOSITORY } from '../../ports/tokens';
+import { BENEFIT_POINTS_REPOSITORY } from '../../ports/tokens';
 import { BENEFIT_TIERS_REPOSITORY } from '../../ports/tokens';
 import { TIER_REWARDS_REPOSITORY } from '../../ports/tokens';
 import { TIER_REWARD_GRANT_REPOSITORY } from '../../ports/tokens';
@@ -9,7 +9,7 @@ import { BENEFIT_PROGRAM_REPOSITORY } from '../../ports/tokens';
 import { GIFT_CARD_REPOSITORY } from 'src/modules/gift-cards/core/ports/tokens';
 import { COUPON_REPOSITORY } from 'src/modules/cupons/core/ports/tokens';
 
-import * as balanceRepo from '../../ports/benefit-balance.repository';
+import * as pointsRepo from '../../ports/benefit-points.repository';
 import * as tiersRepo from '../../ports/benefit-tier.repository';
 import * as rewardsRepo from '../../ports/tier-reward.repository';
 import * as grantRepo from '../../ports/tier-reward-grant.repository';
@@ -21,8 +21,8 @@ import { CouponRepository } from 'src/modules/cupons/core/ports/coupon.repositor
 @Injectable()
 export class ProcessUserTierProgressUseCase {
   constructor(
-    @Inject(BENEFIT_BALANCE_REPOSITORY)
-    private readonly balanceRepo: balanceRepo.BenefitBalanceRepository,
+    @Inject(BENEFIT_POINTS_REPOSITORY)
+    private readonly pointsRepo: pointsRepo.BenefitPointsRepository,
 
     @Inject(BENEFIT_PROGRAM_REPOSITORY)
     private readonly programRepo: programRepo.BenefitProgramRepository,
@@ -54,14 +54,13 @@ export class ProcessUserTierProgressUseCase {
     if (!program || !program.isActive) return;
 
     // =========================
-    // 2. puntos del usuario
+    // 2. puntos para tier (acumulados positivos)
     // =========================
-    const balance = await this.balanceRepo.getByUserAndBranch({
+    // NOTE: tier should not go down when user redeems points.
+    const userPoints = await this.pointsRepo.getTierPoints({
       userId,
       branchId,
     });
-
-    const userPoints = balance?.pointsBalance ?? 0;
 
     // =========================
     // 3. tiers

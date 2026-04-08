@@ -59,6 +59,8 @@ export interface PaymentsRepositoryPort {
       type: 'percentage' | 'fixed';
       value: number;
       expiresAt?: Date | null;
+      serviceName?: string | null;
+      serviceNames?: string[];
     }[];
 
     // 🔥 beneficios ampliados

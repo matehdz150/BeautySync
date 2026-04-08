@@ -17,6 +17,8 @@ export type PaymentBenefits = {
     type: "percentage" | "fixed";
     value: number;
     expiresAt?: string | null;
+    serviceName?: string | null;
+    serviceNames?: string[];
   }[];
 
   // Nuevo balance de puntos por sucursal
@@ -63,4 +65,31 @@ export async function getPaymentBenefits(
       method: "GET",
     }
   );
+}
+
+export type ValidatePublicCouponPayload = {
+  code: string;
+  branchId: string;
+  amountCents: number;
+  serviceIds?: string[];
+  serviceItems?: Array<{
+    serviceId: string;
+    amountCents: number;
+  }>;
+};
+
+export type ValidatePublicCouponResponse = {
+  couponId: string;
+  discountCents: number;
+  finalAmount: number;
+  discountBaseAmountCents: number;
+};
+
+export async function validatePublicCoupon(
+  payload: ValidatePublicCouponPayload,
+): Promise<ValidatePublicCouponResponse> {
+  return publicFetch<ValidatePublicCouponResponse>("/coupons/validate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }

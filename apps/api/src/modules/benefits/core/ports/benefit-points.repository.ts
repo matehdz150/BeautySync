@@ -9,5 +9,8 @@ export interface BenefitPointsRepository {
     referenceId?: string;
     idempotencyKey: string;
     metadata?: Record<string, unknown>;
-  }): Promise<void>;
+    updateBalanceCache?: boolean;
+  }): Promise<boolean>;
+
+  getTierPoints(params: { userId: string; branchId: string }): Promise<number>;
 }
