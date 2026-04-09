@@ -8,7 +8,12 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
+import { AuthenticatedUser } from '../../core/entities/authenticatedUser.entity';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+
+type AuthenticatedRequest = Request & {
+  user?: AuthenticatedUser;
+};
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -24,7 +29,7 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const req = context.switchToHttp().getRequest<Request>();
+    const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const user = req.user;
 

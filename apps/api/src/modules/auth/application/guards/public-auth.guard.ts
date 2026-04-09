@@ -8,12 +8,23 @@ import {
 import { Request } from 'express';
 import { TokensService } from '../services/tokens.service';
 
+type PublicSessionUser = {
+  publicUserId: string;
+  email: string | null;
+  name: string | null;
+  avatarUrl: string | null;
+};
+
+type PublicAuthRequest = Request & {
+  publicUser?: PublicSessionUser;
+};
+
 @Injectable()
 export class PublicAuthGuard implements CanActivate {
   constructor(private readonly tokensService: TokensService) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const req = context.switchToHttp().getRequest<Request>();
+  canActivate(context: ExecutionContext): boolean {
+    const req = context.switchToHttp().getRequest<PublicAuthRequest>();
 
     const cookieName = process.env.PUBLIC_SESSION_COOKIE_NAME ?? 'pubsid';
 

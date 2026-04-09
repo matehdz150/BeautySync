@@ -7,10 +7,16 @@ import {
 
 import { Request } from 'express';
 
+import { AuthenticatedUser } from '../../core/entities/authenticatedUser.entity';
+
+type AuthenticatedRequest = Request & {
+  user?: AuthenticatedUser;
+};
+
 @Injectable()
 export class BranchAccessGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest<Request>();
+    const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const user = req.user;
 

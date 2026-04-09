@@ -7,15 +7,21 @@ import {
 
 import { Request } from 'express';
 
+import { AuthenticatedUser } from '../../core/entities/authenticatedUser.entity';
+
 type OrgRequestBody = {
   organizationId?: string;
   organization_id?: string;
 };
 
+type AuthenticatedRequest = Request & {
+  user?: AuthenticatedUser;
+};
+
 @Injectable()
 export class OrganizationAccessGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest<Request>();
+    const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const user = req.user;
 

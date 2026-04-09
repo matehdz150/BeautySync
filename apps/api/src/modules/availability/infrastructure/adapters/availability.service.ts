@@ -22,13 +22,9 @@ import {
   mergeIntervals,
   parseTimeToMinutes,
   subtractBusy,
-  subtractIntervals,
 } from './time-helpers';
 import { DateTime } from 'luxon';
-import {
-  AvailabilityResult,
-  StaffAvailability,
-} from '../../core/entities/availability.entity';
+import { AvailabilityResult } from '../../core/entities/availability.entity';
 import { SlotLockPort } from 'src/modules/cache/core/ports/slot-lock.port';
 import { SLOT_LOCK_PORT } from 'src/modules/cache/core/ports/tokens';
 import { GetAvailableDatesFromIndexUseCase } from '../../core/use-cases/get-available-dates-from-index.use-case';
@@ -333,26 +329,29 @@ export class AvailabilityService {
 
     const monthStart = base.startOf('month');
     const monthEnd = base.endOf('month');
-    console.log('DATES ENDPOINT USING CACHE ONLY');
-    const index = await this.availabilityIndexCache.getCached({
+    const index = await this.availabilityIndexCache.getAvailabilityWindow({
       branchId: input.branchId,
       start: monthStart.toUTC().toJSDate(),
       end: monthEnd.toUTC().toJSDate(),
     });
 
-    if (!index) {
-      return [];
+    const dates: string[] = [];
+    let cursor = monthStart.startOf('day');
+
+    while (cursor <= monthEnd) {
+      const iso = cursor.toISODate();
+      if (iso) {
+        dates.push(iso);
+      }
+      cursor = cursor.plus({ days: 1 });
     }
 
-    const monthStartIso = monthStart.toISODate()!;
-    const monthEndIso = monthEnd.toISODate()!;
-
-    return index.availableDates
-      .filter((date) => date >= monthStartIso && date <= monthEndIso)
-      .map((date) => ({
-        date,
-        available: true,
-      }));
+    return this.getAvailableDatesFromIndex.execute({
+      index,
+      dates,
+      requiredDurationMin: input.requiredDurationMin,
+      staffId: input.staffId,
+    });
   }
 
   async getAvailability(
