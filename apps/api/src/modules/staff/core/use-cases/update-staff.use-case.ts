@@ -22,7 +22,7 @@ export class UpdateStaffUseCase {
   ) {
     const staff = await this.repo.update(id, data, user);
 
-    await this.cache.del(`staff:branch:${staff.branchId}`);
+    await this.cache.del(`staff:snapshot:branch:${staff.branchId}`);
 
     return staff;
   }

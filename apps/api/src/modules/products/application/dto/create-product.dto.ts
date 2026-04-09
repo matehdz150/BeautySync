@@ -6,8 +6,9 @@ export class CreateProductDto {
   @IsString()
   name!: string;
 
+  @IsOptional()
   @IsString()
-  slug!: string;
+  slug?: string;
 
   @IsNumber()
   @Min(0)

@@ -11,7 +11,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { DateTime } from 'luxon';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
@@ -46,28 +46,319 @@ import { PublicBookingJobsService } from '../queues/booking/public-booking-job.s
 import { buildAppointmentOverlapWhere } from '../lib/booking/booking.overlap';
 import { publicBookingRatings } from '../db/schema/rankings/public_booking_ratings';
 import { NotificationsJobsService } from '../queues/notifications/notifications-job.service';
-import { SLOT_LOCK_PORT } from '../cache/core/ports/tokens';
+import { CACHE_PORT, SLOT_LOCK_PORT } from '../cache/core/ports/tokens';
+import { CachePort } from '../cache/core/ports/cache.port';
 import { SlotLockPort } from '../cache/core/ports/slot-lock.port';
 import { ValidateCouponUseCase } from '../cupons/core/use-cases/validate-cupon.use-case';
 import { DomainEventBus } from 'src/shared/domain-events/domain-event-bus';
+import { CalendarRealtimePublisher } from '../calendar/calendar-realtime.publisher';
+import { PublicBranchCacheService } from '../cache/application/public-branch-cache.service';
+import { BranchSettingsCacheService } from '../cache/application/branch-settings-cache.service';
+import { BranchServicesCacheService } from '../cache/application/branch-services-cache.service';
+import { BranchStaffCacheService } from '../cache/application/branch-staff-cache.service';
+import { AvailabilityCacheService } from '../availability/infrastructure/adapters/availability-cache.service';
+import { AvailabilitySnapshotWarmService } from '../availability/infrastructure/adapters/availability-snapshot-warm.service';
+import { PaymentBenefitsRefreshService } from '../payments/application/payment-benefits-refresh.service';
+import { AvailabilitySnapshotRepository } from '../availability/core/ports/availability-snapshot.repository';
+import { AVAILABILITY_SNAPSHOT_REPOSITORY } from '../availability/core/ports/tokens';
+import { AvailabilityDaySnapshot } from '../availability/core/entities/availability-day-snapshot.entity';
+
+function parseJsonArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T[];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+type PublicBookingAppointmentRow = {
+  id: string;
+  status: string;
+  startUtc: string;
+  endUtc: string;
+  priceCents: number | null;
+  service: { id: string; name: string };
+  staff: { id: string; name: string; avatarUrl: string | null };
+};
+
+type ManagerBookingAppointmentRow = {
+  id: string;
+  status: string;
+  paymentStatus: string;
+  startUtc: string;
+  endUtc: string;
+  priceCents: number | null;
+  service: { id: string; name: string; categoryColor: string };
+  staff: { id: string; name: string; avatarUrl: string | null };
+};
 
 @Injectable()
 export class BookingsCoreService {
+  private static readonly MANAGER_CHAIN_CACHE_TTL_SECONDS = 45;
+  private readonly managerChainInflight = new Map<string, Promise<unknown>>();
+
   constructor(
     private readonly publicBookingJobsService: PublicBookingJobsService,
     private readonly notificationsJobService: NotificationsJobsService,
     private readonly validateCoupon: ValidateCouponUseCase,
     @Inject('DB') private readonly db: client.DB,
+    @Inject(CACHE_PORT)
+    private readonly cache: CachePort,
     @Inject(SLOT_LOCK_PORT)
     private readonly slotLock: SlotLockPort,
     private readonly eventBus: DomainEventBus,
+    private readonly calendarRealtime: CalendarRealtimePublisher,
+    private readonly publicBranchCache: PublicBranchCacheService,
+    private readonly branchSettingsCache: BranchSettingsCacheService,
+    private readonly branchServicesCache: BranchServicesCacheService,
+    private readonly branchStaffCache: BranchStaffCacheService,
+    private readonly availabilityCache: AvailabilityCacheService,
+    private readonly availabilityWarm: AvailabilitySnapshotWarmService,
+    @Inject(AVAILABILITY_SNAPSHOT_REPOSITORY)
+    private readonly availabilitySnapshots: AvailabilitySnapshotRepository,
+    private readonly paymentBenefitsRefresh: PaymentBenefitsRefreshService,
   ) {}
+
+  private buildManagerChainCacheKey(params: {
+    kind: 'build' | 'next-services' | 'next-staff-options';
+    branchId: string;
+    date: string;
+    pinnedStartIso: string;
+    chain: { serviceId: string; staffId: string | 'ANY' }[];
+    nextServiceId?: string;
+  }) {
+    const suffix = createHash('sha1')
+      .update(
+        JSON.stringify({
+          pinnedStartIso: params.pinnedStartIso,
+          chain: params.chain,
+          nextServiceId: params.nextServiceId ?? null,
+        }),
+      )
+      .digest('hex');
+
+    return `manager:chain:${params.kind}:${params.branchId}:${params.date}:${suffix}`;
+  }
+
+  private async getOrSetManagerChainCache<T>(
+    key: string,
+    factory: () => Promise<T>,
+  ): Promise<T> {
+    const cached = await this.cache.get<T>(key);
+    if (cached) {
+      return cached;
+    }
+
+    const inflight = this.managerChainInflight.get(key) as Promise<T> | undefined;
+    if (inflight) {
+      return inflight;
+    }
+
+    const promise = (async () => {
+      const result = await factory();
+      await this.cache.set(
+        key,
+        result,
+        BookingsCoreService.MANAGER_CHAIN_CACHE_TTL_SECONDS,
+      );
+      return result;
+    })();
+
+    this.managerChainInflight.set(key, promise);
+
+    try {
+      return await promise;
+    } finally {
+      if (this.managerChainInflight.get(key) === promise) {
+        this.managerChainInflight.delete(key);
+      }
+    }
+  }
+
+  private async getAvailabilityDaySnapshotOrWarm(
+    branchId: string,
+    date: string,
+  ): Promise<AvailabilityDaySnapshot> {
+    let snapshot = await this.availabilitySnapshots.get(branchId, date);
+    if (snapshot) {
+      return snapshot;
+    }
+
+    await this.availabilityWarm.warmDay({ branchId, date });
+    snapshot = await this.availabilitySnapshots.get(branchId, date);
+
+    if (!snapshot) {
+      throw new BadRequestException('Availability snapshot not ready');
+    }
+
+    return snapshot;
+  }
+
+  private async getAvailabilityDaySnapshotStrict(
+    branchId: string,
+    date: string,
+  ): Promise<AvailabilityDaySnapshot> {
+    const snapshot = await this.availabilitySnapshots.get(branchId, date);
+
+    if (!snapshot) {
+      throw new BadRequestException('SNAPSHOT_NOT_READY');
+    }
+
+    return snapshot;
+  }
+
+  private normalizeManagerChainStart(params: {
+    pinnedStartIso: string;
+    date: string;
+    timezone: string;
+  }) {
+    const pinned = DateTime.fromISO(params.pinnedStartIso).set({
+      millisecond: 0,
+      second: 0,
+    });
+
+    if (!pinned.isValid) {
+      throw new BadRequestException('Invalid pinnedStartIso');
+    }
+
+    const pinnedInTz = pinned.setZone(params.timezone);
+    if (pinnedInTz.toISODate() !== params.date) {
+      throw new BadRequestException(
+        `pinnedStartIso does not match date ${params.date}`,
+      );
+    }
+
+    return pinned.toUTC();
+  }
+
+  private createSnapshotContext(snapshot: AvailabilityDaySnapshot) {
+    const serviceById = new Map(
+      snapshot.services.map((service) => [
+        service.id,
+        {
+          ...service,
+          startsToStaffIds: new Map(service.availableStaffIdsByStart),
+        },
+      ]),
+    );
+    const staffById = new Map(snapshot.staff.map((member) => [member.id, member]));
+    const stepMin = snapshot.stepMin || 15;
+    const bufferBeforeMin = snapshot.bufferBeforeMin ?? 0;
+    const bufferAfterMin = snapshot.bufferAfterMin ?? 0;
+
+    return {
+      serviceById,
+      staffById,
+      stepMin,
+      bufferBeforeMin,
+      bufferAfterMin,
+    };
+  }
+
+  private getSegmentDurationMin(params: {
+    serviceDurationMin: number;
+    bufferBeforeMin: number;
+    bufferAfterMin: number;
+    stepMin: number;
+  }) {
+    return this.roundToBlock(
+      params.serviceDurationMin +
+        params.bufferBeforeMin +
+        params.bufferAfterMin,
+      params.stepMin,
+    );
+  }
+
+  private resolveManagerChainPlanFromSnapshot(params: {
+    snapshot: AvailabilityDaySnapshot;
+    pinnedStartIso: string;
+    date: string;
+    chain: { serviceId: string; staffId: string | 'ANY' }[];
+  }) {
+    const { snapshot, chain } = params;
+    const ctx = this.createSnapshotContext(snapshot);
+    const pinnedStartUtc = this.normalizeManagerChainStart({
+      pinnedStartIso: params.pinnedStartIso,
+      date: params.date,
+      timezone: snapshot.timezone,
+    });
+
+    let cursorUtc = pinnedStartUtc;
+    const assignments: {
+      serviceId: string;
+      staffId: string;
+      startUtc: DateTime;
+      endUtc: DateTime;
+      durationMin: number;
+      priceCents: number;
+    }[] = [];
+
+    for (const item of chain) {
+      const service = ctx.serviceById.get(item.serviceId);
+      if (!service) {
+        throw new BadRequestException(`Service not found: ${item.serviceId}`);
+      }
+
+      const startMs = cursorUtc.toMillis();
+      const eligibleStaffIds = service.startsToStaffIds.get(startMs) ?? [];
+
+      if (!eligibleStaffIds.length) {
+        throw new BadRequestException('No staff available for this timeslot');
+      }
+
+      const finalStaffId =
+        item.staffId === 'ANY'
+          ? eligibleStaffIds[0]
+          : eligibleStaffIds.includes(item.staffId)
+            ? item.staffId
+            : null;
+
+      if (!finalStaffId) {
+        throw new BadRequestException('Timeslot already booked');
+      }
+
+      const durationMin = this.getSegmentDurationMin({
+        serviceDurationMin: service.durationMin,
+        bufferBeforeMin: ctx.bufferBeforeMin,
+        bufferAfterMin: ctx.bufferAfterMin,
+        stepMin: ctx.stepMin,
+      });
+      const endUtc = cursorUtc.plus({ minutes: durationMin }).set({
+        millisecond: 0,
+        second: 0,
+      });
+
+      assignments.push({
+        serviceId: service.id,
+        staffId: finalStaffId,
+        startUtc: cursorUtc,
+        endUtc,
+        durationMin,
+        priceCents: service.priceCents,
+      });
+
+      cursorUtc = endUtc;
+    }
+
+    return assignments;
+  }
 
   async createPublicBooking(dto: CreatePublicBookingDto, publicUserId: string) {
     async function getOrCreateClientForPublicUser(params: {
       tx: any;
       publicUser: typeof publicUsers.$inferSelect;
-      branch: typeof branches.$inferSelect;
+      branch: {
+        id: string;
+        organizationId: string;
+      };
     }) {
       const { tx, publicUser, branch } = params;
 
@@ -120,22 +411,18 @@ export class BookingsCoreService {
       });
     }
 
-    const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.publicSlug, branchSlug),
-    });
+    const branch = await this.publicBranchCache.getBySlug(branchSlug);
 
     if (!branch) throw new NotFoundException('Branch not found');
     if (!branch.publicPresenceEnabled) {
       throw new ForbiddenException('Branch is not public');
     }
 
-    const settings = await this.db.query.branchSettings.findFirst({
-      where: eq(branchSettings.branchId, branch.id),
-    });
+    const settings = await this.branchSettingsCache.get(branch.id);
 
-    const tz = settings?.timezone ?? 'America/Mexico_City';
-    const bufferBefore = settings?.bufferBeforeMin ?? 0;
-    const bufferAfter = settings?.bufferAfterMin ?? 0;
+    const tz = settings.timezone;
+    const bufferBefore = settings.bufferBeforeMin;
+    const bufferAfter = settings.bufferAfterMin;
 
     const BLOCK_MINUTES = 15;
 
@@ -147,26 +434,29 @@ export class BookingsCoreService {
 
     const bookingId = randomUUID();
 
-    const normalized = await Promise.all(
-      drafts.map(async (a) => {
-        const service = await this.db.query.services.findFirst({
-          where: and(
-            eq(services.id, a.serviceId),
-            eq(services.branchId, branch.id),
-            eq(services.isActive, true),
-          ),
-        });
+    const requestedServiceIds = [...new Set(drafts.map((draft) => draft.serviceId))];
+    const requestedStaffIds = [...new Set(drafts.map((draft) => draft.staffId))];
+    const servicesMap = await this.branchServicesCache.getActiveMap(branch.id);
+    const staffMap = await this.branchStaffCache.getActiveMap(branch.id);
 
-        const staffRow = await this.db.query.staff.findFirst({
-          where: and(eq(staff.id, a.staffId), eq(staff.branchId, branch.id)),
-        });
+    for (const serviceId of requestedServiceIds) {
+      if (!servicesMap.has(serviceId)) {
+        throw new BadRequestException(`Service not found: ${serviceId}`);
+      }
+    }
+
+    for (const staffId of requestedStaffIds) {
+      if (!staffMap.has(staffId)) {
+        throw new BadRequestException(`Staff not found: ${staffId}`);
+      }
+    }
+
+    const normalized = drafts.map((a) => {
+        const service = servicesMap.get(a.serviceId);
+        const staffRow = staffMap.get(a.staffId);
 
         if (!staffRow) {
           throw new BadRequestException(`Staff not found: ${a.staffId}`);
-        }
-
-        if (!staffRow.isActive) {
-          throw new BadRequestException(`Staff is not available for booking`);
         }
 
         if (!service) {
@@ -209,9 +499,9 @@ export class BookingsCoreService {
           endUtc,
           priceCents: service.priceCents,
           notes: dto.notes ?? null,
+          serviceName: service.name,
         };
-      }),
-    );
+      });
 
     normalized.sort((x, y) =>
       x.startUtc.toISO()!.localeCompare(y.startUtc.toISO()),
@@ -399,45 +689,44 @@ export class BookingsCoreService {
             .where(eq(coupons.id, couponId));
         }
 
-        const created = await Promise.all(
-          normalized.map(async (a) => {
-            try {
-              const [row] = await tx
-                .insert(appointments)
-                .values({
-                  publicBookingId: a.publicBookingId,
-                  publicUserId,
-                  clientId,
-                  branchId: a.branchId,
-                  staffId: a.staffId,
-                  serviceId: a.serviceId,
-                  start: a.startUtc.toJSDate(),
-                  end: a.endUtc.toJSDate(),
-                  status: 'CONFIRMED',
-                  paymentStatus:
-                    dto.paymentMethod === PublicPaymentMethodEnum.ONLINE
-                      ? 'PAID'
-                      : 'UNPAID',
-                  notes: a.notes,
-                  priceCents: a.priceCents,
-                })
-                .returning();
+        let created: (typeof appointments.$inferSelect)[];
+        try {
+          created = await tx
+            .insert(appointments)
+            .values(
+              normalized.map((a) => ({
+                publicBookingId: a.publicBookingId,
+                publicUserId,
+                clientId,
+                branchId: a.branchId,
+                staffId: a.staffId,
+                serviceId: a.serviceId,
+                start: a.startUtc.toJSDate(),
+                end: a.endUtc.toJSDate(),
+                status: 'CONFIRMED' as const,
+                paymentStatus:
+                  dto.paymentMethod === PublicPaymentMethodEnum.ONLINE
+                    ? ('PAID' as const)
+                    : ('UNPAID' as const),
+                notes: a.notes,
+                priceCents: a.priceCents,
+              })),
+            )
+            .returning();
+        } catch (e: any) {
+          if (e?.code === '23P01') {
+            throw new BadRequestException('Timeslot already booked');
+          }
 
-              await tx.insert(appointmentStatusHistory).values({
-                appointmentId: row.id,
-                newStatus: 'CONFIRMED',
-                reason: 'Public booking',
-              });
+          throw e;
+        }
 
-              return row;
-            } catch (e: any) {
-              if (e?.code === '23P01') {
-                throw new BadRequestException('Timeslot already booked');
-              }
-
-              throw e;
-            }
-          }),
+        await tx.insert(appointmentStatusHistory).values(
+          created.map((row) => ({
+            appointmentId: row.id,
+            newStatus: 'CONFIRMED',
+            reason: 'Public booking',
+          })),
         );
 
         return {
@@ -486,40 +775,25 @@ export class BookingsCoreService {
     // =========================
     // 🔔 BUILD NOTIFICATION DATA (READ ONLY)
     // =========================
-
-    // 1️⃣ Servicios usados
-    const serviceIds = [
-      ...new Set(result.appointments.map((a) => a.serviceId)),
+    const staffUserIds = [
+      ...new Set(
+        requestedStaffIds
+          .map((staffId) => staffMap.get(staffId)?.userId)
+          .filter((value): value is string => Boolean(value)),
+      ),
     ];
 
-    const servicesUsed = await this.db
-      .select({
-        id: services.id,
-        name: services.name,
-        durationMin: services.durationMin,
-        priceCents: services.priceCents,
-      })
-      .from(services)
-      .where(inArray(services.id, serviceIds));
-
-    // 2️⃣ Staff asignado
-    const staffIds = [...new Set(result.appointments.map((a) => a.staffId))];
-
-    const staffMembers = await this.db
-      .select({
-        id: users.id,
-        name: users.name,
-        avatarUrl: users.avatarUrl,
-      })
-      .from(users)
-      .where(inArray(users.id, staffIds));
-
-    // 3️⃣ Cliente
-    const client = result.clientId
-      ? await this.db.query.clients.findFirst({
-          where: eq(clients.id, result.clientId),
-        })
-      : null;
+    const staffMembers =
+      staffUserIds.length > 0
+        ? await this.db
+            .select({
+              id: users.id,
+              name: users.name,
+              avatarUrl: users.avatarUrl,
+            })
+            .from(users)
+            .where(inArray(users.id, staffUserIds))
+        : [];
 
     await this.notificationsJobService.bookingCreated({
       bookingId,
@@ -530,18 +804,21 @@ export class BookingsCoreService {
         endsAt: bookingEndsAtUtc,
       },
 
-      services: servicesUsed.map((s) => ({
-        id: s.id,
-        name: s.name,
-        durationMin: s.durationMin,
-        priceCents: s.priceCents ?? 0,
-      })),
+      services: requestedServiceIds.map((serviceId) => {
+        const service = servicesMap.get(serviceId)!;
+        return {
+          id: service.id,
+          name: service.name,
+          durationMin: service.durationMin,
+          priceCents: service.priceCents ?? 0,
+        };
+      }),
 
-      client: client
+      client: result.clientId
         ? {
-            id: client.id,
-            name: client.name,
-            avatarUrl: client.avatarUrl,
+            id: result.clientId,
+            name: publicUser.name ?? 'Cliente',
+            avatarUrl: publicUser.avatarUrl ?? null,
           }
         : undefined,
 
@@ -552,6 +829,34 @@ export class BookingsCoreService {
       })),
 
       totalCents: bookingTotalCents,
+    });
+
+    await this.calendarRealtime.emitInvalidate({
+      branchId: branch.id,
+      reason: 'booking.created',
+    });
+
+    if (bookingStartsAtUtc) {
+      const branchDate = DateTime.fromJSDate(bookingStartsAtUtc, {
+        zone: 'utc',
+      })
+        .setZone(settings.timezone)
+        .toISODate();
+      if (branchDate) {
+        await this.availabilityCache.invalidate(branch.id, branchDate);
+        await this.availabilityWarm.enqueueDay({
+          branchId: branch.id,
+          date: branchDate,
+        });
+      } else {
+        await this.availabilityCache.invalidate(branch.id);
+      }
+    } else {
+      await this.availabilityCache.invalidate(branch.id);
+    }
+    await this.paymentBenefitsRefresh.enqueueUserRefresh({
+      branchId: branch.id,
+      publicUserId,
     });
 
     return result;
@@ -566,127 +871,132 @@ export class BookingsCoreService {
     if (!bookingId) throw new BadRequestException('bookingId is required');
     if (!publicUserId) throw new ForbiddenException('Not authenticated');
 
-    // ✅ 0) Traer booking (source of truth)
-    const booking = await this.db.query.publicBookings.findFirst({
-      where: and(
-        eq(publicBookings.id, bookingId),
-        eq(publicBookings.publicUserId, publicUserId),
-      ),
-    });
+    const [booking] = (await this.db.execute(sql`
+      SELECT
+        pb.id,
+        pb.status,
+        pb.starts_at as "startsAt",
+        pb.ends_at as "endsAt",
+        pb.payment_method as "paymentMethod",
+        pb.notes,
+        pb.total_cents as "totalCents",
+        b.id as "branchId",
+        b.name as "branchName",
+        b.public_slug as "branchSlug",
+        b.address as "branchAddress",
+        (
+          SELECT bi.url
+          FROM branch_images bi
+          WHERE bi.branch_id = b.id
+          ORDER BY bi.is_cover DESC, bi.position ASC NULLS LAST, bi.created_at ASC
+          LIMIT 1
+        ) as "imageUrl",
+        bs.timezone,
+        COALESCE(bs.cancelation_window_min, 120) as "cancelationWindowMin",
+        COALESCE(bs.reschedule_window_min, 480) as "rescheduleWindowMin",
+        pbr.rating as "ratingValue",
+        pbr.comment as "ratingComment",
+        pbr.created_at as "ratingCreatedAt",
+        COALESCE((
+          SELECT json_agg(
+            json_build_object(
+              'id', a.id,
+              'status', a.status,
+              'startUtc', a.start,
+              'endUtc', a."end",
+              'priceCents', a.price_cents,
+              'service', json_build_object(
+                'id', s.id,
+                'name', s.name
+              ),
+              'staff', json_build_object(
+                'id', st.id,
+                'name', st.name,
+                'avatarUrl', st.avatar_url
+              )
+            )
+            ORDER BY a.start ASC
+          )
+          FROM appointments a
+          INNER JOIN services s ON s.id = a.service_id
+          INNER JOIN staff st ON st.id = a.staff_id
+          WHERE a.public_booking_id = pb.id
+        ), '[]'::json) as appointments
+      FROM public_bookings pb
+      INNER JOIN branches b ON b.id = pb.branch_id
+      LEFT JOIN branch_settings bs ON bs.branch_id = b.id
+      LEFT JOIN public_booking_ratings pbr ON pbr.booking_id = pb.id
+      WHERE pb.id = ${bookingId}
+        AND pb.public_user_id = ${publicUserId}
+        AND b.public_presence_enabled = true
+      LIMIT 1
+    `)) as Array<{
+      id: string;
+      status: string;
+      startsAt: Date;
+      endsAt: Date;
+      paymentMethod: string | null;
+      notes: string | null;
+      totalCents: number | null;
+      branchId: string;
+      branchName: string;
+      branchSlug: string | null;
+      branchAddress: string | null;
+      imageUrl: string | null;
+      timezone: string | null;
+      cancelationWindowMin: number | null;
+      rescheduleWindowMin: number | null;
+      ratingValue: number | null;
+      ratingComment: string | null;
+      ratingCreatedAt: Date | null;
+      appointments:
+        | Array<{
+            id: string;
+            status: string;
+            startUtc: string;
+            endUtc: string;
+            priceCents: number | null;
+            service: { id: string; name: string };
+            staff: { id: string; name: string; avatarUrl: string | null };
+          }>
+        | string
+        | null;
+    }>;
 
     if (!booking) {
-      // same message para no filtrar info
       throw new NotFoundException('Booking not found');
     }
 
-    // 1) Traer appointments del booking
-    const rows = await this.db.query.appointments.findMany({
-      where: eq(appointments.publicBookingId, bookingId),
-    });
-
-    if (!rows.length) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    // (defensivo) ownership check extra
-    if (rows.some((r) => r.publicUserId !== publicUserId)) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    // 2) Branch
-    const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.id, booking.branchId),
-      with: { images: true },
-    });
-
-    if (!branch) throw new NotFoundException('Branch not found');
-    if (!branch.publicPresenceEnabled) {
-      throw new ForbiddenException('Branch is not public');
-    }
-
-    // 3) Settings (timezone)
-    const settings = await this.db.query.branchSettings.findFirst({
-      where: eq(branchSettings.branchId, branch.id),
-    });
-
-    const policies = {
-      cancelationWindowMin: settings?.cancelationWindowMin ?? 120,
-      rescheduleWindowMin: settings?.rescheduleWindowMin ?? 480,
-    };
-
-    const tz = settings?.timezone ?? 'America/Mexico_City';
-
-    // 4) cargar services y staff de los appointments
-    const serviceIds = Array.from(new Set(rows.map((r) => r.serviceId)));
-    const staffIds = Array.from(new Set(rows.map((r) => r.staffId)));
-
-    const servicesRows = await this.db.query.services.findMany({
-      where: inArray(services.id, serviceIds),
-    });
-
-    const staffRows = await this.db.query.staff.findMany({
-      where: inArray(staff.id, staffIds),
-    });
-
-    const rating = await this.db.query.publicBookingRatings.findFirst({
-      where: eq(publicBookingRatings.bookingId, bookingId),
-    });
-
-    const servicesMap = new Map(servicesRows.map((s) => [s.id, s]));
-    const staffMap = new Map(staffRows.map((s) => [s.id, s]));
-
-    // 5) ordenar appointments por start
-    const ordered = [...rows].sort((a, b) => {
-      const aIso = new Date(a.start).toISOString();
-      const bIso = new Date(b.start).toISOString();
-      return aIso.localeCompare(bIso);
-    });
-
-    // 6) construir payload appointments (con ISO local en tz)
-    const appointmentPayload = ordered.map((a) => {
-      const srv = servicesMap.get(a.serviceId);
-      const st = staffMap.get(a.staffId);
-
-      const startUtc = DateTime.fromJSDate(a.start, { zone: 'utc' });
-      const endUtc = DateTime.fromJSDate(a.end, { zone: 'utc' });
+    const tz = booking.timezone ?? 'America/Mexico_City';
+    const appointmentsPayload = parseJsonArray<PublicBookingAppointmentRow>(
+      booking.appointments,
+    ).map((appointment) => {
+      const startUtc = DateTime.fromISO(String(appointment.startUtc), {
+        zone: 'utc',
+      });
+      const endUtc = DateTime.fromISO(String(appointment.endUtc), {
+        zone: 'utc',
+      });
 
       return {
-        id: a.id,
-        status: a.status,
-
+        id: appointment.id,
+        status: appointment.status,
         startIso: startUtc.setZone(tz).toISO()!,
         endIso: endUtc.setZone(tz).toISO()!,
-
         durationMin: Math.round(endUtc.diff(startUtc, 'minutes').minutes),
-
-        priceCents: a.priceCents ?? srv?.priceCents ?? 0,
-
-        service: {
-          id: srv?.id ?? a.serviceId,
-          name: srv?.name ?? 'Servicio',
+        priceCents: appointment.priceCents ?? 0,
+        service: appointment.service,
+        staff: {
+          ...appointment.staff,
+          avatarUrl: appointment.staff.avatarUrl ?? null,
         },
-
-        staff: st
-          ? {
-              id: st.id,
-              name: st.name,
-              avatarUrl: st.avatarUrl ?? null,
-            }
-          : {
-              id: a.staffId,
-              name: 'Staff',
-              avatarUrl: null,
-            },
       };
     });
 
-    // 7) cover
-    const coverUrl =
-      branch.images?.find((img) => img.isCover)?.url ??
-      branch.images?.[0]?.url ??
-      null;
+    if (!appointmentsPayload.length) {
+      throw new NotFoundException('Booking not found');
+    }
 
-    // 8) date del booking usando startsAt del booking (source of truth)
     const bookingDate = DateTime.fromJSDate(booking.startsAt, { zone: 'utc' })
       .setZone(tz)
       .toISODate();
@@ -695,41 +1005,40 @@ export class BookingsCoreService {
       ok: true,
       booking: {
         id: bookingId,
-
-        status: booking.status, // ✅ viene de public_bookings
+        status: booking.status,
         startsAtISO: DateTime.fromJSDate(booking.startsAt, {
           zone: 'utc',
         }).toISO()!,
         endsAtISO: DateTime.fromJSDate(booking.endsAt, {
           zone: 'utc',
         }).toISO()!,
-        rating: rating
+        rating: booking.ratingValue !== null
           ? {
-              value: rating.rating,
-              comment: rating.comment ?? null,
-              createdAt: rating.createdAt
-                ? rating.createdAt.toISOString()
+              value: booking.ratingValue,
+              comment: booking.ratingComment ?? null,
+              createdAt: booking.ratingCreatedAt
+                ? booking.ratingCreatedAt.toISOString()
                 : null,
             }
           : null,
 
         branch: {
-          id: branch.id,
-          slug: branch.publicSlug,
-          name: branch.name,
-          address: branch.address ?? '',
-          imageUrl: coverUrl,
+          id: booking.branchId,
+          slug: booking.branchSlug,
+          name: booking.branchName,
+          address: booking.branchAddress ?? '',
+          imageUrl: booking.imageUrl,
         },
 
-        policies,
-
+        policies: {
+          cancelationWindowMin: booking.cancelationWindowMin ?? 120,
+          rescheduleWindowMin: booking.rescheduleWindowMin ?? 480,
+        },
         date: bookingDate,
-
-        paymentMethod: booking.paymentMethod, // ✅ source of truth
-        notes: booking.notes ?? null, // ✅ source of truth
-
-        totalCents: booking.totalCents, // ✅ source of truth
-        appointments: appointmentPayload,
+        paymentMethod: booking.paymentMethod,
+        notes: booking.notes ?? null,
+        totalCents: booking.totalCents,
+        appointments: appointmentsPayload,
       },
     };
   }
@@ -965,6 +1274,11 @@ export class BookingsCoreService {
       });
     }
 
+    await this.calendarRealtime.emitInvalidate({
+      branchId: branch.id,
+      reason: 'booking.created',
+    });
+
     return result;
   }
 
@@ -1056,124 +1370,52 @@ export class BookingsCoreService {
       throw new BadRequestException('pinnedStartIso is required');
     if (!chain?.length) throw new BadRequestException('chain is required');
 
-    const { branch, tz, bufferBefore, bufferAfter } =
-      await this.getBranchAndSettings(branchId);
-
-    const pinnedLocal = DateTime.fromISO(pinnedStartIso).set({
-      millisecond: 0,
-      second: 0,
+    const cacheKey = this.buildManagerChainCacheKey({
+      kind: 'build',
+      branchId,
+      date,
+      pinnedStartIso,
+      chain,
     });
 
-    if (!pinnedLocal.isValid) {
-      throw new BadRequestException('Invalid pinnedStartIso');
-    }
-
-    const pinnedInTz = pinnedLocal.setZone(tz);
-    if (pinnedInTz.toISODate() !== date) {
-      throw new BadRequestException(
-        `pinnedStartIso does not match date ${date}`,
+    return this.getOrSetManagerChainCache(cacheKey, async () => {
+      const snapshot = await this.getAvailabilityDaySnapshotStrict(
+        branchId,
+        date,
       );
-    }
-
-    let cursorUtc = pinnedLocal.toUTC();
-
-    const assignments: {
-      serviceId: string;
-      staffId: string;
-      startUtc: DateTime;
-      endUtc: DateTime;
-      durationMin: number;
-      priceCents: number;
-    }[] = [];
-
-    for (const item of chain) {
-      const seg = await this.computeSegment({
-        branchId: branch.id,
-        tz,
-        bufferBefore,
-        bufferAfter,
-        startUtc: cursorUtc,
-        serviceId: item.serviceId,
+      const assignments = this.resolveManagerChainPlanFromSnapshot({
+        snapshot,
+        pinnedStartIso,
+        date,
+        chain,
       });
 
-      // Resolver staff final
-      let finalStaffId: string;
+      const totalMinutes = assignments.reduce(
+        (acc, a) => acc + a.durationMin,
+        0,
+      );
+      const totalCents = assignments.reduce(
+        (acc, a) => acc + (a.priceCents ?? 0),
+        0,
+      );
 
-      if (item.staffId === 'ANY') {
-        const candidates = await this.db.query.staff.findMany({
-          where: and(eq(staff.branchId, branch.id), eq(staff.isActive, true)),
-          columns: { id: true },
-        });
-
-        if (!candidates.length) {
-          throw new BadRequestException('No staff available in branch');
-        }
-
-        const available: string[] = [];
-        for (const s of candidates) {
-          const overlap = await this.hasOverlap({
-            branchId: branch.id,
-            staffId: s.id,
-            startUtc: seg.startUtc,
-            endUtc: seg.endUtc,
-          });
-          if (!overlap) available.push(s.id);
-        }
-
-        if (!available.length) {
-          throw new BadRequestException('No staff available for this timeslot');
-        }
-
-        finalStaffId = available[0];
-      } else {
-        finalStaffId = item.staffId;
-
-        const overlap = await this.hasOverlap({
-          branchId: branch.id,
-          staffId: finalStaffId,
-          startUtc: seg.startUtc,
-          endUtc: seg.endUtc,
-        });
-
-        if (overlap) {
-          throw new BadRequestException('Timeslot already booked');
-        }
-      }
-
-      assignments.push({
-        serviceId: seg.service.id,
-        staffId: finalStaffId,
-        startUtc: seg.startUtc,
-        endUtc: seg.endUtc,
-        durationMin: seg.durationMin,
-        priceCents: seg.priceCents,
-      });
-
-      cursorUtc = seg.endUtc;
-    }
-
-    const totalMinutes = assignments.reduce((acc, a) => acc + a.durationMin, 0);
-    const totalCents = assignments.reduce(
-      (acc, a) => acc + (a.priceCents ?? 0),
-      0,
-    );
-
-    return {
-      ok: true,
-      plan: {
-        startIso: assignments[0].startUtc.toISO()!,
-        assignments: assignments.map((a) => ({
-          serviceId: a.serviceId,
-          staffId: a.staffId,
-          startIso: a.startUtc.toISO()!,
-          endIso: a.endUtc.toISO()!,
-          durationMin: a.durationMin,
-          priceCents: a.priceCents,
-        })),
-        totalMinutes,
-        totalCents,
-      },
-    };
+      return {
+        ok: true as const,
+        plan: {
+          startIso: assignments[0].startUtc.toISO()!,
+          assignments: assignments.map((a) => ({
+            serviceId: a.serviceId,
+            staffId: a.staffId,
+            startIso: a.startUtc.toISO()!,
+            endIso: a.endUtc.toISO()!,
+            durationMin: a.durationMin,
+            priceCents: a.priceCents,
+          })),
+          totalMinutes,
+          totalCents,
+        },
+      };
+    });
   }
 
   async managerChainNextServices(dto: {
@@ -1183,47 +1425,64 @@ export class BookingsCoreService {
     // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
     chain: { serviceId: string; staffId: string | 'ANY' }[];
   }) {
-    const { branchId } = dto;
+    const { branchId, date, pinnedStartIso, chain } = dto;
 
     if (!branchId) throw new BadRequestException('branchId is required');
+    if (!date) throw new BadRequestException('date is required');
+    if (!pinnedStartIso)
+      throw new BadRequestException('pinnedStartIso is required');
 
-    const { branch } = await this.getBranchAndSettings(branchId);
-
-    const activeServices = await this.db.query.services.findMany({
-      where: and(eq(services.branchId, branch.id), eq(services.isActive, true)),
-      with: {
-        category: true,
-      },
+    const cacheKey = this.buildManagerChainCacheKey({
+      kind: 'next-services',
+      branchId,
+      date,
+      pinnedStartIso,
+      chain,
     });
 
-    const possible: {
-      id: string;
-      name: string;
-      durationMin: number;
-      priceCents: number;
-      categoryColor: string | null;
-    }[] = [];
+    return this.getOrSetManagerChainCache(cacheKey, async () => {
+      const snapshot = await this.getAvailabilityDaySnapshotOrWarm(branchId, date);
+      const existingAssignments = chain.length
+        ? this.resolveManagerChainPlanFromSnapshot({
+            snapshot,
+            pinnedStartIso,
+            date,
+            chain,
+          })
+        : [];
+      const cursorMs = existingAssignments.length
+        ? existingAssignments[existingAssignments.length - 1].endUtc.toMillis()
+        : this.normalizeManagerChainStart({
+            pinnedStartIso,
+            date,
+            timezone: snapshot.timezone,
+          }).toMillis();
 
-    for (const srv of activeServices) {
-      try {
-        await this.managerChainBuild({
-          ...dto,
-          chain: [...dto.chain, { serviceId: srv.id, staffId: 'ANY' }],
-        });
+      const nextServices = snapshot.services.flatMap((service) => {
+        const availableStaffIds = service.availableStaffIdsByStart.find(
+          ([startMs]) => startMs === cursorMs,
+        )?.[1];
 
-        possible.push({
-          id: srv.id,
-          name: srv.name,
-          durationMin: srv.durationMin,
-          priceCents: srv.priceCents ?? 0,
-          categoryColor: srv.category?.colorHex ?? null,
-        });
-      } catch {
-        // si falla, no se incluye
-      }
-    }
+        if (!availableStaffIds?.length) {
+          return [];
+        }
 
-    return { ok: true, nextServices: possible };
+        return [
+          {
+            id: service.id,
+            name: service.name,
+            durationMin: service.durationMin,
+            priceCents: service.priceCents ?? 0,
+            categoryColor: service.categoryColor ?? null,
+          },
+        ];
+      });
+
+      return {
+        ok: true as const,
+        nextServices,
+      };
+    });
   }
 
   async managerChainNextStaffOptions(dto: {
@@ -1239,66 +1498,70 @@ export class BookingsCoreService {
     if (!branchId) throw new BadRequestException('branchId is required');
     if (!nextServiceId)
       throw new BadRequestException('nextServiceId is required');
+    if (!dto.date) throw new BadRequestException('date is required');
+    if (!dto.pinnedStartIso)
+      throw new BadRequestException('pinnedStartIso is required');
 
-    const { branch, tz, bufferBefore, bufferAfter } =
-      await this.getBranchAndSettings(branchId);
+    const cacheKey = this.buildManagerChainCacheKey({
+      kind: 'next-staff-options',
+      branchId,
+      date: dto.date,
+      pinnedStartIso: dto.pinnedStartIso,
+      chain: dto.chain,
+      nextServiceId,
+    });
 
-    // plan parcial para saber cursor (end)
-    const partial =
-      dto.chain.length > 0
-        ? await this.managerChainBuild({
-            branchId: dto.branchId,
-            date: dto.date,
+    return this.getOrSetManagerChainCache(cacheKey, async () => {
+      const snapshot = await this.getAvailabilityDaySnapshotOrWarm(
+        branchId,
+        dto.date,
+      );
+      const ctx = this.createSnapshotContext(snapshot);
+      const existingAssignments = dto.chain.length
+        ? this.resolveManagerChainPlanFromSnapshot({
+            snapshot,
             pinnedStartIso: dto.pinnedStartIso,
+            date: dto.date,
             chain: dto.chain,
           })
-        : null;
+        : [];
+      const cursorMs = existingAssignments.length
+        ? existingAssignments[existingAssignments.length - 1].endUtc.toMillis()
+        : this.normalizeManagerChainStart({
+            pinnedStartIso: dto.pinnedStartIso,
+            date: dto.date,
+            timezone: snapshot.timezone,
+          }).toMillis();
 
-    const cursorStartIso = partial?.plan.assignments.length
-      ? partial.plan.assignments[partial.plan.assignments.length - 1].endIso
-      : DateTime.fromISO(dto.pinnedStartIso).toUTC().toISO()!;
-
-    const startUtc = DateTime.fromISO(cursorStartIso).toUTC();
-
-    const seg = await this.computeSegment({
-      branchId: branch.id,
-      tz,
-      bufferBefore,
-      bufferAfter,
-      startUtc,
-      serviceId: nextServiceId,
-    });
-
-    const staffRows = await this.db.query.staff.findMany({
-      where: and(eq(staff.branchId, branch.id), eq(staff.isActive, true)),
-      columns: { id: true, name: true, avatarUrl: true },
-    });
-
-    const available: { id: string; name: string; avatarUrl?: string | null }[] =
-      [];
-
-    for (const s of staffRows) {
-      const overlap = await this.hasOverlap({
-        branchId: branch.id,
-        staffId: s.id,
-        startUtc: seg.startUtc,
-        endUtc: seg.endUtc,
-      });
-
-      if (!overlap) {
-        available.push({
-          id: s.id,
-          name: s.name,
-          avatarUrl: s.avatarUrl ?? null,
-        });
+      const service = ctx.serviceById.get(nextServiceId);
+      if (!service) {
+        throw new BadRequestException(`Service not found: ${nextServiceId}`);
       }
-    }
 
-    return {
-      ok: true,
-      allowAny: true,
-      staff: available,
-    };
+      const availableStaffIds = service.startsToStaffIds.get(cursorMs) ?? [];
+      const available = availableStaffIds
+        .map((staffId) => ctx.staffById.get(staffId))
+        .filter(
+          (
+            member,
+          ): member is {
+            id: string;
+            name: string;
+            avatarUrl: string | null;
+          } => Boolean(member),
+        )
+        .map((member) => ({
+          id: member.id,
+          name: member.name,
+          avatarUrl: member.avatarUrl ?? null,
+        }));
+
+      return {
+        ok: true as const,
+        allowAny: available.length > 1,
+        staff: available,
+      };
+    });
   }
 
   async getManagerBookingById(params: { bookingId: string }) {
@@ -1308,131 +1571,127 @@ export class BookingsCoreService {
       throw new BadRequestException('bookingId is required');
     }
 
-    // 1) Appointments del booking
-    const rows = await this.db.query.appointments.findMany({
-      where: eq(appointments.publicBookingId, bookingId),
-    });
+    const [booking] = (await this.db.execute(sql`
+      SELECT
+        pb.id,
+        pb.status,
+        pb.starts_at as "startsAt",
+        pb.ends_at as "endsAt",
+        b.id as "branchId",
+        b.name as "branchName",
+        bs.timezone,
+        c.id as "clientId",
+        c.name as "clientName",
+        c.phone as "clientPhone",
+        c.email as "clientEmail",
+        COALESCE(c.avatar_url, pu.avatar_url) as "clientAvatarUrl",
+        CASE WHEN pu.id IS NULL THEN false ELSE true END as "hasPublicUser",
+        COALESCE((
+          SELECT json_agg(
+            json_build_object(
+              'id', a.id,
+              'status', a.status,
+              'paymentStatus', a.payment_status,
+              'startUtc', a.start,
+              'endUtc', a."end",
+              'priceCents', a.price_cents,
+              'service', json_build_object(
+                'id', s.id,
+                'name', s.name,
+                'categoryColor', COALESCE(sc.color_hex, '#A78BFA')
+              ),
+              'staff', json_build_object(
+                'id', st.id,
+                'name', st.name,
+                'avatarUrl', st.avatar_url
+              )
+            )
+            ORDER BY a.start ASC
+          )
+          FROM appointments a
+          INNER JOIN services s ON s.id = a.service_id
+          LEFT JOIN service_categories sc ON sc.id = s.category_id
+          INNER JOIN staff st ON st.id = a.staff_id
+          WHERE a.public_booking_id = pb.id
+        ), '[]'::json) as appointments
+      FROM public_bookings pb
+      INNER JOIN branches b ON b.id = pb.branch_id
+      LEFT JOIN branch_settings bs ON bs.branch_id = b.id
+      LEFT JOIN clients c ON c.id = (
+        SELECT a.client_id
+        FROM appointments a
+        WHERE a.public_booking_id = pb.id
+        LIMIT 1
+      )
+      LEFT JOIN public_user_clients puc ON puc.client_id = c.id
+      LEFT JOIN public_users pu ON pu.id = puc.public_user_id
+      WHERE pb.id = ${bookingId}
+      LIMIT 1
+    `)) as Array<{
+      id: string;
+      status: string;
+      startsAt: Date;
+      endsAt: Date;
+      branchId: string;
+      branchName: string;
+      timezone: string | null;
+      clientId: string | null;
+      clientName: string | null;
+      clientPhone: string | null;
+      clientEmail: string | null;
+      clientAvatarUrl: string | null;
+      hasPublicUser: boolean;
+      appointments:
+        | Array<{
+            id: string;
+            status: string;
+            paymentStatus: string;
+            startUtc: string;
+            endUtc: string;
+            priceCents: number | null;
+            service: { id: string; name: string; categoryColor: string };
+            staff: { id: string; name: string; avatarUrl: string | null };
+          }>
+        | string
+        | null;
+    }>;
 
-    if (!rows.length) {
+    if (!booking) {
       throw new NotFoundException('Booking not found');
     }
 
-    // 1.5) Booking (source of truth)
-    const bookingRow = await this.db.query.publicBookings.findFirst({
-      where: eq(publicBookings.id, bookingId),
-    });
-
-    if (!bookingRow) {
-      throw new NotFoundException('Public booking not found');
-    }
-
-    // 2) Branch
-    const branchId = rows[0].branchId;
-
-    const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.id, branchId),
-    });
-
-    if (!branch) throw new NotFoundException('Branch not found');
-
-    // 3) Settings (timezone)
-    const settings = await this.db.query.branchSettings.findFirst({
-      where: eq(branchSettings.branchId, branch.id),
-    });
-
-    const tz = settings?.timezone ?? 'America/Mexico_City';
-
-    // 4) Cliente (puede ser null)
-    const clientId = rows[0].clientId;
-
-    const clientRow = clientId
-      ? await this.db.query.clients.findFirst({
-          where: eq(clients.id, clientId),
-          with: {
-            publicUsers: {
-              with: {
-                publicUser: true,
-              },
-            },
-          },
-        })
-      : null;
-
-    const hasPublicUser = !!clientRow?.publicUsers?.length;
-
-    // 🔑 resolver avatar del cliente
-    const publicUserAvatar =
-      clientRow?.publicUsers?.[0]?.publicUser?.avatarUrl ?? null;
-
-    const clientAvatar = clientRow?.avatarUrl ?? publicUserAvatar ?? null;
-
-    // 5) Services & Staff
-    const serviceIds = Array.from(new Set(rows.map((r) => r.serviceId)));
-    const staffIds = Array.from(new Set(rows.map((r) => r.staffId)));
-
-    const servicesRows = await this.db.query.services.findMany({
-      where: inArray(services.id, serviceIds),
-      with: { category: true },
-    });
-
-    const staffRows = await this.db.query.staff.findMany({
-      where: inArray(staff.id, staffIds),
-    });
-
-    const servicesMap = new Map(servicesRows.map((s) => [s.id, s]));
-    const staffMap = new Map(staffRows.map((s) => [s.id, s]));
-
-    // 6) Ordenar appointments
-    const ordered = [...rows].sort(
-      (a, b) => a.start.getTime() - b.start.getTime(),
-    );
-
-    // 7) Appointments payload
-    const appointmentPayload = ordered.map((a) => {
-      const srv = servicesMap.get(a.serviceId);
-      const st = staffMap.get(a.staffId);
-
-      const startUtc = DateTime.fromJSDate(a.start, { zone: 'utc' });
-      const endUtc = DateTime.fromJSDate(a.end, { zone: 'utc' });
+    const tz = booking.timezone ?? 'America/Mexico_City';
+    const appointmentPayload = parseJsonArray<ManagerBookingAppointmentRow>(
+      booking.appointments,
+    ).map((appointment) => {
+      const startUtc = DateTime.fromISO(String(appointment.startUtc), {
+        zone: 'utc',
+      });
+      const endUtc = DateTime.fromISO(String(appointment.endUtc), {
+        zone: 'utc',
+      });
 
       return {
-        id: a.id,
-        status: a.status,
-        paymentStatus: a.paymentStatus,
-
+        id: appointment.id,
+        status: appointment.status,
+        paymentStatus: appointment.paymentStatus,
         startIso: startUtc.setZone(tz).toISO()!,
         endIso: endUtc.setZone(tz).toISO()!,
-
         durationMin: Math.round(endUtc.diff(startUtc, 'minutes').minutes),
-        priceCents: a.priceCents ?? srv?.priceCents ?? 0,
-
-        service: {
-          id: srv?.id ?? a.serviceId,
-          name: srv?.name ?? 'Servicio',
-          categoryColor: srv?.category?.colorHex ?? '#A78BFA',
+        priceCents: appointment.priceCents ?? 0,
+        service: appointment.service,
+        staff: {
+          ...appointment.staff,
+          avatarUrl: appointment.staff.avatarUrl ?? null,
         },
-
-        staff: st
-          ? {
-              id: st.id,
-              name: st.name,
-              avatarUrl: st.avatarUrl ?? null,
-            }
-          : {
-              id: a.staffId,
-              name: 'Staff',
-              avatarUrl: null,
-            },
       };
     });
 
-    // 8) Totales
-    const bookingStartsAtUtc = ordered[0].start;
-    const bookingEndsAtUtc = ordered[ordered.length - 1].end;
+    if (!appointmentPayload.length) {
+      throw new NotFoundException('Booking not found');
+    }
 
-    const totalCents = ordered.reduce((acc, a) => acc + (a.priceCents ?? 0), 0);
-
-    const bookingDate = DateTime.fromJSDate(bookingStartsAtUtc, { zone: 'utc' })
+    const bookingDate = DateTime.fromJSDate(booking.startsAt, { zone: 'utc' })
       .setZone(tz)
       .toISODate();
 
@@ -1441,38 +1700,35 @@ export class BookingsCoreService {
       ok: true,
       booking: {
         id: bookingId,
-        status: bookingRow.status,
-
+        status: booking.status,
         date: bookingDate,
-
-        startsAtISO: DateTime.fromJSDate(bookingStartsAtUtc, {
+        startsAtISO: DateTime.fromJSDate(booking.startsAt, {
           zone: 'utc',
         }).toISO()!,
-        endsAtISO: DateTime.fromJSDate(bookingEndsAtUtc, {
+        endsAtISO: DateTime.fromJSDate(booking.endsAt, {
           zone: 'utc',
         }).toISO()!,
-
         branch: {
-          id: branch.id,
-          name: branch.name,
+          id: booking.branchId,
+          name: booking.branchName,
         },
-
-        client: clientRow
+        client: booking.clientId
           ? {
-              id: clientRow.id,
-              name: clientRow.name,
-              phone: clientRow.phone,
-              email: clientRow.email,
-              avatarUrl: clientAvatar,
-              hasPublicUser,
+              id: booking.clientId,
+              name: booking.clientName,
+              phone: booking.clientPhone,
+              email: booking.clientEmail,
+              avatarUrl: booking.clientAvatarUrl,
+              hasPublicUser: booking.hasPublicUser,
             }
           : null,
-
-        paymentStatus: ordered.every((a) => a.paymentStatus === 'PAID')
+        paymentStatus: appointmentPayload.every((a) => a.paymentStatus === 'PAID')
           ? 'PAID'
           : 'UNPAID',
-
-        totalCents,
+        totalCents: appointmentPayload.reduce(
+          (acc, appointment) => acc + (appointment.priceCents ?? 0),
+          0,
+        ),
         appointments: appointmentPayload,
       },
     };
@@ -1776,6 +2032,26 @@ export class BookingsCoreService {
       totalCents,
       cancelledBy,
     });
+
+    await this.calendarRealtime.emitInvalidate({
+      branchId: booking.branchId,
+      reason: 'booking.cancelled',
+    });
+
+    const cancelledDate = DateTime.fromJSDate(booking.startsAt, {
+      zone: 'utc',
+    })
+      .setZone(await this.branchSettingsCache.getTimezone(booking.branchId))
+      .toISODate();
+    if (cancelledDate) {
+      await this.availabilityCache.invalidate(booking.branchId, cancelledDate);
+      await this.availabilityWarm.enqueueDay({
+        branchId: booking.branchId,
+        date: cancelledDate,
+      });
+    } else {
+      await this.availabilityCache.invalidate(booking.branchId);
+    }
 
     return {
       ok: true,
@@ -2126,6 +2402,39 @@ export class BookingsCoreService {
         },
       },
     });
+
+    await this.calendarRealtime.emitInvalidate({
+      branchId: booking.branchId,
+      reason: 'booking.rescheduled',
+    });
+
+    const timezone = branchSettingsRow?.timezone ?? 'America/Mexico_City';
+    const beforeDate = DateTime.fromJSDate(beforeSnapshot.booking.startsAt, {
+      zone: 'utc',
+    })
+      .setZone(timezone)
+      .toISODate();
+    const afterDate = DateTime.fromJSDate(newStartsAt, { zone: 'utc' })
+      .setZone(timezone)
+      .toISODate();
+    const affectedDates = [beforeDate, afterDate].filter(
+      (value): value is string => Boolean(value),
+    );
+    if (affectedDates.length > 0) {
+      await this.availabilityCache.invalidate(
+        booking.branchId,
+        [...new Set(affectedDates)],
+      );
+    } else {
+      await this.availabilityCache.invalidate(booking.branchId);
+    }
+    for (const affectedDate of new Set(affectedDates)) {
+      await this.availabilityWarm.enqueueDay({
+        branchId: booking.branchId,
+        date: affectedDate,
+      });
+    }
+
     return {
       ok: true,
       bookingId: result.bookingId,

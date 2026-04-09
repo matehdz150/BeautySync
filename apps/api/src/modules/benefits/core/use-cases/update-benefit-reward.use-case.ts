@@ -16,6 +16,7 @@ import { BenefitRewardRepository } from '../ports/benefit-reward.repository';
 
 import { BRANCHES_REPOSITORY } from 'src/modules/branches/core/ports/tokens';
 import { BranchesRepository } from 'src/modules/branches/core/ports/branches.repository';
+import { PaymentBenefitsRefreshService } from 'src/modules/payments/application/payment-benefits-refresh.service';
 
 import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
 
@@ -57,6 +58,7 @@ export class UpdateBenefitRewardUseCase {
 
     @Inject(BRANCHES_REPOSITORY)
     private readonly branchesRepo: BranchesRepository,
+    private readonly paymentBenefitsRefresh: PaymentBenefitsRefreshService,
   ) {}
 
   async execute(input: {
@@ -170,7 +172,7 @@ export class UpdateBenefitRewardUseCase {
     // =========================
     // 6. UPDATE
     // =========================
-    return this.rewardRepo.update(input.rewardId, {
+    const rewardEntity = await this.rewardRepo.update(input.rewardId, {
       type: finalType,
       name: input.name,
       pointsCost: input.pointsCost,
@@ -179,5 +181,7 @@ export class UpdateBenefitRewardUseCase {
       config: safeConfig,
       isActive: input.isActive,
     });
+    await this.paymentBenefitsRefresh.invalidateBranch(input.branchId);
+    return rewardEntity;
   }
 }

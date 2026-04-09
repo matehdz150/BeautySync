@@ -17,7 +17,7 @@ export class DeleteStaffUseCase {
   async execute(id: string) {
     const staff = await this.repo.delete(id);
 
-    await this.cache.del(`staff:branch:${staff.branchId}`);
+    await this.cache.del(`staff:snapshot:branch:${staff.branchId}`);
 
     return staff;
   }

@@ -6,6 +6,7 @@ import {
   useContext,
   useReducer,
   useEffect,
+  useRef,
   type ReactNode,
   useCallback,
   type Dispatch,
@@ -16,6 +17,7 @@ import { getCalendarDay } from "@/lib/services/calendar";
 import { getStaffByBranch, Staff } from "@/lib/services/staff";
 import { getScheduleForStaff } from "@/lib/services/staffSchedules";
 import { getConceptualStatus } from "@/lib/helpers/conceptualStatus";
+import { API_URL } from "@/lib/services/api";
 
 /* ---------- TYPES ---------- */
 
@@ -381,6 +383,57 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const reloadRef = useRef(reload);
+  // eslint-disable-next-line react-hooks/refs
+  reloadRef.current = reload;
+
+  useEffect(() => {
+    if (!branchId) return;
+
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+
+    const reconnect = () => {
+      if (closed) return;
+      reconnectTimer = setTimeout(connect, 3000);
+    };
+
+    const connect = () => {
+      eventSource = new EventSource(
+        `${API_URL}/calendar/stream?branchId=${branchId}`,
+        { withCredentials: true },
+      );
+
+      eventSource.addEventListener("connected", (event: MessageEvent) => {
+        console.log("[calendar:sse] connected", event.data);
+      });
+
+      eventSource.addEventListener("calendar.invalidate", (event: MessageEvent) => {
+        console.log("[calendar:sse] calendar.invalidate", event.data);
+        void reloadRef.current();
+      });
+
+      eventSource.onmessage = (event: MessageEvent) => {
+        console.log("[calendar:sse] message", event.data);
+      };
+
+      eventSource.onerror = () => {
+        eventSource?.close();
+        eventSource = null;
+        reconnect();
+      };
+    };
+
+    connect();
+
+    return () => {
+      closed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (eventSource) eventSource.close();
+    };
+  }, [branchId]);
 
   const filteredStaff =
     state.view.enabledStaffIds.length > 0

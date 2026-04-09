@@ -87,6 +87,12 @@ export const appointments = pgTable(
       table.branchId,
       table.start,
     ),
+    branchStaffRangeIdx: index('appointment_branch_staff_range_idx').on(
+      table.branchId,
+      table.staffId,
+      table.start,
+      table.end,
+    ),
 
     // 🔍 historial cliente
     clientIdx: index('appointment_client_idx').on(table.clientId),

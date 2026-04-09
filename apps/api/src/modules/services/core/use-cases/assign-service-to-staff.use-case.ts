@@ -18,6 +18,7 @@ export class AssignServiceToStaffUseCase {
     await this.repo.assignToStaff(staffId, serviceId);
 
     await this.cache.del(`public:service:${serviceId}:staff`);
+    await this.cache.delPattern('staff:snapshot:branch:*');
 
     return { success: true };
   }

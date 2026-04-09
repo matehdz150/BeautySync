@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq, and, or, isNull, gt, inArray } from 'drizzle-orm';
+import { desc, eq, and, or, isNull, gt, inArray, sql } from 'drizzle-orm';
 
 import {
   payments,
@@ -14,6 +14,7 @@ import {
   benefitRewards,
   benefitTiers,
   benefitTierRewards,
+  userTierState,
   userTierRewardsGranted,
 } from 'src/modules/db/schema';
 import type { DB } from 'src/modules/db/client';
@@ -249,112 +250,44 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
     publicUserId: string;
   }) {
     const now = new Date();
-
-    // =========================
-    // 📊 PUNTOS EN BRANCH
-    // =========================
-    const balanceRow = await this.db
-      .select({ pointsBalance: benefitUserBalance.pointsBalance })
-      .from(benefitUserBalance)
-      .where(
+    const nowIso = now.toISOString();
+    const summaryRows = await this.db
+      .select({
+        programId: benefitPrograms.id,
+        pointsBalance: benefitUserBalance.pointsBalance,
+        tierId: benefitTiers.id,
+        tierName: benefitTiers.name,
+        tierColor: benefitTiers.color,
+        tierIcon: benefitTiers.icon,
+      })
+      .from(benefitPrograms)
+      .leftJoin(
+        benefitUserBalance,
         and(
           eq(benefitUserBalance.branchId, input.branchId),
           eq(benefitUserBalance.userId, input.publicUserId),
         ),
       )
+      .leftJoin(
+        userTierState,
+        and(
+          eq(userTierState.branchId, input.branchId),
+          eq(userTierState.userId, input.publicUserId),
+        ),
+      )
+      .leftJoin(benefitTiers, eq(benefitTiers.id, userTierState.currentTierId))
+      .where(
+        and(
+          eq(benefitPrograms.branchId, input.branchId),
+          eq(benefitPrograms.isActive, true),
+        ),
+      )
       .limit(1);
 
-    const pointsBalance = balanceRow[0]?.pointsBalance ?? 0;
-
-    // =========================
-    // 🎁 GIFT CARDS
-    // =========================
-    const giftCardsRows = await this.db
-      .select({
-        id: giftCards.id,
-        code: giftCards.code,
-        balanceCents: giftCards.balanceCents,
-        expiresAt: giftCards.expiresAt,
-      })
-      .from(giftCards)
-      .where(
-        and(
-          eq(giftCards.branchId, input.branchId),
-          eq(giftCards.ownerUserId, input.publicUserId),
-          eq(giftCards.status, 'active'),
-          gt(giftCards.balanceCents, 0),
-
-          // 🔥 no expiradas
-          or(isNull(giftCards.expiresAt), gt(giftCards.expiresAt, now)),
-        ),
-      );
-
-    // =========================
-    // 🎟 COUPONS
-    // =========================
-    const couponsRows = await this.db
-      .select({
-        id: coupons.id,
-        code: coupons.code,
-        type: coupons.type,
-        value: coupons.value,
-        expiresAt: coupons.expiresAt,
-      })
-      .from(coupons)
-      .where(
-        and(
-          eq(coupons.branchId, input.branchId),
-          eq(coupons.isActive, true),
-
-          // 🔥 solo asignados a user (puedes expandir luego)
-          eq(coupons.assignedToUserId, input.publicUserId),
-
-          // 🔥 no expirados
-          or(isNull(coupons.expiresAt), gt(coupons.expiresAt, now)),
-        ),
-      );
-
-    const couponServiceRows =
-      couponsRows.length > 0
-        ? await this.db
-            .select({
-              couponId: couponServices.couponId,
-              serviceName: services.name,
-            })
-            .from(couponServices)
-            .innerJoin(services, eq(services.id, couponServices.serviceId))
-            .where(
-              inArray(
-                couponServices.couponId,
-                couponsRows.map((coupon) => coupon.id),
-              ),
-            )
-        : [];
-
-    const serviceNamesByCouponId = new Map<string, string[]>();
-    for (const row of couponServiceRows) {
-      const current = serviceNamesByCouponId.get(row.couponId) ?? [];
-      current.push(row.serviceName);
-      serviceNamesByCouponId.set(row.couponId, current);
-    }
-
-    const couponsWithServices = couponsRows.map((coupon) => {
-      const serviceNames = serviceNamesByCouponId.get(coupon.id) ?? [];
-      return {
-        ...coupon,
-        serviceNames,
-        serviceName: serviceNames[0] ?? null,
-      };
-    });
-
-    // =========================
-    // 🏆 PROGRAMA Y REWARDS
-    // =========================
-    const program = await this.db.query.benefitPrograms.findFirst({
-      where: (p, { and, eq }) =>
-        and(eq(p.branchId, input.branchId), eq(p.isActive, true)),
-    });
-    const hasActiveProgram = !!program;
+    const summary = summaryRows[0];
+    const programId = summary?.programId ?? null;
+    const pointsBalance = summary?.pointsBalance ?? 0;
+    const hasActiveProgram = !!programId;
 
     let redeemableRewards: {
       availableCount: number;
@@ -371,7 +304,21 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
       rewards: [],
     };
 
-    if (program) {
+    let tier: {
+      id: string;
+      name: string;
+      color: string | null;
+      icon: string | null;
+    } | null = summary?.tierId
+      ? {
+          id: summary.tierId,
+          name: summary.tierName ?? '',
+          color: summary.tierColor ?? null,
+          icon: summary.tierIcon ?? null,
+        }
+      : null;
+
+    if (programId) {
       const rewards = await this.db
         .select({
           id: benefitRewards.id,
@@ -385,7 +332,7 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
         .from(benefitRewards)
         .where(
           and(
-            eq(benefitRewards.programId, program.id),
+            eq(benefitRewards.programId, programId),
             eq(benefitRewards.isActive, true),
             or(isNull(benefitRewards.stock), gt(benefitRewards.stock, 0)),
           ),
@@ -409,101 +356,133 @@ export class DrizzlePaymentsRepository implements PaymentsRepositoryPort {
       };
     }
 
-    // =========================
-    // 🏅 TIER ACTUAL
-    // =========================
-    const tierState = await this.db.query.userTierState.findFirst({
-      where: (t, { and, eq }) =>
-        and(eq(t.userId, input.publicUserId), eq(t.branchId, input.branchId)),
-    });
-
-    let tier: {
-      id: string;
-      name: string;
-      color: string | null;
-      icon: string | null;
-    } | null = null;
-
-    if (tierState?.currentTierId) {
-      const tierRow = await this.db.query.benefitTiers.findFirst({
-        where: (t, { eq }) => eq(t.id, tierState.currentTierId!),
-      });
-
-      if (tierRow) {
-        tier = {
-          id: tierRow.id,
-          name: tierRow.name,
-          color: tierRow.color,
-          icon: tierRow.icon,
-        };
-      }
-    }
-
-    // =========================
-    // 🎁 TIER REWARDS (GRANTED / AVAILABLE)
-    // =========================
-    let tierRewards: {
-      id: string;
-      type: 'ONE_TIME' | 'RECURRING';
-      config: Record<string, unknown>;
-      granted: boolean;
-      grantedAt: Date | null;
-      used: boolean;
-    }[] = [];
-
-    if (tier?.id) {
-      const rewards = await this.db
-        .select({
-          id: benefitTierRewards.id,
-          type: benefitTierRewards.type,
-          config: benefitTierRewards.config,
-        })
-        .from(benefitTierRewards)
-        .where(eq(benefitTierRewards.tierId, tier.id));
-
-      const granted =
-        rewards.length > 0
-          ? await this.db
-              .select({
-                tierRewardId: userTierRewardsGranted.tierRewardId,
-                grantedAt: userTierRewardsGranted.grantedAt,
-              })
-              .from(userTierRewardsGranted)
-              .where(
-                and(
-                  eq(userTierRewardsGranted.userId, input.publicUserId),
-                  eq(userTierRewardsGranted.branchId, input.branchId),
-                  inArray(
-                    userTierRewardsGranted.tierRewardId,
-                    rewards.map((r) => r.id),
-                  ),
-                ),
-              )
-          : [];
-
-      const grantedMap = new Map(
-        granted.map((g) => [g.tierRewardId, g.grantedAt]),
+    const couponsRows = await this.db
+      .select({
+        couponId: coupons.id,
+        code: coupons.code,
+        type: coupons.type,
+        value: coupons.value,
+        expiresAt: coupons.expiresAt,
+        serviceName: services.name,
+      })
+      .from(coupons)
+      .leftJoin(couponServices, eq(couponServices.couponId, coupons.id))
+      .leftJoin(services, eq(services.id, couponServices.serviceId))
+      .where(
+        and(
+          eq(coupons.branchId, input.branchId),
+          eq(coupons.isActive, true),
+          eq(coupons.assignedToUserId, input.publicUserId),
+          or(isNull(coupons.expiresAt), gt(coupons.expiresAt, now)),
+        ),
       );
 
-      // TODO: marcar "used" cuando existan redenciones específicas; por ahora false
-      tierRewards = rewards.map((r) => ({
-        id: r.id,
-        type: r.type,
-        config: r.config as Record<string, unknown>,
-        granted: r.type === 'RECURRING' ? true : grantedMap.has(r.id),
-        grantedAt: grantedMap.get(r.id) ?? null,
-        used: false,
-      }));
+    const couponsMap = new Map<
+      string,
+      {
+        id: string;
+        code: string;
+        type: 'percentage' | 'fixed';
+        value: number;
+        expiresAt: Date | null;
+        serviceNames: string[];
+      }
+    >();
+
+    for (const row of couponsRows) {
+      const current = couponsMap.get(row.couponId) ?? {
+        id: row.couponId,
+        code: row.code,
+        type: row.type,
+        value: row.value,
+        expiresAt: row.expiresAt ?? null,
+        serviceNames: [],
+      };
+
+      if (row.serviceName) {
+        current.serviceNames.push(row.serviceName);
+      }
+
+      couponsMap.set(row.couponId, current);
     }
+
+    const giftCardsRows = await this.db.execute(sql`
+      SELECT
+        COALESCE((
+          SELECT json_agg(
+            json_build_object(
+              'id', gc.id,
+              'code', gc.code,
+              'balanceCents', gc.balance_cents,
+              'expiresAt', gc.expires_at
+            )
+          )
+          FROM gift_cards gc
+          WHERE gc.branch_id = ${input.branchId}
+            AND gc.owner_user_id = ${input.publicUserId}
+            AND gc.status = 'active'
+            AND gc.balance_cents > 0
+            AND (gc.expires_at IS NULL OR gc.expires_at > ${nowIso})
+        ), '[]'::json) AS gift_cards
+    `);
+
+    const giftCardsPayload = (giftCardsRows as unknown as Array<{
+      gift_cards: Array<{
+        id: string;
+        code: string;
+        balanceCents: number;
+        expiresAt: Date | null;
+      }>;
+    }>)[0] ?? { gift_cards: [] };
+
+    const tierRewardsRows = tier?.id
+      ? await this.db.execute(sql`
+          SELECT COALESCE((
+            SELECT json_agg(
+              json_build_object(
+                'id', btr.id,
+                'type', btr.type,
+                'config', btr.config,
+                'granted', CASE
+                  WHEN btr.type = 'RECURRING' THEN true
+                  ELSE utrg.tier_reward_id IS NOT NULL
+                END,
+                'grantedAt', utrg.granted_at,
+                'used', false
+              )
+            )
+            FROM benefit_tier_rewards btr
+            LEFT JOIN user_tier_rewards_granted utrg
+              ON utrg.tier_reward_id = btr.id
+             AND utrg.user_id = ${input.publicUserId}
+             AND utrg.branch_id = ${input.branchId}
+            WHERE btr.tier_id = ${tier.id}
+          ), '[]'::json) AS tier_rewards
+        `)
+      : [{ tier_rewards: [] }];
+
+    const tierRewardsPayload = (tierRewardsRows as unknown as Array<{
+      tier_rewards: {
+        id: string;
+        type: 'ONE_TIME' | 'RECURRING';
+        config: Record<string, unknown>;
+        granted: boolean;
+        grantedAt: Date | null;
+        used: boolean;
+      }[];
+    }>)[0] ?? { tier_rewards: [] };
 
     return {
       hasActiveProgram,
-      giftCards: giftCardsRows,
-      coupons: couponsWithServices,
+      giftCards: giftCardsPayload.gift_cards ?? [],
+      coupons: Array.from(couponsMap.values()).map((coupon) => ({
+        ...coupon,
+        serviceName: coupon.serviceNames[0] ?? null,
+      })),
       pointsBalance,
       redeemableRewards,
       tier,
-      tierRewards,
+      tierRewards: tierRewardsPayload.tier_rewards ?? [],
     };
   }
 

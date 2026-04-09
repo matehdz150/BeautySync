@@ -1,27 +1,15 @@
 // core/use-cases/get-calendar-day.use-case.ts
 
-import { DateTime } from 'luxon';
-import { AppointmentsPort } from '../ports/appointments.port';
-import { TimeOffPort } from '../ports/timeoff.port';
-import { BranchSettingsPort } from '../ports/branch-settings.port';
-import {
-  APPOINTMENTS_PORT,
-  BRANCH_SETTINGS_PORT,
-  TIMEOFF_PORT,
-} from '../ports/tokens';
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+
+import { CalendarSnapshotCacheService } from '../../calendar-snapshot-cache.service';
+import { AvailabilitySnapshotWarmService } from 'src/modules/availability/infrastructure/adapters/availability-snapshot-warm.service';
 
 @Injectable()
 export class GetCalendarDayUseCase {
   constructor(
-    @Inject(APPOINTMENTS_PORT)
-    private readonly appointments: AppointmentsPort,
-
-    @Inject(TIMEOFF_PORT)
-    private readonly timeOffs: TimeOffPort,
-
-    @Inject(BRANCH_SETTINGS_PORT)
-    private readonly branchSettings: BranchSettingsPort,
+    private readonly calendarSnapshot: CalendarSnapshotCacheService,
+    private readonly availabilityWarm: AvailabilitySnapshotWarmService,
   ) {}
 
   async execute(input: { branchId: string; date: string; staffId?: string }) {
@@ -31,42 +19,22 @@ export class GetCalendarDayUseCase {
       throw new Error('branchId is required');
     }
 
-    // =========================
-    // TIMEZONE SAFE RANGE
-    // =========================
-    const tz =
-      (await this.branchSettings.getTimezone(branchId)) ??
-      'America/Mexico_City';
+    const snapshot = await this.calendarSnapshot.getOrBuild({ branchId, date });
+    const dayEvents = (snapshot.eventsByDay[date] ?? []).filter(
+      (event) => !staffId || event.staffId === staffId,
+    );
+    const appointments = dayEvents.filter(
+      (event): event is Extract<(typeof dayEvents)[number], { type: 'APPOINTMENT' }> =>
+        event.type === 'APPOINTMENT',
+    );
+    const timeOffs = dayEvents.filter(
+      (event): event is Extract<(typeof dayEvents)[number], { type: 'TIME_OFF' }> =>
+        event.type === 'TIME_OFF',
+    );
 
-    const start = DateTime.fromISO(date, { zone: tz }).startOf('day').toUTC();
-
-    const end = start.plus({ days: 1 });
-
-    // =========================
-    // FETCH
-    // =========================
-    const [appointments, timeOffs] = await Promise.all([
-      this.appointments.findByBranchAndRange({
-        branchId,
-        staffId,
-        start: start.toJSDate(),
-        end: end.toJSDate(),
-      }),
-
-      this.timeOffs.findByBranchAndRange({
-        branchId,
-        staffId,
-        start: start.toJSDate(),
-        end: end.toJSDate(),
-      }),
-    ]);
-
-    // =========================
-    // RESPONSE (SEPARADO)
-    // =========================
-    return {
+    const result = {
       date,
-      timezone: tz,
+      timezone: snapshot.timezone,
 
       appointments,
       timeOffs,
@@ -76,5 +44,9 @@ export class GetCalendarDayUseCase {
         totalTimeOffs: timeOffs.length,
       },
     };
+
+    void this.availabilityWarm.enqueueDay({ branchId, date });
+
+    return result;
   }
 }

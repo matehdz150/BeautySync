@@ -3,8 +3,10 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
 import 'dotenv/config';
 import { PgTransaction } from 'drizzle-orm/pg-core';
+import { instrumentPostgresClient } from './instrumented-postgres';
 
-const client = postgres(process.env.DATABASE_URL!, { max: 1 });
+const rawClient = postgres(process.env.DATABASE_URL!, { max: 1 });
+const client = instrumentPostgresClient(rawClient);
 
 export const db = drizzle(client, { schema });
 export type DB = typeof db;

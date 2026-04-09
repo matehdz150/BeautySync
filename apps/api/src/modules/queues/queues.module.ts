@@ -3,6 +3,7 @@ import type { Redis } from 'ioredis';
 import { createBookingQueue } from './booking/booking.queue';
 import { createNotificationsQueue } from './notifications/notifications.queue';
 import { createBenefitsQueue } from '../benefits/application/handlers/benefits.queue';
+import { createAvailabilityQueue } from './availability/availability.queue';
 
 @Global()
 @Module({
@@ -22,7 +23,17 @@ import { createBenefitsQueue } from '../benefits/application/handlers/benefits.q
       inject: ['REDIS'],
       useFactory: (redis: Redis) => createBenefitsQueue(redis),
     },
+    {
+      provide: 'AVAILABILITY_QUEUE',
+      inject: ['REDIS'],
+      useFactory: (redis: Redis) => createAvailabilityQueue(redis),
+    },
   ],
-  exports: ['BOOKING_QUEUE', 'NOTIFICATIONS_QUEUE', 'BENEFITS_QUEUE'],
+  exports: [
+    'BOOKING_QUEUE',
+    'NOTIFICATIONS_QUEUE',
+    'BENEFITS_QUEUE',
+    'AVAILABILITY_QUEUE',
+  ],
 })
 export class QueuesModule {}

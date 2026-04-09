@@ -1,16 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AVAILABILITY_REPOSITORY } from '../ports/tokens';
-import * as availabilityRepository from '../ports/availability.repository';
+import { Injectable } from '@nestjs/common';
 import { GetAvailabilityForSlotDto } from '../../application/dto/get-availability-for-slot.dto';
+import { GetAvailableServicesForSlotFromSnapshotUseCase } from './get-available-services-for-slot-from-snapshot.use-case';
 
 @Injectable()
 export class GetAvailableServicesForSlotUseCase {
   constructor(
-    @Inject(AVAILABILITY_REPOSITORY)
-    private readonly repo: availabilityRepository.AvailabilityRepository,
+    private readonly getAvailableServicesForSlotFromSnapshot: GetAvailableServicesForSlotFromSnapshotUseCase,
   ) {}
 
   execute(query: GetAvailabilityForSlotDto) {
-    return this.repo.getAvailableServicesForSlot(query);
+    return this.getAvailableServicesForSlotFromSnapshot.execute(query);
   }
 }

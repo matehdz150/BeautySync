@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { CacheModule } from '../cache/cache.module';
+import { AvailabilityModule } from '../availability/availability.module';
 
 /* CONTROLLERS */
 
@@ -49,6 +50,7 @@ import { GetServiceCategoriesUseCase } from './core/use-cases/public/get-all-cat
 @Module({
   imports: [
     CacheModule, // 🔥 necesario para cache
+    AvailabilityModule,
   ],
 
   controllers: [ServicesController, ServicesPublicController],

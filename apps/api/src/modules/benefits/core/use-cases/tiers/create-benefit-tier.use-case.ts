@@ -16,6 +16,7 @@ import { TierRewardConfigValidator } from '../../validators/tiers/tier-reward-co
 
 import { DB } from 'src/modules/db/client';
 import { TierReward } from '../../entities/tier-reward.entity';
+import { PaymentBenefitsRefreshService } from 'src/modules/payments/application/payment-benefits-refresh.service';
 
 type TierRewardType = 'gift_card' | 'coupon_percentage' | 'coupon_fixed';
 
@@ -44,6 +45,7 @@ export class CreateTierWithRewardsUseCase {
 
     @Inject('DB')
     private readonly db: DB,
+    private readonly paymentBenefitsRefresh: PaymentBenefitsRefreshService,
   ) {}
 
   async execute(input: CreateTierWithRewardsInput) {
@@ -80,7 +82,7 @@ export class CreateTierWithRewardsUseCase {
     const position = tiers.length + 1;
 
     try {
-      return await this.db.transaction(async (tx) => {
+      const result = await this.db.transaction(async (tx) => {
         console.log('🔐 TX START');
 
         // =========================
@@ -144,6 +146,8 @@ export class CreateTierWithRewardsUseCase {
           rewards: createdRewards,
         };
       });
+      await this.paymentBenefitsRefresh.invalidateBranch(input.branchId);
+      return result;
     } catch (err) {
       console.error('❌ CreateTier ERROR', err);
       throw err;

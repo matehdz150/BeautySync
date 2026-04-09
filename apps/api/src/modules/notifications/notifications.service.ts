@@ -4,32 +4,23 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
-  Inject,
+  ForbiddenException,
 } from '@nestjs/common';
 import { db } from '../db/client';
 import { notifications } from '../db/schema/notifications/notifications';
 import { CreateNotificationDto } from './dto/create-notification.dto';
-import { and, eq, isNull, lt, desc, inArray } from 'drizzle-orm';
-import { users } from '../db/schema/users';
-import { branches, branchImages } from '../db/schema/branches';
-import {
-  appointments,
-  clients,
-  notificationKindEnum,
-  publicBookings,
-  serviceCategories,
-  services,
-  staff,
-} from '../db/schema';
-import { NotificationsSseService } from './notifications-sse.service';
-import * as client from 'src/modules/db/client';
+import { and, eq, isNull } from 'drizzle-orm';
 import { redis } from '../queues/redis/redis.provider';
+import { NotificationsCacheService } from './notifications-cache.service';
+import { NotificationsRepository } from './notifications.repository';
+import { toManagerNotificationCacheItem } from './notifications-cache.shared';
+import { NotificationDetailSnapshot } from './notifications.types';
 
 @Injectable()
 export class NotificationsService {
   constructor(
-    private readonly sseService: NotificationsSseService,
-    @Inject('DB') private db: client.DB,
+    private readonly notificationsCache: NotificationsCacheService,
+    private readonly notificationsRepo: NotificationsRepository,
   ) {}
   async create(dto: CreateNotificationDto) {
     if (!dto.branchId) {
@@ -65,75 +56,67 @@ export class NotificationsService {
       values.recipientClientId = dto.recipientClientId;
     }
 
-    const [created] = await this.db
-      .insert(notifications)
-      .values(values)
-      .returning();
+    const created = await this.notificationsRepo.create(values);
+
+    if (created.target === 'MANAGER') {
+      await this.notificationsCache.appendManagerNotification(
+        toManagerNotificationCacheItem(created),
+      );
+
+      await redis.publish(
+        'realtime.notifications',
+        JSON.stringify({
+          scope: 'branch',
+          branchId: created.branchId,
+          event: 'notification.created',
+          data: {
+            notification: toManagerNotificationCacheItem(created),
+          },
+        }),
+      );
+    }
 
     return created;
   }
 
-  async markAsRead(notificationId: string, userId: string) {
-    // 1️⃣ organization del usuario
-    const [userRow] = await db
-      .select({ organizationId: users.organizationId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!userRow?.organizationId) {
+  async markAsRead(notificationId: string, branchIds: string[]) {
+    if (!branchIds.length) {
       throw new NotFoundException('Acceso inválido');
     }
 
-    // 2️⃣ obtener notificación
-    const [notification] = await db
-      .select()
-      .from(notifications)
-      .where(eq(notifications.id, notificationId))
-      .limit(1);
+    const cached = await this.notificationsCache.getNotificationById(notificationId);
+    if (cached && !branchIds.includes(cached.branchId)) {
+      throw new ForbiddenException('No autorizado');
+    }
 
-    if (!notification) {
+    const updated = await this.notificationsRepo.markAsRead(notificationId, branchIds);
+    if (!updated) {
       throw new NotFoundException('Notificación no encontrada');
     }
 
-    // 3️⃣ validar que pertenece a su organización
-    const [branch] = await db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(
-        and(
-          eq(branches.id, notification.branchId),
-          eq(branches.organizationId, userRow.organizationId),
-        ),
-      )
-      .limit(1);
+    await this.notificationsCache.markAsRead({
+      branchId: updated.branchId,
+      notificationId: updated.id,
+      readAt: updated.readAt?.toISOString() ?? new Date().toISOString(),
+    });
 
-    if (!branch) {
-      throw new NotFoundException('No autorizado');
-    }
-
-    // 4️⃣ update
-    const [updated] = await db
-      .update(notifications)
-      .set({ readAt: new Date() })
-      .where(eq(notifications.id, notificationId))
-      .returning();
-
-    // 5️⃣ realtime sync
     await redis.publish(
       'realtime.notifications',
       JSON.stringify({
         scope: 'branch',
         branchId: updated.branchId,
         event: 'notification.read',
-        data: { id: updated.id },
+        data: {
+          id: updated.id,
+          readAt: updated.readAt?.toISOString() ?? null,
+        },
       }),
     );
 
     return { success: true };
   }
 
-  async markAllAsReadForUser(userId: string) {
+  async markAllAsReadForUser(userId: string, branchIds: string[]) {
     const updated = await db
       .update(notifications)
       .set({ readAt: new Date() })
@@ -145,6 +128,8 @@ export class NotificationsService {
       )
       .returning({ id: notifications.id });
 
+    await this.notificationsCache.invalidateBranches(branchIds);
+
     return {
       success: true,
       updatedCount: updated.length,
@@ -152,7 +137,7 @@ export class NotificationsService {
   }
 
   async findForManager(
-    userId: string,
+    branchIds: string[],
     options?: {
       unread?: boolean;
       limit?: number;
@@ -161,264 +146,283 @@ export class NotificationsService {
     },
   ) {
     const limit = Math.min(options?.limit ?? 20, 50);
-
-    // 1️⃣ organizationId del user
-    const userRow = await db
-      .select({ organizationId: users.organizationId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!userRow.length || !userRow[0].organizationId) {
+    if (!branchIds.length) {
       return { items: [], nextCursor: null };
     }
 
-    const organizationId = userRow[0].organizationId;
+    const cached = await this.notificationsCache.getManagerFeed({
+      branchIds,
+      unread: options?.unread,
+      kind: options?.kind,
+      cursor: options?.cursor,
+      limit,
+    });
 
-    // 2️⃣ branches de la organización
-    const branchRows = await db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(eq(branches.organizationId, organizationId));
-
-    if (!branchRows.length) {
-      return { items: [], nextCursor: null };
+    if (cached) {
+      return cached;
     }
 
-    const branchIds = branchRows.map((b) => b.id);
-
-    // 3️⃣ condiciones base
-    const conditions = [
-      eq(notifications.target, 'MANAGER'),
-      inArray(notifications.branchId, branchIds),
-    ];
-
-    if (options?.unread === true) {
-      conditions.push(isNull(notifications.readAt));
-    }
-
-    if (options?.cursor) {
-      const cursorDate = new Date(options.cursor);
-      if (!Number.isNaN(cursorDate.getTime())) {
-        conditions.push(lt(notifications.createdAt, cursorDate));
-      }
-    }
-
-    if (options?.kind && options.kind !== 'ALL') {
-      const kindGroups: Record<
-        'BOOKING' | 'CHAT',
-        (typeof notificationKindEnum.enumValues)[number][]
-      > = {
-        BOOKING: [
-          'BOOKING_CREATED',
-          'BOOKING_CANCELLED',
-          'BOOKING_RESCHEDULED',
-        ],
-        CHAT: ['CHAT_MESSAGE'],
-      };
-
-      conditions.push(inArray(notifications.kind, kindGroups[options.kind]));
-    }
-
-    // 4️⃣ query final (DEVUELVE TODO)
-    const rows = await db
-      .select()
-      .from(notifications)
-      .where(and(...conditions))
-      .orderBy(desc(notifications.createdAt))
-      .limit(limit + 1);
+    const rows = await this.notificationsRepo.findManagerFeed({
+      branchIds,
+      unread: options?.unread,
+      kind: options?.kind,
+      cursor: options?.cursor,
+      limit,
+    });
 
     const hasNextPage = rows.length > limit;
     const items = hasNextPage ? rows.slice(0, limit) : rows;
 
-    return {
+    const result = {
       items,
       nextCursor: hasNextPage
         ? items[items.length - 1].createdAt.toISOString()
         : null,
     };
+    return result;
   }
 
-  async getNotificationListItem(notificationId: string, userId: string) {
-    // 1️⃣ Obtener notificación
-    const [notification] = await db
-      .select()
-      .from(notifications)
-      .where(eq(notifications.id, notificationId))
-      .limit(1);
+  async getNotificationListItem(
+    notificationId: string,
+    branchIds: string[],
+  ) {
+    if (!branchIds.length) {
+      throw new NotFoundException('Acceso inválido');
+    }
+
+    const cached = await this.notificationsCache.getNotificationById(notificationId);
+    if (cached) {
+      if (!branchIds.includes(cached.branchId)) {
+        throw new ForbiddenException('No autorizado');
+      }
+
+      return {
+        ...cached,
+        readAt: cached.readAt ? new Date(cached.readAt) : null,
+        createdAt: new Date(cached.createdAt),
+      };
+    }
+
+    const result = await this.notificationsRepo.findById(notificationId);
+
+    if (!result) {
+      throw new NotFoundException('Notificación no encontrada');
+    }
+
+    if (!branchIds.includes(result.branchId)) {
+      throw new ForbiddenException('No autorizado');
+    }
+
+    await this.notificationsCache.setNotification(
+      toManagerNotificationCacheItem(result),
+    );
+
+    return result;
+  }
+
+  async getNotificationDetail(
+    notificationId: string,
+    branchIds: string[],
+  ) {
+    if (!branchIds.length) {
+      throw new NotFoundException('Acceso inválido');
+    }
+
+    const cachedNotification =
+      await this.notificationsCache.getNotificationById(notificationId);
+    const notification = cachedNotification
+      ? {
+          ...cachedNotification,
+          readAt: cachedNotification.readAt
+            ? new Date(cachedNotification.readAt)
+            : null,
+          createdAt: new Date(cachedNotification.createdAt),
+        }
+      : ((await this.notificationsRepo.findById(notificationId)) ?? null);
 
     if (!notification) {
       throw new NotFoundException('Notificación no encontrada');
     }
 
-    // 2️⃣ Validar acceso manager (igual que findForManager)
-    const [userRow] = await db
-      .select({ organizationId: users.organizationId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!userRow?.organizationId) {
-      throw new NotFoundException('Acceso inválido');
+    if (!branchIds.includes(notification.branchId)) {
+      throw new ForbiddenException('No autorizado');
     }
 
-    const [branch] = await db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(
-        and(
-          eq(branches.id, notification.branchId),
-          eq(branches.organizationId, userRow.organizationId),
-        ),
-      )
-      .limit(1);
-
-    if (!branch) {
-      throw new NotFoundException('No autorizado');
+    if (!cachedNotification) {
+      await this.notificationsCache.setNotification(
+        toManagerNotificationCacheItem(notification),
+      );
     }
 
-    // 🔥 devolvemos EXACTAMENTE el mismo shape de la lista
-    return notification;
-  }
-
-  async getNotificationDetail(notificationId: string, userId: string) {
-    // ============================
-    // 1️⃣ Notification
-    // ============================
-
-    const [notification] = await db
-      .select()
-      .from(notifications)
-      .where(eq(notifications.id, notificationId))
-      .limit(1);
-
-    if (!notification) {
-      throw new NotFoundException('Notificación no encontrada');
-    }
-
-    // ============================
-    // 2️⃣ Validar acceso manager
-    // ============================
-
-    const [userRow] = await db
-      .select({ organizationId: users.organizationId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!userRow?.organizationId) {
-      throw new NotFoundException('Acceso inválido');
-    }
-
-    const [branch] = await db
-      .select()
-      .from(branches)
-      .where(
-        and(
-          eq(branches.id, notification.branchId),
-          eq(branches.organizationId, userRow.organizationId),
-        ),
-      )
-      .limit(1);
-
-    if (!branch) {
-      throw new NotFoundException('No autorizado');
-    }
-
-    if (!notification.bookingId) {
-      return { notification, branch };
-    }
-
-    // ============================
-    // 3️⃣ Booking
-    // ============================
-
-    const [booking] = await db
-      .select()
-      .from(publicBookings)
-      .where(eq(publicBookings.id, notification.bookingId))
-      .limit(1);
-
-    if (!booking) {
-      return { notification, branch };
-    }
-
-    // ============================
-    // 4️⃣ Appointments + Services + Staff
-    // ============================
-
-    const appointmentRows = await db
-      .select({
-        appointmentId: appointments.id,
-        start: appointments.start,
-        end: appointments.end,
-        status: appointments.status,
-        paymentStatus: appointments.paymentStatus,
-        priceCents: appointments.priceCents,
-
-        service: {
-          id: services.id,
-          name: services.name,
-          durationMin: services.durationMin,
-          priceCents: services.priceCents,
-        },
-
-        category: {
-          id: serviceCategories.id,
-          name: serviceCategories.name,
-          icon: serviceCategories.icon,
-          colorHex: serviceCategories.colorHex,
-        },
-
-        staff: {
-          id: staff.id,
-          name: staff.name,
-          avatarUrl: staff.avatarUrl,
-          jobRole: staff.jobRole,
-        },
-
-        client: {
-          id: clients.id,
-          name: clients.name,
-          avatarUrl: clients.avatarUrl,
-          email: clients.email,
-          phone: clients.phone,
-        },
-      })
-      .from(appointments)
-      .leftJoin(services, eq(appointments.serviceId, services.id))
-      .leftJoin(
-        serviceCategories,
-        eq(services.categoryId, serviceCategories.id),
-      )
-      .leftJoin(staff, eq(appointments.staffId, staff.id))
-      .leftJoin(clients, eq(appointments.clientId, clients.id))
-      .where(eq(appointments.publicBookingId, booking.id));
-
-    // ============================
-    // 5️⃣ Branch Images
-    // ============================
-
-    const branchImgs = await db
-      .select()
-      .from(branchImages)
-      .where(eq(branchImages.branchId, branch.id))
-      .orderBy(branchImages.position);
-
-    // ============================
-    // 6️⃣ Response estructurada
-    // ============================
-
+    const detail = this.extractNotificationDetail(notification.payload);
     return {
       notification,
-      booking: {
-        ...booking,
-        appointments: appointmentRows,
-      },
-      branch: {
-        ...branch,
-        images: branchImgs,
-      },
+      booking: detail?.booking ?? undefined,
+      branch: detail?.branch ?? undefined,
     };
   }
+
+  private extractNotificationDetail(payload: Record<string, unknown>) {
+    const meta = payload?.meta;
+    if (!meta || typeof meta !== 'object') {
+      return this.buildLegacyDetail(payload);
+    }
+
+    const rawDetail = (meta as Record<string, unknown>).detail;
+    if (!rawDetail || typeof rawDetail !== 'object') {
+      return this.buildLegacyDetail(payload);
+    }
+
+    return rawDetail as NotificationDetailSnapshot;
+  }
+
+  private buildLegacyDetail(payload: Record<string, unknown>) {
+    const schedule =
+      payload.schedule && typeof payload.schedule === 'object'
+        ? (payload.schedule as { startsAt?: string; endsAt?: string })
+        : null;
+    const services = Array.isArray(payload.services)
+      ? (payload.services as Array<{
+          id?: string;
+          name?: string;
+          durationMin?: number;
+          priceCents?: number;
+          color?: string | null;
+        }>)
+      : [];
+    const client =
+      payload.client && typeof payload.client === 'object'
+        ? (payload.client as {
+            id?: string;
+            name?: string | null;
+            avatarUrl?: string | null;
+          })
+        : null;
+    const staff = Array.isArray(payload.staff)
+      ? (payload.staff as Array<{
+          id?: string;
+          name?: string | null;
+          avatarUrl?: string | null;
+        }>)
+      : [];
+    const branch =
+      payload.branch && typeof payload.branch === 'object'
+        ? (payload.branch as {
+            id?: string;
+            name?: string;
+            coverImage?: string | null;
+          })
+        : null;
+    const totalCents =
+      metaHasTotal(payload.meta) ? Number((payload.meta as { totalCents?: unknown }).totalCents ?? 0) : 0;
+
+    if (!schedule?.startsAt || !schedule?.endsAt) {
+      return {
+        booking: null,
+        branch: branch
+          ? {
+              id: branch.id ?? '',
+              name: branch.name ?? 'Sucursal',
+              address: null,
+              description: null,
+              lat: null,
+              lng: null,
+              images: branch.coverImage
+                ? [
+                    {
+                      id: 'cover',
+                      url: branch.coverImage,
+                      isCover: true,
+                      position: 0,
+                    },
+                  ]
+                : [],
+            }
+          : null,
+      } satisfies NotificationDetailSnapshot;
+    }
+
+    const startsAt = schedule.startsAt;
+    const endsAt = schedule.endsAt;
+
+    return {
+      booking: {
+        id: typeof payload.bookingId === 'string' ? payload.bookingId : '',
+        branchId: typeof payload.branchId === 'string' ? payload.branchId : '',
+        startsAt,
+        endsAt,
+        status: 'CONFIRMED',
+        paymentMethod: null,
+        totalCents,
+        notes: null,
+        createdAt: startsAt,
+        updatedAt: endsAt,
+        appointments: services.map((service, index) => ({
+          id: service.id ?? `legacy-${index}`,
+          start: startsAt,
+          end: endsAt,
+          status: 'CONFIRMED',
+          paymentStatus: 'UNPAID',
+          priceCents: service.priceCents ?? null,
+          notes: null,
+          service: service.id && service.name
+            ? {
+                id: service.id,
+                name: service.name,
+                durationMin: service.durationMin ?? 0,
+                priceCents: service.priceCents ?? null,
+              }
+            : null,
+          staff: staff[index]
+            ? {
+                id: staff[index].id ?? `staff-${index}`,
+                name: staff[index].name ?? null,
+                avatarUrl: staff[index].avatarUrl ?? null,
+              }
+            : staff[0]
+              ? {
+                  id: staff[0].id ?? 'staff',
+                  name: staff[0].name ?? null,
+                  avatarUrl: staff[0].avatarUrl ?? null,
+                }
+              : null,
+          client: client?.id
+            ? {
+                id: client.id,
+                name: client.name ?? null,
+                avatarUrl: client.avatarUrl ?? null,
+              }
+            : null,
+        })),
+      },
+      branch: branch
+        ? {
+            id: branch.id ?? '',
+            name: branch.name ?? 'Sucursal',
+            address: null,
+            description: null,
+            lat: null,
+            lng: null,
+            images: branch.coverImage
+              ? [
+                  {
+                    id: 'cover',
+                    url: branch.coverImage,
+                    isCover: true,
+                    position: 0,
+                  },
+                ]
+              : [],
+          }
+        : null,
+    } satisfies NotificationDetailSnapshot;
+  }
+}
+
+function metaHasTotal(
+  meta: unknown,
+): meta is {
+  totalCents?: unknown;
+} {
+  return Boolean(meta && typeof meta === 'object');
 }

@@ -50,9 +50,15 @@ import { BranchesPublicController } from './application/controllers/branches.pub
 import { CacheModule } from '../cache/cache.module';
 import { GetPublicBranchSummaryUseCase } from './core/use-cases/public/get-public-summary.use-case';
 import { FavoritesModule } from '../favorites/favorites.module';
+import { AvailabilityModule } from '../availability/availability.module';
 
 @Module({
-  imports: [forwardRef(() => AuthModule), CacheModule, FavoritesModule],
+  imports: [
+    forwardRef(() => AuthModule),
+    CacheModule,
+    FavoritesModule,
+    AvailabilityModule,
+  ],
   controllers: [
     BranchesController,
     BranchImagesController,

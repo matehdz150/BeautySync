@@ -9,6 +9,8 @@ import {
 } from '../ports/tokens';
 
 import { CreateStaffTimeOffUseCase } from './create-staff-timeoff.use-case';
+import { AvailabilityCacheService } from 'src/modules/availability/infrastructure/adapters/availability-cache.service';
+import { AvailabilitySnapshotWarmService } from 'src/modules/availability/infrastructure/adapters/availability-snapshot-warm.service';
 
 @Injectable()
 export class UpdateStaffTimeOffUseCase {
@@ -20,6 +22,8 @@ export class UpdateStaffTimeOffUseCase {
     private rulesRepo: StaffTimeOffRulesRepository,
 
     private readonly createUseCase: CreateStaffTimeOffUseCase,
+    private readonly availabilityCache: AvailabilityCacheService,
+    private readonly availabilityWarm: AvailabilitySnapshotWarmService,
   ) {}
 
   async execute(params: {
@@ -61,13 +65,17 @@ export class UpdateStaffTimeOffUseCase {
 
       try {
         // 🔥 recrear con misma lógica que create
-        return await this.createUseCase.execute({
+        const recreated = await this.createUseCase.execute({
           branchId,
           staffId,
           start,
           end,
           reason,
         });
+        const date = start.toISOString().slice(0, 10);
+        await this.availabilityCache.invalidate(branchId, date);
+        await this.availabilityWarm.enqueueDay({ branchId, date });
+        return recreated;
       } catch (e) {
         // 🔥 rollback
         await this.repo.create({
@@ -103,11 +111,14 @@ export class UpdateStaffTimeOffUseCase {
     }
 
     // 🔥 recrear con lógica completa de reglas
-    return this.createUseCase.execute({
+    const result = await this.createUseCase.execute({
       branchId,
       staffId,
       reason,
       rule,
     });
+    await this.availabilityCache.invalidate(branchId);
+    await this.availabilityWarm.enqueueNextDays(branchId, 14);
+    return result;
   }
 }

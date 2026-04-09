@@ -7,15 +7,9 @@ import {
 
 import { Request } from 'express';
 
-import { ValidateBranchAccessUseCase } from '../../core/use-cases/manager/validate-branch-access.use-case';
-
 @Injectable()
 export class BranchAccessGuard implements CanActivate {
-  constructor(
-    private readonly validateBranchAccess: ValidateBranchAccessUseCase,
-  ) {}
-
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<Request>();
 
     const user = req.user;
@@ -31,10 +25,9 @@ export class BranchAccessGuard implements CanActivate {
       throw new ForbiddenException('Missing branchId param');
     }
 
-    await this.validateBranchAccess.execute({
-      branchId,
-      userOrgId: user.orgId,
-    });
+    if (!user.hasBranchAccess(branchId)) {
+      throw new ForbiddenException('Forbidden branch access');
+    }
 
     return true;
   }

@@ -56,6 +56,7 @@ import { RolesGuard } from './application/guards/roles.guard';
 import { ValidateBranchAccessUseCase } from './core/use-cases/manager/validate-branch-access.use-case';
 import { JwtRefreshStrategy } from './infraestructure/strategies/jwt-refresh.strategy';
 import { BranchesModule } from '../branches/branches.module';
+import { CacheModule } from '../cache/cache.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { BranchesModule } from '../branches/branches.module';
       secret: process.env.JWT_ACCESS_SECRET,
       signOptions: { expiresIn: '1h' },
     }),
+    CacheModule,
     forwardRef(() => BranchesModule),
   ],
 
@@ -139,6 +141,7 @@ import { BranchesModule } from '../branches/branches.module';
   ],
 
   exports: [
+    TokensService,
     LoginUseCase,
     GetUserBySessionUseCase,
     ValidateBranchAccessUseCase,

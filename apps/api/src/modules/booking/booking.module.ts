@@ -11,6 +11,9 @@ import { AuthModule } from '../auth/auth.module';
 import { CacheModule } from '../cache/cache.module';
 import { CouponsModule } from '../cupons/cupons.module';
 import { DomainEventsModule } from 'src/shared/domain-events/domain-events.module';
+import { CalendarModule } from '../calendar/calendar.module';
+import { AvailabilityModule } from '../availability/availability.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -19,6 +22,9 @@ import { DomainEventsModule } from 'src/shared/domain-events/domain-events.modul
     CacheModule,
     CouponsModule,
     DomainEventsModule,
+    CalendarModule,
+    AvailabilityModule,
+    PaymentsModule,
   ],
   controllers: [BookingsPublicController, BookingsManagerController],
   providers: [

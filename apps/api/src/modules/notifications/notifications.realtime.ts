@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { redis } from '../queues/redis/redis.provider';
+import { logRealtimeDebug } from '../metrics/metrics.config';
 import { NotificationsSseService } from './notifications-sse.service';
 
 @Injectable()
@@ -14,7 +15,7 @@ export class NotificationsRealtimeBridge implements OnModuleInit {
 
     await sub.subscribe('realtime.notifications');
 
-    console.log('📡 Redis realtime bridge ready');
+    logRealtimeDebug('📡 Redis realtime bridge ready');
 
     sub.on('message', (channel: string, message: string) => {
       if (channel !== 'realtime.notifications') return;
@@ -24,7 +25,7 @@ export class NotificationsRealtimeBridge implements OnModuleInit {
 
         if (!evt?.branchId || !evt?.event) return;
 
-        console.log('📨 REDIS EVENT', evt.event, evt.branchId);
+        logRealtimeDebug('📨 REDIS EVENT', evt.event, evt.branchId);
 
         this.sse.emitToBranch(evt.branchId, {
           event: evt.event,

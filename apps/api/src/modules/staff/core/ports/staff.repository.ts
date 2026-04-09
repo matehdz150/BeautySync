@@ -39,6 +39,7 @@ export interface StaffRepository {
     branchId: string,
     user: AuthenticatedUser,
   ): Promise<StaffListItem[]>;
+  findSnapshotByBranch(branchId: string): Promise<StaffListItem[]>;
 
   create(data: CreateStaffInput): Promise<Staff>;
 

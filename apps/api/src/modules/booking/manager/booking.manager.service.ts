@@ -7,13 +7,19 @@ import {
   ManagerChainNextStaffOptionsDto,
 } from '../dto/manager-chain.dto';
 import { BookingRescheduleReason } from 'src/modules/db/schema';
+import { metricsStore } from 'src/modules/metrics/metrics.store';
+import { trackAction } from 'src/modules/metrics/action-metrics';
 
 @Injectable()
 export class BookingsManagerService {
   constructor(private readonly core: BookingsCoreService) {}
 
-  createManagerBooking(dto: CreateManagerBookingDto) {
-    return this.core.createManagerBooking(dto);
+  async createManagerBooking(dto: CreateManagerBookingDto) {
+    const result = await trackAction('CREATE_BOOKING', () =>
+      this.core.createManagerBooking(dto),
+    );
+    metricsStore.recordBooking();
+    return result;
   }
 
   assignClientToBooking(params: { bookingId: string; clientId: string }) {

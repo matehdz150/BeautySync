@@ -11,6 +11,7 @@ import {
 import { BENEFIT_PROGRAM_REPOSITORY } from '../ports/tokens';
 import { BRANCHES_REPOSITORY } from 'src/modules/branches/core/ports/tokens';
 import { BranchesRepository } from 'src/modules/branches/core/ports/branches.repository';
+import { PaymentBenefitsRefreshService } from 'src/modules/payments/application/payment-benefits-refresh.service';
 
 @Injectable()
 export class ActivateBenefitProgramUseCase {
@@ -19,6 +20,7 @@ export class ActivateBenefitProgramUseCase {
     private readonly programRepository: BenefitProgramRepository,
     @Inject(BRANCHES_REPOSITORY)
     private readonly branchesRepo: BranchesRepository,
+    private readonly paymentBenefitsRefresh: PaymentBenefitsRefreshService,
   ) {}
 
   async execute(input: ActivateBenefitProgramInput) {
@@ -38,17 +40,21 @@ export class ActivateBenefitProgramUseCase {
     );
 
     if (!existing) {
-      return this.programRepository.create({
+      const program = await this.programRepository.create({
         branchId: input.branchId,
         isActive: true,
         name: input.name ?? 'Programa de beneficios',
       });
+      await this.paymentBenefitsRefresh.invalidateBranch(input.branchId);
+      return program;
     }
 
     if (!existing.isActive) {
-      return this.programRepository.update(existing.id, {
+      const program = await this.programRepository.update(existing.id, {
         isActive: true,
       });
+      await this.paymentBenefitsRefresh.invalidateBranch(input.branchId);
+      return program;
     }
 
     return existing; // ya estaba activo

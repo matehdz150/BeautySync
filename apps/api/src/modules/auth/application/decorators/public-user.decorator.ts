@@ -2,6 +2,9 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 export type PublicSession = {
   publicUserId: string;
+  email: string | null;
+  name: string | null;
+  avatarUrl: string | null;
 };
 
 export type PublicRequest = Request & {

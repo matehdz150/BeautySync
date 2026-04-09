@@ -1,9 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import express from 'express';
+import { metricsStore } from 'src/modules/metrics/metrics.store';
+import { logMetric } from 'src/modules/metrics/structured-metrics.logger';
 
 @Injectable()
 export class ChatSseService {
   private clients = new Map<string, Set<express.Response>>();
+
+  private getActiveConnections() {
+    let total = 0;
+
+    for (const set of this.clients.values()) {
+      total += set.size;
+    }
+
+    return total;
+  }
 
   addClient(conversationId: string, res: express.Response) {
     let set = this.clients.get(conversationId);
@@ -32,6 +44,14 @@ export class ChatSseService {
     if (!clients) return;
 
     const data = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+    const connections = this.getActiveConnections();
+
+    metricsStore.recordSseEvent();
+    logMetric({
+      type: 'sse_event',
+      event,
+      connections,
+    });
 
     for (const res of clients) {
       res.write(data);

@@ -5,20 +5,39 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as client from 'src/modules/db/client';
-import { staffSchedules } from 'src/modules/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { staff, staffSchedules } from 'src/modules/db/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import { CreateStaffScheduleDto } from './dto/create-staff-schedule.dto';
 import { UpdateStaffScheduleDto } from './dto/update-staff-schedule.dto';
+import { AvailabilityCacheService } from '../availability/infrastructure/adapters/availability-cache.service';
+import { AvailabilitySnapshotWarmService } from '../availability/infrastructure/adapters/availability-snapshot-warm.service';
+import { CACHE_PORT } from '../cache/core/ports/tokens';
+import { CachePort } from '../cache/core/ports/cache.port';
 
 @Injectable()
 export class StaffSchedulesService {
-  constructor(@Inject('DB') private db: client.DB) {}
+  constructor(
+    @Inject('DB') private db: client.DB,
+    private readonly availabilityCache: AvailabilityCacheService,
+    private readonly availabilityWarm: AvailabilitySnapshotWarmService,
+    @Inject(CACHE_PORT)
+    private readonly cache: CachePort,
+  ) {}
 
   findForStaff(staffId: string) {
     return this.db.query.staffSchedules.findMany({
       where: eq(staffSchedules.staffId, staffId),
 
       orderBy: (t, { asc }) => [asc(t.dayOfWeek), asc(t.startTime)],
+    });
+  }
+
+  findForStaffIds(staffIds: string[]) {
+    if (!staffIds.length) return Promise.resolve([]);
+
+    return this.db.query.staffSchedules.findMany({
+      where: inArray(staffSchedules.staffId, staffIds),
+      orderBy: (t, { asc }) => [asc(t.staffId), asc(t.dayOfWeek), asc(t.startTime)],
     });
   }
 
@@ -56,6 +75,18 @@ export class StaffSchedulesService {
       .values(dto)
       .returning();
 
+    const staffRow = await this.db.query.staff.findFirst({
+      columns: { branchId: true },
+      where: eq(staff.id, dto.staffId),
+    });
+    if (staffRow?.branchId) {
+      await Promise.all([
+        this.availabilityCache.invalidate(staffRow.branchId),
+        this.cache.del(`staff:snapshot:branch:${staffRow.branchId}`),
+        this.availabilityWarm.enqueueNextDays(staffRow.branchId, 14),
+      ]);
+    }
+
     return created;
   }
 
@@ -87,13 +118,36 @@ export class StaffSchedulesService {
       .where(eq(staffSchedules.id, id))
       .returning();
 
+    const staffRow = await this.db.query.staff.findFirst({
+      columns: { branchId: true },
+      where: eq(staff.id, merged.staffId),
+    });
+    if (staffRow?.branchId) {
+      await Promise.all([
+        this.availabilityCache.invalidate(staffRow.branchId),
+        this.cache.del(`staff:snapshot:branch:${staffRow.branchId}`),
+        this.availabilityWarm.enqueueNextDays(staffRow.branchId, 14),
+      ]);
+    }
+
     return updated;
   }
 
   async clearForStaff(staffId: string) {
+    const staffRow = await this.db.query.staff.findFirst({
+      columns: { branchId: true },
+      where: eq(staff.id, staffId),
+    });
     await this.db
       .delete(staffSchedules)
       .where(eq(staffSchedules.staffId, staffId));
+    if (staffRow?.branchId) {
+      await Promise.all([
+        this.availabilityCache.invalidate(staffRow.branchId),
+        this.cache.del(`staff:snapshot:branch:${staffRow.branchId}`),
+        this.availabilityWarm.enqueueNextDays(staffRow.branchId, 14),
+      ]);
+    }
 
     return { ok: true };
   }

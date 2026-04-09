@@ -4,6 +4,7 @@ import * as branchesRepository from '../../ports/branches.repository';
 
 import { CACHE_PORT } from 'src/modules/cache/core/ports/tokens';
 import { CachePort } from 'src/modules/cache/core/ports/cache.port';
+import { BranchCacheService } from 'src/modules/cache/application/branch-cache.service';
 
 @Injectable()
 export class UpdateBranchLocationUseCase {
@@ -13,6 +14,8 @@ export class UpdateBranchLocationUseCase {
 
     @Inject(CACHE_PORT)
     private readonly cache: CachePort,
+
+    private readonly branchCache: BranchCacheService,
   ) {}
 
   async execute(
@@ -23,7 +26,10 @@ export class UpdateBranchLocationUseCase {
     const result = await this.repo.updateLocation(branchId, dto);
 
     // 2️⃣ invalidar cache explore
-    await this.cache.delPattern('explore:*');
+    await Promise.all([
+      this.cache.delPattern('explore:*'),
+      this.branchCache.invalidate(result.organizationId),
+    ]);
 
     return result;
   }

@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Response } from 'express';
+import { metricsStore } from '../metrics/metrics.store';
+import { logRealtimeDebug } from '../metrics/metrics.config';
+import { logMetric } from '../metrics/structured-metrics.logger';
 
 interface Client {
   res: Response;
@@ -9,6 +12,16 @@ interface Client {
 @Injectable()
 export class NotificationsSseService {
   private branches = new Map<string, Set<Client>>();
+
+  private getActiveConnections() {
+    let total = 0;
+
+    for (const clients of this.branches.values()) {
+      total += clients.size;
+    }
+
+    return total;
+  }
 
   addClient(branchId: string, res: Response) {
     if (!this.branches.has(branchId)) {
@@ -24,10 +37,10 @@ export class NotificationsSseService {
 
     this.branches.get(branchId)!.add(client);
 
-    console.log('🟢 SSE CONNECTED BRANCH:', branchId);
+    logRealtimeDebug('🟢 SSE CONNECTED BRANCH:', branchId);
 
     res.on('close', () => {
-      console.log('🔴 SSE CLOSED', branchId);
+      logRealtimeDebug('🔴 SSE CLOSED', branchId);
       this.removeClient(branchId, res);
     });
   }
@@ -36,9 +49,17 @@ export class NotificationsSseService {
     const clients = this.branches.get(branchId);
     if (!clients) return;
 
-    console.log('📡 EMIT BRANCH →', branchId, evt.event);
+    logRealtimeDebug('📡 EMIT BRANCH →', branchId, evt.event);
 
     const payload = `event: ${evt.event}\ndata: ${JSON.stringify(evt.data)}\n\n`;
+    const connections = this.getActiveConnections();
+
+    metricsStore.recordSseEvent();
+    logMetric({
+      type: 'sse_event',
+      event: evt.event,
+      connections,
+    });
 
     for (const client of clients) {
       client.res.write(payload);

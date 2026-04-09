@@ -2,14 +2,9 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  Inject,
   BadRequestException,
 } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
-import { DateTime } from 'luxon';
-
-import * as client from 'src/modules/db/client';
-import { branches } from 'src/modules/db/schema';
+import { PublicBranchCacheService } from 'src/modules/cache/application/public-branch-cache.service';
 
 import { AvailabilityService } from './availability.service';
 import { AvailabilityCoreService } from './availability-chain.service';
@@ -17,9 +12,9 @@ import { AvailabilityCoreService } from './availability-chain.service';
 @Injectable()
 export class AvailabilityPublicService {
   constructor(
-    @Inject('DB') private db: client.DB,
     private availabilityService: AvailabilityService,
     private core: AvailabilityCoreService,
+    private readonly publicBranchCache: PublicBranchCacheService,
   ) {}
 
   async getAvailableDates({
@@ -34,62 +29,22 @@ export class AvailabilityPublicService {
     month?: string; // YYYY-MM
   }): Promise<{ date: string; available: boolean }[]> {
     // 1️⃣ Branch
-    const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.publicSlug, slug),
-    });
+    const branch = await this.publicBranchCache.getCachedBySlug(slug);
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      return [];
     }
 
     if (!branch.publicPresenceEnabled) {
       throw new ForbiddenException('Branch is not public');
     }
 
-    // 2️⃣ Resolver mes
-    const base = month ? DateTime.fromFormat(month, 'yyyy-MM') : DateTime.now();
-
-    const start = base.startOf('month');
-    const end = base.endOf('month');
-
-    const days: { date: string; available: boolean }[] = [];
-
-    // 🔒 Hard limit defensivo
-    const MAX_DAYS = 31;
-    let cursor = start;
-    let count = 0;
-
-    while (cursor <= end && count < MAX_DAYS) {
-      const dateIso = cursor.toISODate()!;
-
-      try {
-        const availability = await this.availabilityService.getAvailability({
-          branchId: branch.id,
-          requiredDurationMin,
-          staffId,
-          date: dateIso,
-        });
-
-        const hasSlots = availability.staff.some(
-          (staff) => staff.slots.length > 0,
-        );
-
-        days.push({
-          date: dateIso,
-          available: hasSlots,
-        });
-      } catch {
-        days.push({
-          date: dateIso,
-          available: false,
-        });
-      }
-
-      cursor = cursor.plus({ days: 1 });
-      count++;
-    }
-
-    return days;
+    return this.availabilityService.getAvailableDates({
+      branchId: branch.id,
+      requiredDurationMin,
+      staffId,
+      month,
+    });
   }
 
   async getAvailableTimes({
@@ -106,9 +61,7 @@ export class AvailabilityPublicService {
     staffId?: string;
   }) {
     // 1️⃣ Branch
-    const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.publicSlug, slug),
-    });
+    const branch = await this.publicBranchCache.getBySlug(slug);
 
     if (!branch) {
       throw new NotFoundException('Branch not found');
@@ -142,9 +95,7 @@ export class AvailabilityPublicService {
     }
 
     // 1️⃣ Branch
-    const branch = await this.db.query.branches.findFirst({
-      where: eq(branches.publicSlug, slug),
-    });
+    const branch = await this.publicBranchCache.getBySlug(slug);
 
     if (!branch) throw new NotFoundException('Branch not found');
     if (!branch.publicPresenceEnabled)

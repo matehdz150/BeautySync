@@ -1,21 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AVAILABILITY_REPOSITORY } from '../ports/tokens';
-import * as availabilityRepository from '../ports/availability.repository';
+import { Injectable } from '@nestjs/common';
 import { AvailableServicesAtDto } from '../../application/dto/get-availability-for-slot.dto';
+import { GetAvailabilityAtUseCase } from './get-availability-at.use-case';
 
 @Injectable()
 export class GetAvailableServicesAtUseCase {
-  constructor(
-    @Inject(AVAILABILITY_REPOSITORY)
-    private readonly repo: availabilityRepository.AvailabilityRepository,
-  ) {}
+  constructor(private readonly getAvailabilityAt: GetAvailabilityAtUseCase) {}
 
   async execute(dto: AvailableServicesAtDto) {
-    const services = await this.repo.getAvailableServicesAt(dto);
-
-    return {
-      ok: true,
-      services,
-    };
+    return this.getAvailabilityAt.execute(dto);
   }
 }

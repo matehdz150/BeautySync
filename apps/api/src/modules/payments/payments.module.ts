@@ -19,9 +19,12 @@ import { GetClientPaymentsUseCase } from './core/use-cases/get-client-payments.u
 import { GetAvailablePaymentBenefitsUseCase } from './core/use-cases/get-available-benefits.use-case';
 import { BranchesModule } from '../branches/branches.module';
 import { PublicPaymentsController } from './application/controllers/public-payment.controller';
+import { CacheModule } from '../cache/cache.module';
+import { PaymentBenefitsCacheService } from './application/payment-benefits-cache.service';
+import { PaymentBenefitsRefreshService } from './application/payment-benefits-refresh.service';
 
 @Module({
-  imports: [AuthModule, BranchesModule],
+  imports: [AuthModule, BranchesModule, CacheModule],
   controllers: [PaymentsController, PublicPaymentsController],
   providers: [
     CreatePaymentUseCase,
@@ -37,6 +40,8 @@ import { PublicPaymentsController } from './application/controllers/public-payme
     AssignClientToPaymentUseCase,
     GetClientPaymentsUseCase,
     GetAvailablePaymentBenefitsUseCase,
+    PaymentBenefitsCacheService,
+    PaymentBenefitsRefreshService,
     {
       provide: PAYMENTS_REPOSITORY,
       useClass: DrizzlePaymentsRepository,
@@ -46,6 +51,6 @@ import { PublicPaymentsController } from './application/controllers/public-payme
       useClass: DrizzleBookingsRepository,
     },
   ],
-  exports: [PAYMENTS_REPOSITORY],
+  exports: [PAYMENTS_REPOSITORY, PaymentBenefitsCacheService, PaymentBenefitsRefreshService],
 })
 export class PaymentsModule {}

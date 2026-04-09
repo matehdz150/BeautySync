@@ -6,6 +6,7 @@ import type { DB } from 'src/modules/db/client';
 
 import { UsersRepositoryPort } from '../../core/ports/users.repository';
 import { User } from '../../core/entities/user.entity';
+import { requestContext } from 'src/modules/metrics/request-context';
 
 @Injectable()
 export class UsersDrizzleRepository implements UsersRepositoryPort {
@@ -28,19 +29,21 @@ export class UsersDrizzleRepository implements UsersRepositoryPort {
   }
 
   async findById(id: string): Promise<User | null> {
-    const row = await this.db.query.users.findFirst({
-      where: eq(users.id, id),
+    return requestContext.getOrSet(`authUsers:findById:${id}`, async () => {
+      const row = await this.db.query.users.findFirst({
+        where: eq(users.id, id),
+      });
+
+      if (!row) return null;
+
+      return new User(
+        row.id,
+        row.email,
+        row.passwordHash,
+        row.role,
+        row.organizationId,
+      );
     });
-
-    if (!row) return null;
-
-    return new User(
-      row.id,
-      row.email,
-      row.passwordHash,
-      row.role,
-      row.organizationId,
-    );
   }
 
   async create(data: {

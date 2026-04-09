@@ -35,7 +35,7 @@ export class ActivateStaffUseCase {
     const updated = await this.repo.activate(staffId);
 
     // 🔥 invalidar cache
-    await this.cache.del(`staff:branch:${staff.branchId}`);
+    await this.cache.del(`staff:snapshot:branch:${staff.branchId}`);
 
     return updated;
   }

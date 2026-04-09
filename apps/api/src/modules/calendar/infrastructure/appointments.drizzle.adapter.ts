@@ -4,11 +4,10 @@ import { db } from 'src/modules/db/client';
 import { clients } from 'src/modules/db/schema/clients/clients';
 import { serviceCategories } from 'src/modules/db/schema/services/serviceCategories';
 import { services } from 'src/modules/db/schema/services/service';
-import { staff } from 'src/modules/db/schema/staff/staff';
-import { SQL, and, eq, gte, lt, ne } from 'drizzle-orm';
+import { SQL, and, count, eq, gte, lt, ne, sql } from 'drizzle-orm';
 
 export class AppointmentsDrizzleAdapter implements AppointmentsPort {
-  async findByBranchAndRange(params: {
+  private buildConditions(params: {
     branchId: string;
     start: Date;
     end: Date;
@@ -27,6 +26,17 @@ export class AppointmentsDrizzleAdapter implements AppointmentsPort {
       conditions.push(eq(appointments.staffId, staffId));
     }
 
+    return conditions;
+  }
+
+  async findByBranchAndRange(params: {
+    branchId: string;
+    start: Date;
+    end: Date;
+    staffId?: string;
+  }) {
+    const conditions = this.buildConditions(params);
+
     const rows = await db
       .select({
         id: appointments.id,
@@ -40,7 +50,6 @@ export class AppointmentsDrizzleAdapter implements AppointmentsPort {
         color: serviceCategories.colorHex,
       })
       .from(appointments)
-      .leftJoin(staff, eq(staff.id, appointments.staffId))
       .leftJoin(clients, eq(clients.id, appointments.clientId))
       .leftJoin(services, eq(services.id, appointments.serviceId))
       .leftJoin(
@@ -59,6 +68,31 @@ export class AppointmentsDrizzleAdapter implements AppointmentsPort {
       clientName: r.clientName ?? 'Cliente',
       serviceName: r.serviceName ?? 'Servicio',
       color: r.color ?? undefined,
+    }));
+  }
+
+  async countDailyByBranchAndRange(params: {
+    branchId: string;
+    start: Date;
+    end: Date;
+    timezone: string;
+    staffId?: string;
+  }) {
+    const conditions = this.buildConditions(params);
+    const localDay = sql<Date>`date_trunc('day', ${appointments.start} AT TIME ZONE ${params.timezone})`;
+    const rows = await db
+      .select({ day: localDay, totalAppointments: count() })
+      .from(appointments)
+      .where(and(...conditions))
+      .groupBy(sql`1`)
+      .orderBy(sql`1 asc`);
+
+    return rows.map((row) => ({
+      date:
+        row.day instanceof Date
+          ? row.day.toISOString().slice(0, 10)
+          : new Date(row.day).toISOString().slice(0, 10),
+      totalAppointments: Number(row.totalAppointments ?? 0),
     }));
   }
 }

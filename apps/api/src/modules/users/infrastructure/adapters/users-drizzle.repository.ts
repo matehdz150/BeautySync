@@ -10,6 +10,7 @@ import { users } from 'src/modules/db/schema/users';
 import { eq } from 'drizzle-orm';
 import { UserMapper } from '../mappers/user.mapper';
 import * as bcrypt from 'bcrypt';
+import { requestContext } from 'src/modules/metrics/request-context';
 
 @Injectable()
 export class UsersDrizzleRepository implements UsersRepository {
@@ -21,15 +22,17 @@ export class UsersDrizzleRepository implements UsersRepository {
   }
 
   async findOne(id: string): Promise<User> {
-    const row = await this.db.query.users.findFirst({
-      where: eq(users.id, id),
+    return requestContext.getOrSet(`users:findOne:${id}`, async () => {
+      const row = await this.db.query.users.findFirst({
+        where: eq(users.id, id),
+      });
+
+      if (!row) {
+        throw new NotFoundException('User not found');
+      }
+
+      return UserMapper.toDomain(row);
     });
-
-    if (!row) {
-      throw new NotFoundException('User not found');
-    }
-
-    return UserMapper.toDomain(row);
   }
 
   async findByEmail(email: string): Promise<User | null> {

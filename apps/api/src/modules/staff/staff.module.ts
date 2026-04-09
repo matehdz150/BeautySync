@@ -22,6 +22,7 @@ import { CacheModule } from '../cache/cache.module';
 import { GetStaffWithInvitesUseCase } from './core/use-cases/find-staff-invites-by-branch.use-case';
 import { GetInactiveStaffUseCase } from './core/use-cases/get-inactive-staff.use-case';
 import { ActivateStaffUseCase } from './core/use-cases/activate-staff.use-case';
+import { StaffBranchSnapshotCacheService } from './infrastructure/adapters/staff-branch-snapshot-cache.service';
 
 @Module({
   imports: [AuthModule, CacheModule],
@@ -51,6 +52,7 @@ import { ActivateStaffUseCase } from './core/use-cases/activate-staff.use-case';
 
     GetInactiveStaffUseCase,
     ActivateStaffUseCase,
+    StaffBranchSnapshotCacheService,
   ],
 })
 export class StaffModule {}
