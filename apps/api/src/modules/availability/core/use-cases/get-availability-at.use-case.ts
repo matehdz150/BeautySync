@@ -185,13 +185,24 @@ export class GetAvailabilityAtUseCase {
   }
 
   private async buildOrWarm(branchId: string, date: string) {
-    void this.availabilityWarm.enqueueServicesDay({ branchId, date });
-    void this.availabilityWarm.enqueueDay({ branchId, date });
-    return null;
+    try {
+      return await this.servicesSnapshots.buildFromSnapshot(branchId, date);
+    } catch {
+      try {
+        await this.availabilityWarm.ensureDayReady({ branchId, date });
+        return await this.servicesSnapshots.get(branchId, date);
+      } catch {
+        void this.availabilityWarm.enqueueServicesDay({ branchId, date });
+        void this.availabilityWarm.enqueueDay({ branchId, date });
+        return null;
+      }
+    }
   }
 
   private async revalidate(branchId: string, date: string) {
-    void this.availabilityWarm.enqueueServicesDay({ branchId, date });
+    void this.servicesSnapshots
+      .buildFromSnapshot(branchId, date)
+      .catch(() => this.availabilityWarm.enqueueServicesDay({ branchId, date }));
   }
 
   private isStale(snapshot: { staleAt?: string; expiresAt?: string }) {

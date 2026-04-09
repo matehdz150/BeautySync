@@ -3,27 +3,31 @@
 
 import {
   createContext,
-  useContext,
-  useReducer,
-  useEffect,
-  useRef,
-  type ReactNode,
   useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
   type Dispatch,
+  type ReactNode,
 } from "react";
 import { DateTime } from "luxon";
 import { useBranch } from "@/context/BranchContext";
-import { getCalendarDay } from "@/lib/services/calendar";
-import { getStaffByBranch, Staff } from "@/lib/services/staff";
-import { getScheduleForStaff } from "@/lib/services/staffSchedules";
 import { getConceptualStatus } from "@/lib/helpers/conceptualStatus";
 import { API_URL } from "@/lib/services/api";
-
-/* ---------- TYPES ---------- */
+import { getCalendarDay } from "@/lib/services/calendar";
+import type { Service } from "@/lib/services/services";
+import { getStaffByBranch, type Staff } from "@/lib/services/staff";
+import {
+  getSchedulesForStaffMembers,
+  type StaffSchedule,
+} from "@/lib/services/staffSchedules";
 
 export type Prefill = {
   defaultStaffId?: string;
   startISO?: string;
+  presetServices?: Service[];
 };
 
 export type BlockDetailPrefill = {
@@ -66,30 +70,24 @@ export type CalendarTimeOff = {
 
 type CalendarState = {
   date: string;
-
   staff: Staff[];
-  schedules: Record<string, unknown[]>;
+  schedules: Record<string, StaffSchedule[]>;
   appointments: CalendarAppointment[];
   timeOffs: CalendarTimeOff[];
   dailyCounts: Record<string, number>;
-
   dialogOpen: boolean;
   BlockDialogOpen: boolean;
   BlockDetailOpen: boolean;
   prefill: Prefill;
-
   selectedAppointmentId?: string;
   selectedBlockId?: string;
-
   selectedEvent: unknown | null;
   anchorRect: DOMRect | null;
-
   view: {
     maxVisibleStaff: number;
     staffOffset: number;
     enabledStaffIds: string[];
   };
-
   slotDialogOpen: boolean;
   slotPrefill: SlotPrefill | null;
 };
@@ -97,7 +95,7 @@ type CalendarState = {
 type Action =
   | { type: "SET_DATE"; payload: string }
   | { type: "SET_STAFF"; payload: Staff[] }
-  | { type: "SET_SCHEDULES"; payload: Record<string, unknown[]> }
+  | { type: "SET_SCHEDULES"; payload: Record<string, StaffSchedule[]> }
   | { type: "SET_APPOINTMENTS"; payload: CalendarAppointment[] }
   | { type: "SET_TIMEOFFS"; payload: CalendarTimeOff[] }
   | { type: "SET_DAILY_COUNTS"; payload: Record<string, number> }
@@ -123,104 +121,72 @@ type CalendarContextType = {
   visibleStaff: Staff[];
 };
 
-/* ---------- INITIAL STATE ---------- */
-
 const initialState: CalendarState = {
   date: DateTime.now().toISODate()!,
-
   staff: [],
   schedules: {},
   appointments: [],
   timeOffs: [],
   dailyCounts: {},
-
   dialogOpen: false,
   BlockDialogOpen: false,
   BlockDetailOpen: false,
   prefill: {},
-
   selectedAppointmentId: undefined,
   selectedBlockId: undefined,
-
   selectedEvent: null,
   anchorRect: null,
-
   view: {
     maxVisibleStaff: 7,
     staffOffset: 0,
     enabledStaffIds: [],
   },
-
   slotDialogOpen: false,
   slotPrefill: null,
 };
-
-/* ---------- REDUCER ---------- */
 
 function reducer(state: CalendarState, action: Action): CalendarState {
   switch (action.type) {
     case "SET_DATE":
       return { ...state, date: action.payload };
-
     case "SET_STAFF":
       return { ...state, staff: action.payload };
-
     case "SET_SCHEDULES":
       return { ...state, schedules: action.payload };
-
     case "SET_APPOINTMENTS":
       return { ...state, appointments: action.payload };
-
     case "SET_TIMEOFFS":
       return { ...state, timeOffs: action.payload };
-
     case "SET_DAILY_COUNTS":
       return { ...state, dailyCounts: action.payload };
-
     case "OPEN_SHEET":
       return { ...state, dialogOpen: true, prefill: action.payload ?? {} };
-
     case "OPEN_BLOCK_SHEET":
       return { ...state, BlockDialogOpen: true, prefill: action.payload ?? {} };
-
     case "CLOSE_SHEET":
       return { ...state, dialogOpen: false, prefill: {} };
-
     case "CLOSE_BLOCK_SHEET":
       return { ...state, BlockDialogOpen: false, prefill: {} };
-
     case "OPEN_SLOT_SHEET":
       return { ...state, slotDialogOpen: true, slotPrefill: action.payload };
-
     case "CLOSE_SLOT_SHEET":
       return { ...state, slotDialogOpen: false, slotPrefill: null };
-
     case "OPEN_APPOINTMENT":
-      return {
-        ...state,
-        selectedAppointmentId: action.payload,
-      };
-
+      return { ...state, selectedAppointmentId: action.payload };
+    case "CLOSE_APPOINTMENT":
+      return { ...state, selectedAppointmentId: undefined };
     case "OPEN_BLOCK_DETAIL_SHEET":
       return {
         ...state,
         BlockDetailOpen: true,
         selectedBlockId: action.payload.staffTimeOffId,
       };
-
     case "CLOSE_BLOCK_DETAIL_SHEET":
       return {
         ...state,
         BlockDetailOpen: false,
         selectedBlockId: undefined,
       };
-
-    case "CLOSE_BLOCK_DETAIL_SHEET":
-      return {
-        ...state,
-        selectedBlockId: undefined,
-      };
-
     case "ADD_APPOINTMENTS":
       return {
         ...state,
@@ -230,7 +196,6 @@ function reducer(state: CalendarState, action: Action): CalendarState {
             DateTime.fromISO(b.startISO).toMillis(),
         ),
       };
-
     case "SET_ENABLED_STAFF":
       return {
         ...state,
@@ -239,7 +204,6 @@ function reducer(state: CalendarState, action: Action): CalendarState {
           enabledStaffIds: action.payload,
         },
       };
-
     case "NEXT_STAFF_PAGE": {
       const nextOffset = state.view.staffOffset + state.view.maxVisibleStaff;
 
@@ -249,12 +213,11 @@ function reducer(state: CalendarState, action: Action): CalendarState {
           ...state.view,
           staffOffset: Math.min(
             nextOffset,
-            state.staff.length - state.view.maxVisibleStaff,
+            Math.max(state.staff.length - state.view.maxVisibleStaff, 0),
           ),
         },
       };
     }
-
     case "PREV_STAFF_PAGE": {
       const prevOffset = state.view.staffOffset - state.view.maxVisibleStaff;
 
@@ -266,13 +229,65 @@ function reducer(state: CalendarState, action: Action): CalendarState {
         },
       };
     }
-
     default:
       return state;
   }
 }
 
-/* ---------- CONTEXT ---------- */
+function sameStringArray(a: string[], b: string[]) {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function getWeekDays(date: string) {
+  const selected = DateTime.fromISO(date);
+  const startOfWeek = selected.startOf("week").plus({ days: 1 });
+
+  return Array.from({ length: 7 }, (_, index) =>
+    startOfWeek.plus({ days: index }).toISODate()!,
+  );
+}
+
+function mapAppointments(appointments: any[]): CalendarAppointment[] {
+  return appointments.map((appointment: any) => {
+    const start = DateTime.fromISO(appointment.start);
+    const end = DateTime.fromISO(appointment.end);
+
+    return {
+      id: appointment.id,
+      staffId: appointment.staffId,
+      bookingId: appointment.bookingId ?? null,
+      client: appointment.clientName ?? "Cliente",
+      serviceName: appointment.serviceName ?? "Servicio",
+      staffName: appointment.staffName ?? "",
+      color: appointment.color ?? "#A78BFA",
+      startISO: appointment.start,
+      endISO: appointment.end,
+      startTime: start.toFormat("H:mm"),
+      minutes: end.diff(start, "minutes").minutes,
+      conceptualStatus: getConceptualStatus(appointment.start, appointment.end),
+      raw: appointment,
+      type: "APPOINTMENT",
+    };
+  });
+}
+
+function mapTimeOffs(timeOffs: any[]): CalendarTimeOff[] {
+  return timeOffs.map((timeOff: any) => {
+    const start = DateTime.fromISO(timeOff.start);
+    const end = DateTime.fromISO(timeOff.end);
+
+    return {
+      id: `timeoff-${timeOff.id}`,
+      staffId: timeOff.staffId,
+      startISO: timeOff.start,
+      endISO: timeOff.end,
+      startTime: start.toFormat("H:mm"),
+      minutes: end.diff(start, "minutes").minutes,
+      reason: timeOff.reason ?? undefined,
+      type: "TIME_OFF",
+    };
+  });
+}
 
 const CalendarContext = createContext<CalendarContextType | null>(null);
 
@@ -280,119 +295,111 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const { branch } = useBranch();
   const branchId = branch?.id;
   const [state, dispatch] = useReducer(reducer, initialState);
+  const stateRef = useRef(state);
+  const staffLoadSeqRef = useRef(0);
+  const calendarLoadSeqRef = useRef(0);
 
-  const reload = useCallback(async () => {
+  stateRef.current = state;
+
+  const loadStaffResources = useCallback(async () => {
     if (!branchId) return;
 
+    const loadSeq = ++staffLoadSeqRef.current;
     const staff = await getStaffByBranch(branchId);
-    dispatch({ type: "SET_STAFF", payload: staff });
+    const schedules = await getSchedulesForStaffMembers(
+      staff.map((member) => member.id),
+    );
 
-    if (state.view.enabledStaffIds.length === 0) {
-      dispatch({
-        type: "SET_ENABLED_STAFF",
-        payload: staff.map((s) => s.id),
-      });
+    if (loadSeq !== staffLoadSeqRef.current) {
+      return;
     }
 
-    const sched = await Promise.all(
-      staff.map((s) => getScheduleForStaff(s.id)),
+    dispatch({ type: "SET_STAFF", payload: staff });
+    dispatch({ type: "SET_SCHEDULES", payload: schedules });
+
+    const enabledStaffIds = stateRef.current.view.enabledStaffIds.filter((staffId) =>
+      staff.some((member) => member.id === staffId),
     );
+    const nextEnabledStaffIds =
+      enabledStaffIds.length > 0
+        ? enabledStaffIds
+        : staff.map((member) => member.id);
 
-    dispatch({
-      type: "SET_SCHEDULES",
-      payload: Object.fromEntries(staff.map((s, i) => [s.id, sched[i]])),
-    });
+    if (!sameStringArray(nextEnabledStaffIds, stateRef.current.view.enabledStaffIds)) {
+      dispatch({
+        type: "SET_ENABLED_STAFF",
+        payload: nextEnabledStaffIds,
+      });
+    }
+  }, [branchId]);
 
-    const res = await getCalendarDay({
-      branchId,
-      date: state.date,
-    });
+  const loadCalendarResources = useCallback(
+    async (targetDate = stateRef.current.date) => {
+      if (!branchId) return;
 
-    console.log(res);
+      const loadSeq = ++calendarLoadSeqRef.current;
+      const weekDays = getWeekDays(targetDate);
+      const selectedDayIndex = weekDays.indexOf(targetDate);
+      const weekResponses = await Promise.all(
+        weekDays.map((date) => getCalendarDay({ branchId, date })),
+      );
 
-    const appointments: CalendarAppointment[] = res.appointments.map(
-      (a: any) => {
-        const start = DateTime.fromISO(a.start);
-        const end = DateTime.fromISO(a.end);
+      if (loadSeq !== calendarLoadSeqRef.current) {
+        return;
+      }
 
-        return {
-          id: a.id,
-          staffId: a.staffId,
+      const selectedDayResponse =
+        weekResponses[selectedDayIndex >= 0 ? selectedDayIndex : 0];
 
-          bookingId: a.bookingId ?? null, // 🔥 CRÍTICO
+      dispatch({
+        type: "SET_APPOINTMENTS",
+        payload: mapAppointments(selectedDayResponse.appointments),
+      });
+      dispatch({
+        type: "SET_TIMEOFFS",
+        payload: mapTimeOffs(selectedDayResponse.timeOffs),
+      });
+      dispatch({
+        type: "SET_DAILY_COUNTS",
+        payload: Object.fromEntries(
+          weekResponses.map((response, index) => [
+            weekDays[index],
+            response.appointments.length,
+          ]),
+        ),
+      });
+    },
+    [branchId],
+  );
 
-          client: a.clientName ?? "Cliente",
-          serviceName: a.serviceName ?? "Servicio",
-
-          staffName: a.staffName ?? "", // opcional pero útil
-
-          color: a.color ?? "#A78BFA",
-
-          startISO: a.start,
-          endISO: a.end,
-          startTime: start.toFormat("H:mm"),
-          minutes: end.diff(start, "minutes").minutes,
-
-          conceptualStatus: getConceptualStatus(a.start, a.end),
-
-          raw: a, // 🔥 te salva después
-
-          type: "APPOINTMENT",
-        };
-      },
-    );
-
-    const timeOffs: CalendarTimeOff[] = res.timeOffs.map((t: any) => {
-      const start = DateTime.fromISO(t.start);
-      const end = DateTime.fromISO(t.end);
-
-      return {
-        id: `timeoff-${t.id}`,
-        staffId: t.staffId,
-        startISO: t.start,
-        endISO: t.end,
-        startTime: start.toFormat("H:mm"),
-        minutes: end.diff(start, "minutes").minutes,
-        reason: t.reason ?? undefined,
-        type: "TIME_OFF",
-      };
-    });
-
-    dispatch({ type: "SET_APPOINTMENTS", payload: appointments });
-    dispatch({ type: "SET_TIMEOFFS", payload: timeOffs });
-
-    const selected = DateTime.fromISO(state.date);
-    const startOfWeek = selected.startOf("week").plus({ days: 1 });
-
-    const weekDays = [...Array(7)].map(
-      (_, i) => startOfWeek.plus({ days: i }).toISODate()!,
-    );
-
-    const weekRes = await Promise.all(
-      weekDays.map((d) => getCalendarDay({ branchId, date: d })),
-    );
-
-    dispatch({
-      type: "SET_DAILY_COUNTS",
-      payload: Object.fromEntries(
-        weekRes.map((r, i) => [weekDays[i], r.appointments.length]),
-      ),
-    });
-  }, [branchId, state.date, state.view.enabledStaffIds.length]);
+  const reload = useCallback(async () => {
+    await Promise.all([
+      loadStaffResources(),
+      loadCalendarResources(stateRef.current.date),
+    ]);
+  }, [loadCalendarResources, loadStaffResources]);
 
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    if (!branchId) return;
 
-  const reloadRef = useRef(reload);
-  // eslint-disable-next-line react-hooks/refs
-  reloadRef.current = reload;
+    void loadStaffResources();
+  }, [branchId, loadStaffResources]);
+
+  useEffect(() => {
+    if (!branchId) return;
+
+    void loadCalendarResources(state.date);
+  }, [branchId, state.date, loadCalendarResources]);
+
+  const loadCalendarResourcesRef = useRef(loadCalendarResources);
+  loadCalendarResourcesRef.current = loadCalendarResources;
 
   useEffect(() => {
     if (!branchId) return;
 
     let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     let closed = false;
 
     const reconnect = () => {
@@ -406,18 +413,16 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         { withCredentials: true },
       );
 
-      eventSource.addEventListener("connected", (event: MessageEvent) => {
-        console.log("[calendar:sse] connected", event.data);
-      });
+      eventSource.addEventListener("calendar.invalidate", () => {
+        if (refreshTimer) {
+          return;
+        }
 
-      eventSource.addEventListener("calendar.invalidate", (event: MessageEvent) => {
-        console.log("[calendar:sse] calendar.invalidate", event.data);
-        void reloadRef.current();
+        refreshTimer = setTimeout(() => {
+          refreshTimer = null;
+          void loadCalendarResourcesRef.current(stateRef.current.date);
+        }, 250);
       });
-
-      eventSource.onmessage = (event: MessageEvent) => {
-        console.log("[calendar:sse] message", event.data);
-      };
 
       eventSource.onerror = () => {
         eventSource?.close();
@@ -431,19 +436,29 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     return () => {
       closed = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (refreshTimer) clearTimeout(refreshTimer);
       if (eventSource) eventSource.close();
     };
   }, [branchId]);
 
-  const filteredStaff =
-    state.view.enabledStaffIds.length > 0
-      ? state.staff.filter((s) => state.view.enabledStaffIds.includes(s.id))
-      : state.staff;
+  const visibleStaff = useMemo(() => {
+    const filteredStaff =
+      state.view.enabledStaffIds.length > 0
+        ? state.staff.filter((member) =>
+            state.view.enabledStaffIds.includes(member.id),
+          )
+        : state.staff;
 
-  const visibleStaff = filteredStaff.slice(
+    return filteredStaff.slice(
+      state.view.staffOffset,
+      state.view.staffOffset + state.view.maxVisibleStaff,
+    );
+  }, [
+    state.staff,
+    state.view.enabledStaffIds,
+    state.view.maxVisibleStaff,
     state.view.staffOffset,
-    state.view.staffOffset + state.view.maxVisibleStaff,
-  );
+  ]);
 
   return (
     <CalendarContext.Provider value={{ state, dispatch, reload, visibleStaff }}>
@@ -451,8 +466,6 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     </CalendarContext.Provider>
   );
 }
-
-/* ---------- HOOKS ---------- */
 
 export function useCalendar() {
   const ctx = useContext(CalendarContext);
@@ -465,31 +478,31 @@ export function useCalendar() {
 export function useCalendarActions() {
   const { dispatch } = useCalendar();
 
-  return {
-    setDate: (d: string) => dispatch({ type: "SET_DATE", payload: d }),
-    openNewAppointment: (prefill?: Prefill) =>
-      dispatch({ type: "OPEN_SHEET", payload: prefill }),
-    openBlockTime: (prefill?: Prefill) =>
-      dispatch({ type: "OPEN_BLOCK_SHEET", payload: prefill }),
-    closeSheet: () => dispatch({ type: "CLOSE_SHEET" }),
-    closeBlockTime: () => dispatch({ type: "CLOSE_BLOCK_SHEET" }),
-    setEnabledStaff: (ids: string[]) =>
-      dispatch({ type: "SET_ENABLED_STAFF", payload: ids }),
-
-    openAppointmentById: (id: string) =>
-      dispatch({ type: "OPEN_APPOINTMENT", payload: id }),
-
-    closeAppointment: () => dispatch({ type: "CLOSE_APPOINTMENT" }),
-    openSlotBooking: (payload: SlotPrefill) =>
-      dispatch({ type: "OPEN_SLOT_SHEET", payload }),
-
-    closeSlotBooking: () => dispatch({ type: "CLOSE_SLOT_SHEET" }),
-    addAppointments: (apps: any[]) =>
-      dispatch({ type: "ADD_APPOINTMENTS", payload: apps }),
-    openBlockDetail: (payload: BlockDetailPrefill) =>
-      dispatch({ type: "OPEN_BLOCK_DETAIL_SHEET", payload }),
-    closeBlockDetail: () => dispatch({ type: "CLOSE_BLOCK_DETAIL_SHEET" }),
-    nextStaffPage: () => dispatch({ type: "NEXT_STAFF_PAGE" }),
-    prevStaffPage: () => dispatch({ type: "PREV_STAFF_PAGE" }),
-  };
+  return useMemo(
+    () => ({
+      setDate: (date: string) => dispatch({ type: "SET_DATE", payload: date }),
+      openNewAppointment: (prefill?: Prefill) =>
+        dispatch({ type: "OPEN_SHEET", payload: prefill }),
+      openBlockTime: (prefill?: Prefill) =>
+        dispatch({ type: "OPEN_BLOCK_SHEET", payload: prefill }),
+      closeSheet: () => dispatch({ type: "CLOSE_SHEET" }),
+      closeBlockTime: () => dispatch({ type: "CLOSE_BLOCK_SHEET" }),
+      setEnabledStaff: (ids: string[]) =>
+        dispatch({ type: "SET_ENABLED_STAFF", payload: ids }),
+      openAppointmentById: (id: string) =>
+        dispatch({ type: "OPEN_APPOINTMENT", payload: id }),
+      closeAppointment: () => dispatch({ type: "CLOSE_APPOINTMENT" }),
+      openSlotBooking: (payload: SlotPrefill) =>
+        dispatch({ type: "OPEN_SLOT_SHEET", payload }),
+      closeSlotBooking: () => dispatch({ type: "CLOSE_SLOT_SHEET" }),
+      addAppointments: (appointments: any[]) =>
+        dispatch({ type: "ADD_APPOINTMENTS", payload: appointments }),
+      openBlockDetail: (payload: BlockDetailPrefill) =>
+        dispatch({ type: "OPEN_BLOCK_DETAIL_SHEET", payload }),
+      closeBlockDetail: () => dispatch({ type: "CLOSE_BLOCK_DETAIL_SHEET" }),
+      nextStaffPage: () => dispatch({ type: "NEXT_STAFF_PAGE" }),
+      prevStaffPage: () => dispatch({ type: "PREV_STAFF_PAGE" }),
+    }),
+    [dispatch],
+  );
 }

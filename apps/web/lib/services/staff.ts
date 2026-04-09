@@ -1,4 +1,7 @@
 import { api } from "./api";
+import { buildDedupKey, runDeduped } from "./request-dedupe";
+
+const STAFF_BRANCH_CACHE_MS = 30_000;
 
 /* ===== TYPES ===== */
 
@@ -82,7 +85,13 @@ export async function inviteStaff(input: {
 /* ===== GET STAFF IN A BRANCH ===== */
 
 export async function getStaffByBranch(branchId: string) {
-  return api<Staff[]>(`/staff/branch/${branchId}`);
+  const path = `/staff/branch/${branchId}`;
+
+  return runDeduped(
+    buildDedupKey("GET", path),
+    () => api<Staff[]>(path),
+    { cacheTtlMs: STAFF_BRANCH_CACHE_MS },
+  );
 }
 
 export type StaffMember = {
@@ -176,4 +185,3 @@ export async function activateStaff(staffId: string) {
     method: "PATCH",
   });
 }
-

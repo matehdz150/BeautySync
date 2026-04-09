@@ -33,18 +33,23 @@ export function StepPickFirstService() {
   useEffect(() => {
     if (!branchId || !pinnedStaffId || !pinnedStartIso) return;
 
+    const currentBranchId = branchId;
+    const currentPinnedStaffId = pinnedStaffId;
+    const currentPinnedStartIso = pinnedStartIso;
     let cancelled = false;
 
     async function load() {
       setLoading(true);
       try {
-        const res = await getAvailableServicesForSlot({
-          branchId,
-          staffId: pinnedStaffId,
-          datetime: pinnedStartIso,
+        const res = await getAvailableServicesForSlot<AvailableService[]>({
+          branchId: currentBranchId,
+          staffId: currentPinnedStaffId,
+          datetime: currentPinnedStartIso,
         });
 
-        if (!cancelled) setServices(res ?? []);
+        if (!cancelled) {
+          setServices(res);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -67,7 +72,7 @@ export function StepPickFirstService() {
       serviceName: service.name,
 
       staffId: pinnedStaffId,
-      staffName: state.pinnedStaffName,
+      staffName: state.pinnedStaffName ?? undefined,
 
       durationMin: service.durationMin,
     });
@@ -133,7 +138,7 @@ export function StepPickFirstService() {
                 {/* Icon bubble */}
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-indigo-50 border-indigo-100 text-indigo-600">
                   <CategoryIcon
-                    name={s.category?.icon}
+                    name={s.category?.icon ?? undefined}
                     className="h-4 w-4"
                   />
                 </div>

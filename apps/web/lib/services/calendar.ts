@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { buildDedupKey, runDeduped } from "./request-dedupe";
 
 export type CalendarAppointment = {
   id: string;
@@ -48,5 +49,10 @@ export async function getCalendarDay(params: GetCalendarDayParams) {
     ...(params.staffId ? { staffId: params.staffId } : {}),
   });
 
-  return api<GetCalendarDayResponse>(`/calendar/day?${query.toString()}`);
+  const path = `/calendar/day?${query.toString()}`;
+
+  return runDeduped(
+    buildDedupKey("GET", path),
+    () => api<GetCalendarDayResponse>(path),
+  );
 }

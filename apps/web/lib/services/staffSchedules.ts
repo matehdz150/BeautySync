@@ -1,11 +1,22 @@
 // apps/web/lib/services/staffSchedules.ts
 import { api } from "./api";
+import { buildDedupKey, runDeduped, stableStringify } from "./request-dedupe";
+
+const STAFF_SCHEDULE_CACHE_MS = 30_000;
 
 export type StaffScheduleInput = {
   staffId: string;
   dayOfWeek: number;   // 0–6
   startTime: string;   // "09:00"
   endTime: string;     // "18:00"
+};
+
+export type StaffSchedule = {
+  id: number;
+  staffId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
 };
 
 /* ===== CREATE ONE DAY SCHEDULE ===== */
@@ -38,7 +49,42 @@ export async function saveDefaultScheduleForStaff(params: {
 
 /* ===== GET STAFF SCHEDULE ===== */
 export async function getScheduleForStaff(staffId: string) {
-  return api(`/staff-schedules/staff/${staffId}`);
+  const path = `/staff-schedules/staff/${staffId}`;
+
+  return runDeduped(
+    buildDedupKey("GET", path),
+    () => api<StaffSchedule[]>(path),
+    { cacheTtlMs: STAFF_SCHEDULE_CACHE_MS },
+  );
+}
+
+export async function getSchedulesForStaffMembers(
+  staffIds: string[],
+): Promise<Record<string, StaffSchedule[]>> {
+  const uniqueStaffIds = [...new Set(staffIds)].sort();
+
+  if (uniqueStaffIds.length === 0) {
+    return {};
+  }
+
+  return runDeduped(
+    buildDedupKey(
+      "GET",
+      "/staff-schedules/staff",
+      stableStringify(uniqueStaffIds),
+    ),
+    async () => {
+      const entries = await Promise.all(
+        uniqueStaffIds.map(async (staffId) => [
+          staffId,
+          await getScheduleForStaff(staffId),
+        ] as const),
+      );
+
+      return Object.fromEntries(entries);
+    },
+    { cacheTtlMs: STAFF_SCHEDULE_CACHE_MS },
+  );
 }
 
 export async function clearStaffSchedules(staffId: string) {

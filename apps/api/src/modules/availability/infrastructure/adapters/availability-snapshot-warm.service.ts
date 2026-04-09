@@ -21,6 +21,8 @@ type EnqueueDayParams = {
 
 @Injectable()
 export class AvailabilitySnapshotWarmService {
+  private readonly inflight = new Map<string, Promise<void>>();
+
   constructor(
     @Inject('AVAILABILITY_QUEUE')
     private readonly queue: Queue,
@@ -84,6 +86,40 @@ export class AvailabilitySnapshotWarmService {
     await this.snapshots.set(snapshot);
     await this.rebuildServicesDay(params);
     await this.rebuildGlobalIndex(params.branchId, 30);
+  }
+
+  async ensureDayReady(params: EnqueueDayParams): Promise<void> {
+    const key = `${params.branchId}:${params.date}`;
+    const existing = this.inflight.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const promise = (async () => {
+      const daySnapshot = await this.snapshots.get(params.branchId, params.date);
+      if (!daySnapshot) {
+        await this.warmDay(params);
+        return;
+      }
+
+      const servicesSnapshot = await this.servicesSnapshots.get(
+        params.branchId,
+        params.date,
+      );
+      if (!servicesSnapshot) {
+        await this.rebuildServicesDay(params);
+      }
+    })();
+
+    this.inflight.set(key, promise);
+
+    try {
+      await promise;
+    } finally {
+      if (this.inflight.get(key) === promise) {
+        this.inflight.delete(key);
+      }
+    }
   }
 
   async rebuildServicesDay(params: EnqueueDayParams): Promise<void> {

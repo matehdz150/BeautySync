@@ -1,7 +1,14 @@
 // src/context/BookingManagerDraftContext.tsx
 "use client";
 
-import React, { createContext, useContext, useMemo, useReducer } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from "react";
 
 export type DraftService = {
   id: string;
@@ -232,6 +239,11 @@ const BookingManagerDraftContext = createContext<Ctx | null>(null);
 
 export function BookingManagerDraftProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const actions: Ctx["actions"] = useMemo(() => {
     return {
@@ -255,52 +267,57 @@ export function BookingManagerDraftProvider({ children }: { children: React.Reac
       setNotes: (notes) => dispatch({ type: "SET_NOTES", notes }),
       setPaymentMethod: (paymentMethod) => dispatch({ type: "SET_PAYMENT_METHOD", paymentMethod }),
 
-      isStep2Valid: () => state.services.length >= 1,
+      isStep2Valid: () => stateRef.current.services.length >= 1,
 
       isStep3Ready: () => {
-        if (!state.services.length) return false;
+        const currentState = stateRef.current;
 
-        if (state.staffChoiceMode === "ANY") return true;
+        if (!currentState.services.length) return false;
 
-        if (state.staffChoiceMode === "SINGLE_STAFF") {
-          return !!state.singleStaffId;
+        if (currentState.staffChoiceMode === "ANY") return true;
+
+        if (currentState.staffChoiceMode === "SINGLE_STAFF") {
+          return !!currentState.singleStaffId;
         }
 
         // PER_SERVICE
-        return state.services.every((s) => {
-          const v = state.staffByService[s.id];
+        return currentState.services.every((s) => {
+          const v = currentState.staffByService[s.id];
           return typeof v === "string" && v.length > 0; // "ANY" también cuenta (string)
         });
       },
 
       buildChainDraftPayload: () => {
-        if (!state.date) throw new Error("Missing date");
-        if (!state.services.length) throw new Error("Missing services");
+        const currentState = stateRef.current;
 
-        const chain = state.services.map((s) => {
-          if (state.staffChoiceMode === "ANY") {
+        if (!currentState.date) throw new Error("Missing date");
+        if (!currentState.services.length) throw new Error("Missing services");
+
+        const chain = currentState.services.map((s) => {
+          if (currentState.staffChoiceMode === "ANY") {
             return { serviceId: s.id, staffId: "ANY" as const };
           }
-          if (state.staffChoiceMode === "SINGLE_STAFF") {
-            if (!state.singleStaffId) throw new Error("Missing singleStaffId");
-            return { serviceId: s.id, staffId: state.singleStaffId };
+          if (currentState.staffChoiceMode === "SINGLE_STAFF") {
+            if (!currentState.singleStaffId) throw new Error("Missing singleStaffId");
+            return { serviceId: s.id, staffId: currentState.singleStaffId };
           }
           // PER_SERVICE
-          const staffId = state.staffByService[s.id];
+          const staffId = currentState.staffByService[s.id];
           if (!staffId) throw new Error(`Missing staff for service ${s.id}`);
           return { serviceId: s.id, staffId };
         });
 
-        return { date: state.date, chain };
+        return { date: currentState.date, chain };
       },
 
       getSelectedPlan: () => {
-        if (!state.selectedPlanStartIso) return null;
-        return state.plans.find((p) => p.startIso === state.selectedPlanStartIso) ?? null;
+        const currentState = stateRef.current;
+
+        if (!currentState.selectedPlanStartIso) return null;
+        return currentState.plans.find((p) => p.startIso === currentState.selectedPlanStartIso) ?? null;
       },
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  }, []);
 
   const value = useMemo(() => ({ state, actions }), [state, actions]);
 
