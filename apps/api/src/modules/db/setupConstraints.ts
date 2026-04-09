@@ -197,6 +197,16 @@ export async function ensureBookingConstraints() {
       ON appointment_status_history (appointment_id, changed_at DESC);
     `);
 
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_notifications_target_branch_created_desc
+      ON notifications (target, branch_id, created_at DESC);
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_notifications_branch_target_created_desc
+      ON notifications (branch_id, target, created_at DESC);
+    `);
+
     // 🔥 Crear constraint si no existe
     await db.execute(sql`
       DO $$

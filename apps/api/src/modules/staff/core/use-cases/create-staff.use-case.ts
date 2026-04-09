@@ -17,7 +17,7 @@ export class CreateStaffUseCase {
   async execute(input: staffRepository.CreateStaffInput) {
     const staff = await this.repo.create(input);
 
-    await this.cache.del(`staff:branch:${input.branchId}`);
+    await this.cache.del(`staff:snapshot:branch:${input.branchId}`);
 
     return staff;
   }

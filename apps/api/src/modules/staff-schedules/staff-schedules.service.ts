@@ -10,12 +10,18 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { CreateStaffScheduleDto } from './dto/create-staff-schedule.dto';
 import { UpdateStaffScheduleDto } from './dto/update-staff-schedule.dto';
 import { AvailabilityCacheService } from '../availability/infrastructure/adapters/availability-cache.service';
+import { AvailabilitySnapshotWarmService } from '../availability/infrastructure/adapters/availability-snapshot-warm.service';
+import { CACHE_PORT } from '../cache/core/ports/tokens';
+import { CachePort } from '../cache/core/ports/cache.port';
 
 @Injectable()
 export class StaffSchedulesService {
   constructor(
     @Inject('DB') private db: client.DB,
     private readonly availabilityCache: AvailabilityCacheService,
+    private readonly availabilityWarm: AvailabilitySnapshotWarmService,
+    @Inject(CACHE_PORT)
+    private readonly cache: CachePort,
   ) {}
 
   findForStaff(staffId: string) {
@@ -74,7 +80,11 @@ export class StaffSchedulesService {
       where: eq(staff.id, dto.staffId),
     });
     if (staffRow?.branchId) {
-      await this.availabilityCache.invalidate(staffRow.branchId);
+      await Promise.all([
+        this.availabilityCache.invalidate(staffRow.branchId),
+        this.cache.del(`staff:snapshot:branch:${staffRow.branchId}`),
+        this.availabilityWarm.enqueueNextDays(staffRow.branchId, 14),
+      ]);
     }
 
     return created;
@@ -113,7 +123,11 @@ export class StaffSchedulesService {
       where: eq(staff.id, merged.staffId),
     });
     if (staffRow?.branchId) {
-      await this.availabilityCache.invalidate(staffRow.branchId);
+      await Promise.all([
+        this.availabilityCache.invalidate(staffRow.branchId),
+        this.cache.del(`staff:snapshot:branch:${staffRow.branchId}`),
+        this.availabilityWarm.enqueueNextDays(staffRow.branchId, 14),
+      ]);
     }
 
     return updated;
@@ -128,7 +142,11 @@ export class StaffSchedulesService {
       .delete(staffSchedules)
       .where(eq(staffSchedules.staffId, staffId));
     if (staffRow?.branchId) {
-      await this.availabilityCache.invalidate(staffRow.branchId);
+      await Promise.all([
+        this.availabilityCache.invalidate(staffRow.branchId),
+        this.cache.del(`staff:snapshot:branch:${staffRow.branchId}`),
+        this.availabilityWarm.enqueueNextDays(staffRow.branchId, 14),
+      ]);
     }
 
     return { ok: true };

@@ -21,6 +21,7 @@ import { BranchesModule } from '../branches/branches.module';
 import { PublicPaymentsController } from './application/controllers/public-payment.controller';
 import { CacheModule } from '../cache/cache.module';
 import { PaymentBenefitsCacheService } from './application/payment-benefits-cache.service';
+import { PaymentBenefitsRefreshService } from './application/payment-benefits-refresh.service';
 
 @Module({
   imports: [AuthModule, BranchesModule, CacheModule],
@@ -40,6 +41,7 @@ import { PaymentBenefitsCacheService } from './application/payment-benefits-cach
     GetClientPaymentsUseCase,
     GetAvailablePaymentBenefitsUseCase,
     PaymentBenefitsCacheService,
+    PaymentBenefitsRefreshService,
     {
       provide: PAYMENTS_REPOSITORY,
       useClass: DrizzlePaymentsRepository,
@@ -49,6 +51,6 @@ import { PaymentBenefitsCacheService } from './application/payment-benefits-cach
       useClass: DrizzleBookingsRepository,
     },
   ],
-  exports: [PAYMENTS_REPOSITORY],
+  exports: [PAYMENTS_REPOSITORY, PaymentBenefitsCacheService, PaymentBenefitsRefreshService],
 })
 export class PaymentsModule {}

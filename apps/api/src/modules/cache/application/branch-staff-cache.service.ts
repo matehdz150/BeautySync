@@ -12,6 +12,8 @@ export type CachedBranchStaff = {
   id: string;
   branchId: string;
   userId: string | null;
+  name: string;
+  avatarUrl: string | null;
   isActive: boolean;
 };
 
@@ -39,6 +41,8 @@ export class BranchStaffCacheService {
           id: true,
           branchId: true,
           userId: true,
+          name: true,
+          avatarUrl: true,
           isActive: true,
         },
         where: eq(staff.branchId, branchId),
@@ -59,6 +63,6 @@ export class BranchStaffCacheService {
   }
 
   private buildKey(branchId: string) {
-    return `staff:branch:${branchId}`;
+    return `staff:branch:v2:${branchId}`;
   }
 }

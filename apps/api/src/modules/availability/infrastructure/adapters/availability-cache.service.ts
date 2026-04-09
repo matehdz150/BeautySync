@@ -11,6 +11,8 @@ type CachedAvailabilityIndex = {
     date: string;
     hasAvailability: boolean;
     slots: Array<{ start: string; end: string; staffId: string }>;
+    staffIds?: string[];
+    startsByStaff?: Array<[string, number[]]>;
   }>;
   availableDates: string[];
   staffIdsByService: Array<[string, string[]]>;
@@ -40,17 +42,26 @@ export class AvailabilityCacheService {
 
     return {
       byDay: new Map(
-        cached.byDay.map((day) => [
-          day.date,
-          {
-            ...day,
-            slots: day.slots.map((slot) => ({
-              ...slot,
-              start: new Date(slot.start),
-              end: new Date(slot.end),
-            })),
-          },
-        ]),
+        cached.byDay.map((day) => {
+          const slots = day.slots.map((slot) => ({
+            ...slot,
+            start: new Date(slot.start),
+            end: new Date(slot.end),
+          }));
+          const startsByStaff = day.startsByStaff
+            ? new Map(day.startsByStaff)
+            : this.buildStartsByStaff(slots);
+
+          return [
+            day.date,
+            {
+              ...day,
+              slots,
+              staffIds: day.staffIds ?? [...startsByStaff.keys()],
+              startsByStaff,
+            },
+          ] as const;
+        }),
       ),
       availableDates: cached.availableDates,
       staffIdsByService: new Map(cached.staffIdsByService),
@@ -71,6 +82,8 @@ export class AvailabilityCacheService {
             start: slot.start.toISOString(),
             end: slot.end.toISOString(),
           })),
+          staffIds: day.staffIds,
+          startsByStaff: [...day.startsByStaff.entries()],
         })),
         availableDates: index.availableDates,
         staffIdsByService: [...index.staffIdsByService.entries()],
@@ -82,7 +95,50 @@ export class AvailabilityCacheService {
     );
   }
 
-  async invalidate(branchId: string): Promise<void> {
-    await this.cache.delPattern(`availability:index:${branchId}:window:*`);
+  async invalidate(
+    branchId: string,
+    dates?: string | string[],
+  ): Promise<void> {
+    const normalizedDates = Array.isArray(dates)
+      ? [...new Set(dates.filter(Boolean))]
+      : dates
+        ? [dates]
+        : [];
+
+    if (normalizedDates.length > 0) {
+      await Promise.all([
+        this.cache.del(`availability:index:${branchId}`),
+        ...normalizedDates.map((date) => this.cache.del(`availability:${branchId}:${date}`)),
+        ...normalizedDates.map((date) =>
+          this.cache.del(`availability:services:${branchId}:${date}`),
+        ),
+        ...normalizedDates.map((date) =>
+          this.cache.delPattern(`manager:chain:*:${branchId}:${date}:*`),
+        ),
+      ]);
+      return;
+    }
+
+    await Promise.all([
+      this.cache.del(`availability:index:${branchId}`),
+      this.cache.delPattern(`availability:index:${branchId}:window:*`),
+      this.cache.delPattern(`availability:services:${branchId}:*`),
+      this.cache.delPattern(`availability:${branchId}:*`),
+      this.cache.delPattern(`manager:chain:*:${branchId}:*`),
+    ]);
+  }
+
+  private buildStartsByStaff(
+    slots: Array<{ start: Date; end: Date; staffId: string }>,
+  ) {
+    const startsByStaff = new Map<string, number[]>();
+
+    for (const slot of slots) {
+      const starts = startsByStaff.get(slot.staffId) ?? [];
+      starts.push(slot.start.getTime());
+      startsByStaff.set(slot.staffId, starts);
+    }
+
+    return startsByStaff;
   }
 }

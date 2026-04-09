@@ -15,6 +15,7 @@ import { BenefitRewardRepository } from '../ports/benefit-reward.repository';
 
 import { BRANCHES_REPOSITORY } from 'src/modules/branches/core/ports/tokens';
 import { BranchesRepository } from 'src/modules/branches/core/ports/branches.repository';
+import { PaymentBenefitsRefreshService } from 'src/modules/payments/application/payment-benefits-refresh.service';
 
 import { CreateBenefitRewardInput } from '../ports/benefit-reward.repository';
 
@@ -70,6 +71,7 @@ export class CreateBenefitRewardUseCase {
 
     @Inject(BRANCHES_REPOSITORY)
     private readonly branchesRepo: BranchesRepository,
+    private readonly paymentBenefitsRefresh: PaymentBenefitsRefreshService,
   ) {}
 
   async execute(input: CreateBenefitRewardInput) {
@@ -166,7 +168,7 @@ export class CreateBenefitRewardUseCase {
     // =========================
     // 5. CREAR REWARD
     // =========================
-    return this.rewardRepo.create({
+    const reward = await this.rewardRepo.create({
       programId: program.id,
       type: input.type,
       name: input.name.trim(),
@@ -176,5 +178,7 @@ export class CreateBenefitRewardUseCase {
       config: safeConfig,
       isActive: true,
     });
+    await this.paymentBenefitsRefresh.invalidateBranch(input.branchId);
+    return reward;
   }
 }

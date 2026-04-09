@@ -25,6 +25,7 @@ import { TierReward } from '../../entities/tier-reward.entity';
 import { BranchesRepository } from 'src/modules/branches/core/ports/branches.repository';
 import { BRANCHES_REPOSITORY } from 'src/modules/branches/core/ports/tokens';
 import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
+import { PaymentBenefitsRefreshService } from 'src/modules/payments/application/payment-benefits-refresh.service';
 
 type TierRewardType = 'gift_card' | 'coupon_percentage' | 'coupon_fixed';
 
@@ -59,6 +60,7 @@ export class UpdateTierWithRewardsUseCase {
 
     @Inject('BENEFITS_QUEUE')
     private readonly queue: Queue,
+    private readonly paymentBenefitsRefresh: PaymentBenefitsRefreshService,
   ) {}
 
   async execute(input: {
@@ -187,6 +189,8 @@ export class UpdateTierWithRewardsUseCase {
         },
       );
     }
+
+    await this.paymentBenefitsRefresh.invalidateBranch(input.branchId);
 
     return result;
   }

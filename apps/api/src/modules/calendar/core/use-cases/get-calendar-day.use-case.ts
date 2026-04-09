@@ -1,28 +1,15 @@
 // core/use-cases/get-calendar-day.use-case.ts
 
-import { DateTime } from 'luxon';
-import { CalendarEvent } from '../entities/calendar-event.entity';
-import { BranchSettingsPort } from '../ports/branch-settings.port';
-import {
-  BRANCH_SETTINGS_PORT,
-  CALENDAR_EVENTS_PORT,
-} from '../ports/tokens';
-import { Inject, Injectable } from '@nestjs/common';
-import { CACHE_PORT } from 'src/modules/cache/core/ports/tokens';
-import { CachePort } from 'src/modules/cache/core/ports/cache.port';
-import { CalendarEventsPort } from '../ports/calendar-events.port';
+import { Injectable } from '@nestjs/common';
+
+import { CalendarSnapshotCacheService } from '../../calendar-snapshot-cache.service';
+import { AvailabilitySnapshotWarmService } from 'src/modules/availability/infrastructure/adapters/availability-snapshot-warm.service';
 
 @Injectable()
 export class GetCalendarDayUseCase {
   constructor(
-    @Inject(CALENDAR_EVENTS_PORT)
-    private readonly events: CalendarEventsPort,
-
-    @Inject(BRANCH_SETTINGS_PORT)
-    private readonly branchSettings: BranchSettingsPort,
-
-    @Inject(CACHE_PORT)
-    private readonly cache: CachePort,
+    private readonly calendarSnapshot: CalendarSnapshotCacheService,
+    private readonly availabilityWarm: AvailabilitySnapshotWarmService,
   ) {}
 
   async execute(input: { branchId: string; date: string; staffId?: string }) {
@@ -32,49 +19,22 @@ export class GetCalendarDayUseCase {
       throw new Error('branchId is required');
     }
 
-    const cacheKey = `calendar:day:${branchId}:${date}:${staffId ?? 'all'}`;
-    const cached = await this.cache.get<{
-      date: string;
-      timezone: string;
-      appointments: Extract<CalendarEvent, { type: 'APPOINTMENT' }>[];
-      timeOffs: Extract<CalendarEvent, { type: 'TIME_OFF' }>[];
-      meta: {
-        totalAppointments: number;
-        totalTimeOffs: number;
-      };
-    }>(cacheKey);
-
-    if (cached) {
-      return cached;
-    }
-
-    const tz =
-      (await this.branchSettings.getTimezone(branchId)) ??
-      'America/Mexico_City';
-
-    const start = DateTime.fromISO(date, { zone: tz }).startOf('day').toUTC();
-
-    const end = start.plus({ days: 1 });
-
-    const events = await this.events.findByBranchAndRange({
-      branchId,
-      staffId,
-      start: start.toJSDate(),
-      end: end.toJSDate(),
-    });
-
-    const appointments = events.filter(
-      (event): event is Extract<CalendarEvent, { type: 'APPOINTMENT' }> =>
+    const snapshot = await this.calendarSnapshot.getOrBuild({ branchId, date });
+    const dayEvents = (snapshot.eventsByDay[date] ?? []).filter(
+      (event) => !staffId || event.staffId === staffId,
+    );
+    const appointments = dayEvents.filter(
+      (event): event is Extract<(typeof dayEvents)[number], { type: 'APPOINTMENT' }> =>
         event.type === 'APPOINTMENT',
     );
-    const timeOffs = events.filter(
-      (event): event is Extract<CalendarEvent, { type: 'TIME_OFF' }> =>
+    const timeOffs = dayEvents.filter(
+      (event): event is Extract<(typeof dayEvents)[number], { type: 'TIME_OFF' }> =>
         event.type === 'TIME_OFF',
     );
 
     const result = {
       date,
-      timezone: tz,
+      timezone: snapshot.timezone,
 
       appointments,
       timeOffs,
@@ -85,7 +45,7 @@ export class GetCalendarDayUseCase {
       },
     };
 
-    await this.cache.set(cacheKey, result, 60);
+    void this.availabilityWarm.enqueueDay({ branchId, date });
 
     return result;
   }

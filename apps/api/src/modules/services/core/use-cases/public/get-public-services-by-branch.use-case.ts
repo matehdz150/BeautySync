@@ -6,7 +6,7 @@ import * as servicePublicRepository from '../../ports/service-public.repository'
 import { CACHE_PORT } from 'src/modules/cache/core/ports/tokens';
 import * as cachePort from 'src/modules/cache/core/ports/cache.port';
 import { PublicBranchCacheService } from 'src/modules/cache/application/public-branch-cache.service';
-import { AvailabilityIndexCacheService } from 'src/modules/availability/infrastructure/adapters/availability-index-cache.service';
+import { AvailabilitySnapshotWarmService } from 'src/modules/availability/infrastructure/adapters/availability-snapshot-warm.service';
 
 @Injectable()
 export class GetPublicServicesByBranchSlugUseCase {
@@ -17,7 +17,7 @@ export class GetPublicServicesByBranchSlugUseCase {
     @Inject(CACHE_PORT)
     private readonly cache: cachePort.CachePort,
     private readonly publicBranchCache: PublicBranchCacheService,
-    private readonly availabilityIndexCache: AvailabilityIndexCacheService,
+    private readonly availabilityWarm: AvailabilitySnapshotWarmService,
   ) {}
 
   async execute(slug: string) {
@@ -47,15 +47,14 @@ export class GetPublicServicesByBranchSlugUseCase {
   }
 
   private async prewarmAvailability(branchId: string) {
-    const currentMonth = DateTime.now().startOf('month');
-    await this.availabilityIndexCache
-      .getOrBuild({
+    await this.availabilityWarm
+      .enqueueRange({
         branchId,
-        start: currentMonth.toUTC().toJSDate(),
-        end: currentMonth.endOf('month').toUTC().toJSDate(),
+        start: DateTime.now().startOf('day').toISODate() as string,
+        end: DateTime.now().startOf('day').plus({ days: 13 }).toISODate() as string,
       })
       .catch((error: unknown) => {
-      console.error('[Availability] PREWARM FAILED', branchId, error);
+        console.error('[Availability] PREWARM FAILED', branchId, error);
       });
   }
 }

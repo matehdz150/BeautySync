@@ -22,6 +22,7 @@ import { BenefitPointsRepository } from '../ports/benefit-points.repository';
 import { BenefitRedemptionRepository } from '../ports/benefit-redemption.repository';
 import { BenefitRewardEngine } from '../engine/benefit-reward-engine.service';
 import { randomUUID } from 'crypto';
+import { PaymentBenefitsRefreshService } from 'src/modules/payments/application/payment-benefits-refresh.service';
 
 @Injectable()
 export class RedeemBenefitRewardUseCase {
@@ -42,6 +43,7 @@ export class RedeemBenefitRewardUseCase {
     private readonly redemptionRepo: BenefitRedemptionRepository,
 
     private readonly rewardEngine: BenefitRewardEngine,
+    private readonly paymentBenefitsRefresh: PaymentBenefitsRefreshService,
   ) {}
 
   private generateReferenceCode() {
@@ -160,6 +162,11 @@ export class RedeemBenefitRewardUseCase {
 
       throw new BadRequestException('Reward execution failed');
     }
+
+    await this.paymentBenefitsRefresh.enqueueUserRefresh({
+      branchId: input.branchId,
+      publicUserId: input.user.id,
+    });
 
     return redemption;
   }

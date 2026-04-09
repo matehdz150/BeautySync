@@ -1,5 +1,6 @@
 import { Worker } from 'bullmq';
 import { redis } from '../../redis/redis.provider';
+import Redis from 'ioredis';
 
 import { db } from '../../../db/client';
 
@@ -17,7 +18,13 @@ import { TierRewardGrantRepositoryDrizzle } from '../../../benefits/infrastructu
 
 import { DrizzleGiftCardRepository } from '../../../gift-cards/infrastructure/adapters/drizzle-gift-card.repository';
 import { DrizzleCouponRepository } from '../../../cupons/infrastructure/adapters/drizzle-coupon.repository';
+import { DrizzlePaymentsRepository } from '../../../payments/infrastructure/adapters/payments-drizzle.repository';
 import { trackJobMetric } from '../../../metrics/bullmq-metrics';
+import {
+  buildPaymentBenefitsSnapshotKey,
+  mapPaymentBenefitsSnapshot,
+  PAYMENT_BENEFITS_SNAPSHOT_TTL_SECONDS,
+} from '../../../payments/application/payment-benefits-snapshot';
 
 // =========================
 // 🔥 INSTANCIAS
@@ -33,6 +40,13 @@ const tiersRepo = new DrizzleBenefitTiersRepository(db);
 const rewardsRepo = new DrizzleTierRewardsRepository(db);
 const grantRepo = new TierRewardGrantRepositoryDrizzle();
 const couponRepo = new DrizzleCouponRepository();
+const paymentsRepo = new DrizzlePaymentsRepository(db);
+const cacheRedis = new Redis({
+  host: process.env.REDIS_CACHE_HOST || 'localhost',
+  port: Number(process.env.REDIS_CACHE_PORT || 6380),
+  maxRetriesPerRequest: null,
+  enableReadyCheck: true,
+});
 
 // =========================
 // 🔥 TYPES
@@ -66,6 +80,11 @@ type PaymentBenefitsJob = {
 };
 
 type TierProgressJob = {
+  userId: string;
+  branchId: string;
+};
+
+type RefreshBenefitsSnapshotJob = {
   userId: string;
   branchId: string;
 };
@@ -124,6 +143,42 @@ function isTierProgressJob(data: unknown): data is TierProgressJob {
   return typeof data.userId === 'string' && typeof data.branchId === 'string';
 }
 
+function isRefreshBenefitsSnapshotJob(
+  data: unknown,
+): data is RefreshBenefitsSnapshotJob {
+  if (!isObject(data)) return false;
+
+  return typeof data.userId === 'string' && typeof data.branchId === 'string';
+}
+
+async function refreshBenefitsSnapshotCache(input: RefreshBenefitsSnapshotJob) {
+  const raw = await paymentsRepo.getAvailableBenefits({
+    branchId: input.branchId,
+    publicUserId: input.userId,
+  });
+
+  const snapshot = mapPaymentBenefitsSnapshot({
+    branchId: input.branchId,
+    userId: input.userId,
+    raw,
+  });
+
+  await cacheRedis.set(
+    buildPaymentBenefitsSnapshotKey(input.branchId, input.userId),
+    JSON.stringify(snapshot),
+    'EX',
+    PAYMENT_BENEFITS_SNAPSHOT_TTL_SECONDS,
+  );
+}
+
+async function safeRefreshBenefitsSnapshotCache(input: RefreshBenefitsSnapshotJob) {
+  try {
+    await refreshBenefitsSnapshotCache(input);
+  } catch (error) {
+    console.error('[benefits snapshot refresh] failed', input, error);
+  }
+}
+
 // =========================
 // 🔥 HANDLER
 // =========================
@@ -137,7 +192,12 @@ async function handler(name: string, data: unknown) {
         throw new Error('Invalid booking benefits job payload');
       }
 
-      return processBookingBenefits(data);
+      await processBookingBenefits(data);
+      await safeRefreshBenefitsSnapshotCache({
+        branchId: data.branchId,
+        userId: data.userId,
+      });
+      return;
     }
 
     case 'process-review-benefits': {
@@ -145,7 +205,12 @@ async function handler(name: string, data: unknown) {
         throw new Error('Invalid review benefits job payload');
       }
 
-      return processReviewBenefits(data);
+      await processReviewBenefits(data);
+      await safeRefreshBenefitsSnapshotCache({
+        branchId: data.branchId,
+        userId: data.userId,
+      });
+      return;
     }
 
     case 'process-payment-benefits': {
@@ -153,7 +218,12 @@ async function handler(name: string, data: unknown) {
         throw new Error('Invalid payment benefits job payload');
       }
 
-      return processPaymentBenefits(data);
+      await processPaymentBenefits(data);
+      await safeRefreshBenefitsSnapshotCache({
+        branchId: data.branchId,
+        userId: data.userId,
+      });
+      return;
     }
 
     case 'process-tier-progress': {
@@ -161,7 +231,7 @@ async function handler(name: string, data: unknown) {
         throw new Error('Invalid tier progress job payload');
       }
 
-      return processUserTierProgress({
+      await processUserTierProgress({
         userId: data.userId,
         branchId: data.branchId,
 
@@ -173,6 +243,23 @@ async function handler(name: string, data: unknown) {
         giftCardRepo,
         couponRepo,
       });
+      await safeRefreshBenefitsSnapshotCache({
+        branchId: data.branchId,
+        userId: data.userId,
+      });
+      return;
+    }
+
+    case 'refresh-benefits-snapshot': {
+      if (!isRefreshBenefitsSnapshotJob(data)) {
+        throw new Error('Invalid refresh benefits snapshot payload');
+      }
+
+      await refreshBenefitsSnapshotCache({
+        branchId: data.branchId,
+        userId: data.userId,
+      });
+      return;
     }
 
     case 'tiers.recalculate': {

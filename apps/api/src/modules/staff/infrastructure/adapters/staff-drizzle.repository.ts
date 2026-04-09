@@ -283,6 +283,109 @@ export class StaffDrizzleRepository implements StaffRepository {
     });
   }
 
+  async findSnapshotByBranch(branchId: string) {
+    const rows = await this.db.execute<{
+      id: string;
+      name: string;
+      email: string | null;
+      avatarUrl: string | null;
+      status: 'pending' | 'active' | 'disabled';
+      jobRole: string | null;
+      isActive: boolean;
+      rating: number | null;
+      schedules: unknown;
+      services: unknown;
+    }>(sql`
+      SELECT
+        s.id AS "id",
+        s.name AS "name",
+        s.email AS "email",
+        s.avatar_url AS "avatarUrl",
+        s.status AS "status",
+        s."jobRole" AS "jobRole",
+        s.is_active AS "isActive",
+        COALESCE(r.avg_rating, 0)::float AS "rating",
+        COALESCE(sch.items, '[]'::json) AS "schedules",
+        COALESCE(srv.items, '[]'::json) AS "services"
+      FROM staff s
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', ss.id,
+            'dayOfWeek', ss.day_of_week,
+            'startTime', ss.start_time,
+            'endTime', ss.end_time
+          )
+          ORDER BY ss.day_of_week, ss.start_time
+        ) AS items
+        FROM staff_schedules ss
+        WHERE ss.staff_id = s.id
+      ) sch ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', sv.id,
+            'name', sv.name,
+            'durationMin', sv.duration_min,
+            'priceCents', sv.price_cents,
+            'category', sc.name,
+            'categoryColor', sc.color_hex,
+            'categoryIcon', sc.icon
+          )
+          ORDER BY sv.name
+        ) AS items
+        FROM staff_services ssv
+        JOIN services sv
+          ON sv.id = ssv.service_id
+        LEFT JOIN service_categories sc
+          ON sc.id = sv.category_id
+        WHERE ssv.staff_id = s.id
+      ) srv ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT AVG(pbr.rating)::float AS avg_rating
+        FROM public_booking_rating_staff prs
+        JOIN public_booking_ratings pbr
+          ON pbr.id = prs.rating_id
+        WHERE prs.staff_id = s.id
+      ) r ON TRUE
+      WHERE s.branch_id = ${branchId}
+        AND s.is_active = TRUE
+      ORDER BY s.name ASC
+    `);
+
+    return rows.map((row) => {
+      const schedules = parseJsonArray<{
+        id: number;
+        dayOfWeek: number;
+        startTime: string;
+        endTime: string;
+      }>(row.schedules);
+      const services = parseJsonArray<{
+        id: string;
+        name: string;
+        durationMin: number;
+        priceCents?: number | null;
+        category?: string | null;
+        categoryColor?: string | null;
+        categoryIcon?: string | null;
+      }>(row.services);
+
+      return {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        avatarUrl: row.avatarUrl,
+        status: row.status,
+        jobRole: row.jobRole,
+        schedule: resumirHorario(schedules),
+        isActive: row.isActive,
+        schedules,
+        services,
+        rating: row.rating ?? 0,
+      };
+    });
+  }
+
   async update(
     id: string,
     data: UpdateStaffInput,

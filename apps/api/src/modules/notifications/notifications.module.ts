@@ -5,6 +5,8 @@ import { NotificationsSseService } from './notifications-sse.service';
 import { NotificationsRealtimeBridge } from './notifications.realtime';
 import { AuthModule } from '../auth/auth.module';
 import { CacheModule } from '../cache/cache.module';
+import { NotificationsCacheService } from './notifications-cache.service';
+import { NotificationsRepository } from './notifications.repository';
 
 @Module({
   imports: [AuthModule, CacheModule],
@@ -13,6 +15,8 @@ import { CacheModule } from '../cache/cache.module';
     NotificationsService,
     NotificationsSseService,
     NotificationsRealtimeBridge,
+    NotificationsCacheService,
+    NotificationsRepository,
   ],
 })
 export class NotificationsModule {}

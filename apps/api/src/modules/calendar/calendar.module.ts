@@ -19,9 +19,12 @@ import { CacheModule } from '../cache/cache.module';
 import { CalendarSseService } from './calendar-sse.service';
 import { CalendarRealtimeBridge } from './calendar.realtime';
 import { CalendarRealtimePublisher } from './calendar-realtime.publisher';
+import { CalendarDayCacheService } from './calendar-day-cache.service';
+import { AvailabilityModule } from '../availability/availability.module';
+import { CalendarSnapshotCacheService } from './calendar-snapshot-cache.service';
 
 @Module({
-  imports: [AuthModule, CacheModule],
+  imports: [AuthModule, CacheModule, AvailabilityModule],
   controllers: [CalendarController],
   providers: [
     GetCalendarDayUseCase,
@@ -29,6 +32,8 @@ import { CalendarRealtimePublisher } from './calendar-realtime.publisher';
     CalendarSseService,
     CalendarRealtimeBridge,
     CalendarRealtimePublisher,
+    CalendarDayCacheService,
+    CalendarSnapshotCacheService,
 
     {
       provide: CALENDAR_EVENTS_PORT,

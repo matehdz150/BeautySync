@@ -10,6 +10,7 @@ import {
 
 import { CreateStaffTimeOffUseCase } from './create-staff-timeoff.use-case';
 import { AvailabilityCacheService } from 'src/modules/availability/infrastructure/adapters/availability-cache.service';
+import { AvailabilitySnapshotWarmService } from 'src/modules/availability/infrastructure/adapters/availability-snapshot-warm.service';
 
 @Injectable()
 export class UpdateStaffTimeOffUseCase {
@@ -22,6 +23,7 @@ export class UpdateStaffTimeOffUseCase {
 
     private readonly createUseCase: CreateStaffTimeOffUseCase,
     private readonly availabilityCache: AvailabilityCacheService,
+    private readonly availabilityWarm: AvailabilitySnapshotWarmService,
   ) {}
 
   async execute(params: {
@@ -70,7 +72,9 @@ export class UpdateStaffTimeOffUseCase {
           end,
           reason,
         });
-        await this.availabilityCache.invalidate(branchId);
+        const date = start.toISOString().slice(0, 10);
+        await this.availabilityCache.invalidate(branchId, date);
+        await this.availabilityWarm.enqueueDay({ branchId, date });
         return recreated;
       } catch (e) {
         // 🔥 rollback
@@ -114,6 +118,7 @@ export class UpdateStaffTimeOffUseCase {
       rule,
     });
     await this.availabilityCache.invalidate(branchId);
+    await this.availabilityWarm.enqueueNextDays(branchId, 14);
     return result;
   }
 }

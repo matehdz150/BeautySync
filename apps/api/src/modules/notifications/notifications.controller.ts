@@ -78,7 +78,7 @@ export class NotificationsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.service.findForManager(req.user.orgId, {
+    return this.service.findForManager(req.user.branchIds, {
       unread: unread === 'true',
       kind,
       cursor,
@@ -91,7 +91,10 @@ export class NotificationsController {
     @Param('id') notificationId: string,
     @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.service.getNotificationListItem(notificationId, req.user.orgId);
+    return this.service.getNotificationListItem(
+      notificationId,
+      req.user.branchIds,
+    );
   }
 
   /**
@@ -102,15 +105,15 @@ export class NotificationsController {
     @Param('id') notificationId: string,
     @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.service.markAsRead(notificationId, req.user.orgId);
+    return this.service.markAsRead(notificationId, req.user.branchIds);
   }
 
   /**
    * ✅ Marcar TODAS como leídas
    */
   @Patch('read-all')
-  markAllAsRead(@Req() req: { user: { id: string } }) {
-    return this.service.markAllAsReadForUser(req.user.id);
+  markAllAsRead(@Req() req: { user: AuthenticatedUser }) {
+    return this.service.markAllAsReadForUser(req.user.id, req.user.branchIds);
   }
 
   @Get(':id')
@@ -118,6 +121,6 @@ export class NotificationsController {
     @Param('id') notificationId: string,
     @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.service.getNotificationDetail(notificationId, req.user.orgId);
+    return this.service.getNotificationDetail(notificationId, req.user.branchIds);
   }
 }

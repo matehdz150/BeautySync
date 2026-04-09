@@ -86,6 +86,7 @@ export class BuildAvailabilityIndexUseCase {
             snapshot.settings.minBookingNoticeMin
           : 0;
       const slots: TimeSlot[] = [];
+      const startsByStaff = new Map<string, number[]>();
 
       for (const staff of snapshot.staff) {
         const schedules =
@@ -117,6 +118,9 @@ export class BuildAvailabilityIndexUseCase {
               .plus({ minutes: minute + BuildAvailabilityIndexUseCase.SLOT_MIN })
               .toUTC()
               .toJSDate();
+            const starts = startsByStaff.get(staff.id) ?? [];
+            starts.push(startAt.getTime());
+            startsByStaff.set(staff.id, starts);
 
             slots.push({
               start: startAt,
@@ -131,6 +135,8 @@ export class BuildAvailabilityIndexUseCase {
         date,
         hasAvailability: slots.length > 0,
         slots,
+        staffIds: [...startsByStaff.keys()],
+        startsByStaff,
       });
       if (slots.length > 0) {
         availableDates.push(date);

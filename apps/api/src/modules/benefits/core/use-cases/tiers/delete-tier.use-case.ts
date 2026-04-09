@@ -23,6 +23,7 @@ import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedU
 
 import { DB } from 'src/modules/db/client';
 import { Queue } from 'bullmq';
+import { PaymentBenefitsRefreshService } from 'src/modules/payments/application/payment-benefits-refresh.service';
 
 @Injectable()
 export class DeleteTierUseCase {
@@ -44,6 +45,7 @@ export class DeleteTierUseCase {
 
     @Inject('TIERS_QUEUE')
     private readonly queue: Queue,
+    private readonly paymentBenefitsRefresh: PaymentBenefitsRefreshService,
   ) {}
 
   async execute(input: {
@@ -119,6 +121,7 @@ export class DeleteTierUseCase {
         jobId: `tiers-recalculate-${branchId}-${Date.now()}`,
       },
     );
+    await this.paymentBenefitsRefresh.invalidateBranch(branchId);
 
     return {
       success: true,

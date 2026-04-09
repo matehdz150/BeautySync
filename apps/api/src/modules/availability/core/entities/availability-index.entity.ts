@@ -10,6 +10,8 @@ export type DayAvailability = {
   date: string;
   hasAvailability: boolean;
   slots: TimeSlot[];
+  staffIds: string[];
+  startsByStaff: Map<string, number[]>;
 };
 
 export type AvailabilityIndex = {

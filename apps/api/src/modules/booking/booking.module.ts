@@ -13,6 +13,7 @@ import { CouponsModule } from '../cupons/cupons.module';
 import { DomainEventsModule } from 'src/shared/domain-events/domain-events.module';
 import { CalendarModule } from '../calendar/calendar.module';
 import { AvailabilityModule } from '../availability/availability.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AvailabilityModule } from '../availability/availability.module';
     DomainEventsModule,
     CalendarModule,
     AvailabilityModule,
+    PaymentsModule,
   ],
   controllers: [BookingsPublicController, BookingsManagerController],
   providers: [

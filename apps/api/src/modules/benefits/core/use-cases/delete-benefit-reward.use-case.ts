@@ -11,6 +11,7 @@ import { BenefitRewardRepository } from '../ports/benefit-reward.repository';
 
 import { BRANCHES_REPOSITORY } from 'src/modules/branches/core/ports/tokens';
 import { BranchesRepository } from 'src/modules/branches/core/ports/branches.repository';
+import { PaymentBenefitsRefreshService } from 'src/modules/payments/application/payment-benefits-refresh.service';
 
 import { AuthenticatedUser } from 'src/modules/auth/core/entities/authenticatedUser.entity';
 
@@ -22,6 +23,7 @@ export class DeleteBenefitRewardUseCase {
 
     @Inject(BRANCHES_REPOSITORY)
     private readonly branchesRepo: BranchesRepository,
+    private readonly paymentBenefitsRefresh: PaymentBenefitsRefreshService,
   ) {}
 
   async execute(input: {
@@ -55,6 +57,7 @@ export class DeleteBenefitRewardUseCase {
     // 3. DELETE
     // =========================
     await this.rewardRepo.delete(input.rewardId);
+    await this.paymentBenefitsRefresh.invalidateBranch(input.branchId);
 
     return { success: true };
   }

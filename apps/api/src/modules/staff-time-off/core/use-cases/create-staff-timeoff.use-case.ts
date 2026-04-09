@@ -11,6 +11,7 @@ import { GetAvailableTimeOffStartSlotsUseCase } from './availability/get-availab
 import { GetAvailableTimeOffEndSlotsUseCase } from './availability/get-available-timeoff-end.use-case';
 import { DateTime } from 'luxon';
 import { AvailabilityCacheService } from 'src/modules/availability/infrastructure/adapters/availability-cache.service';
+import { AvailabilitySnapshotWarmService } from 'src/modules/availability/infrastructure/adapters/availability-snapshot-warm.service';
 
 @Injectable()
 export class CreateStaffTimeOffUseCase {
@@ -24,6 +25,7 @@ export class CreateStaffTimeOffUseCase {
     private readonly getAvailableStartSlots: GetAvailableTimeOffStartSlotsUseCase,
     private readonly getAvailableEndSlots: GetAvailableTimeOffEndSlotsUseCase,
     private readonly availabilityCache: AvailabilityCacheService,
+    private readonly availabilityWarm: AvailabilitySnapshotWarmService,
   ) {}
 
   private async assertTimeOffIsAvailable(params: {
@@ -117,7 +119,15 @@ export class CreateStaffTimeOffUseCase {
         reason,
       });
 
-      await this.availabilityCache.invalidate(branchId);
+      const date = DateTime.fromJSDate(start)
+        .setZone('America/Mexico_City')
+        .toISODate();
+      if (date) {
+        await this.availabilityCache.invalidate(branchId, date);
+        await this.availabilityWarm.enqueueDay({ branchId, date });
+      } else {
+        await this.availabilityCache.invalidate(branchId);
+      }
       return created;
     }
 
@@ -196,6 +206,13 @@ export class CreateStaffTimeOffUseCase {
       await this.repo.createMany(instances);
     }
 
+    await this.availabilityWarm.enqueueRange({
+      branchId,
+      start: DateTime.fromJSDate(rule.startDate).toISODate() as string,
+      end: DateTime.fromJSDate(
+        rule.endDate ?? new Date(rule.startDate.getTime() + 30 * 86400000),
+      ).toISODate() as string,
+    });
     await this.availabilityCache.invalidate(branchId);
 
     return {

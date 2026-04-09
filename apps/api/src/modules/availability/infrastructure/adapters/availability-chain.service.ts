@@ -7,7 +7,6 @@ import { BadRequestException, Injectable, Inject } from '@nestjs/common';
 import { DateTime } from 'luxon';
 
 import { AvailabilityService } from './availability.service';
-import { GetSlotsForDayFromIndexUseCase } from '../../core/use-cases/get-slots-for-day-from-index.use-case';
 import { SLOT_LOCK_PORT } from 'src/modules/cache/core/ports/tokens';
 import { SlotLockPort } from 'src/modules/cache/core/ports/slot-lock.port';
 
@@ -15,7 +14,6 @@ import { SlotLockPort } from 'src/modules/cache/core/ports/slot-lock.port';
 export class AvailabilityCoreService {
   constructor(
     private availabilityService: AvailabilityService,
-    private readonly getSlotsForDayFromIndex: GetSlotsForDayFromIndexUseCase,
     @Inject(SLOT_LOCK_PORT)
     private readonly slotLock: SlotLockPort,
   ) {}
@@ -114,91 +112,56 @@ export class AvailabilityCoreService {
     // =====================
 
     const STEP_MIN = 15;
+    const STEP_MS = STEP_MIN * 60_000;
     const index = await this.availabilityService.getAvailabilityIndex({
       branchId,
       date,
     });
     const settings = index.settings;
     const BRANCH_TZ = settings.timezone;
+    const day = index.byDay.get(date);
 
-    function ceilToStepIso(isoUtc: string, stepMin = STEP_MIN) {
-      const dt = DateTime.fromISO(isoUtc, { zone: 'utc' });
+    if (!day?.staffIds.length) {
+      return [];
+    }
 
-      const minutes = dt.minute;
-      const remainder = minutes % stepMin;
-
-      if (remainder === 0 && dt.second === 0 && dt.millisecond === 0) {
-        return dt.toUTC().toISO()!;
+    function ceilToStepMs(startMs: number, stepMs = STEP_MS) {
+      const remainder = startMs % stepMs;
+      if (remainder === 0) {
+        return startMs;
       }
 
-      const add = stepMin - remainder;
-
-      return dt.plus({ minutes: add }).startOf('minute').toUTC().toISO()!;
+      return startMs + (stepMs - remainder);
     }
 
-    function buildSlotSet(slots: string[]) {
-      return new Set(slots);
+    function addMinutesMs(startMs: number, minutes: number) {
+      return startMs + minutes * 60_000;
     }
 
-    function isSameLocalDay(dateStr: string) {
-      // dateStr = "YYYY-MM-DD"
-      const target = DateTime.fromISO(dateStr, { zone: BRANCH_TZ }).startOf(
-        'day',
-      );
-      const nowLocal = DateTime.now().setZone(BRANCH_TZ).startOf('day');
-      return target.toISODate() === nowLocal.toISODate();
+    function toUtcIso(utcMs: number) {
+      return new Date(utcMs).toISOString();
     }
 
-    function minStartForDateUtc({
-      date,
-      stepMin = STEP_MIN,
-      noticeMin = 0,
-    }: {
-      date: string;
-      stepMin?: number;
-      noticeMin?: number;
-    }) {
-      // Si no es hoy, no hay restricción por "hora actual"
-      if (!isSameLocalDay(date)) return null;
-
-      // now en UTC + notice
-      const minUtc = DateTime.now()
-        .toUTC()
-        .plus({ minutes: noticeMin })
-        .startOf('minute')
-        .toISO()!;
-
-      // redondear hacia arriba a step (15m)
-      return ceilToStepIso(minUtc, stepMin);
-    }
-
-    function addMinutesIso(isoUtc: string, minutes: number) {
-      return DateTime.fromISO(isoUtc, { zone: 'utc' })
-        .plus({ minutes })
-        .toUTC()
-        .toISO()!;
-    }
-
-    function toLocalIso(utcIso: string) {
-      return DateTime.fromISO(utcIso, { zone: 'utc' })
+    function toLocalIso(utcMs: number) {
+      return DateTime.fromMillis(utcMs, { zone: 'utc' })
         .setZone(BRANCH_TZ)
         .toISO()!;
     }
 
-    function toLocalLabel(utcIso: string) {
-      return DateTime.fromISO(utcIso, { zone: 'utc' })
+    function toLocalLabel(utcMs: number) {
+      return DateTime.fromMillis(utcMs, { zone: 'utc' })
         .setZone(BRANCH_TZ)
         .toFormat('HH:mm');
     }
 
     function canCoverDuration({
       slotSet,
-      startIso,
+      startMs,
       durationMin,
       stepMin = STEP_MIN,
     }: {
-      slotSet: Set<string>;
-      startIso: string;
+      slotSet: Set<number>;
+      startMs: number;
       durationMin: number;
       stepMin?: number;
     }) {
@@ -207,7 +170,7 @@ export class AvailabilityCoreService {
       const neededSteps = Math.ceil(durationMin / stepMin);
 
       for (let i = 0; i < neededSteps; i++) {
-        const t = addMinutesIso(startIso, i * stepMin);
+        const t = addMinutesMs(startMs, i * stepMin);
         if (!slotSet.has(t)) return false;
       }
 
@@ -238,32 +201,6 @@ export class AvailabilityCoreService {
       }
     }
 
-    const lockedByStaff = await this.slotLock.listLockedStarts({
-      branchId,
-      staffIds: [
-        ...new Set((index.byDay.get(date)?.slots ?? []).map((slot) => slot.staffId)),
-      ],
-      date,
-    });
-
-    const availability = this.getSlotsForDayFromIndex.execute({
-      index,
-      date,
-      branchId,
-      settings,
-      requiredDurationMin: 0,
-      lockedStartsByStaff: lockedByStaff,
-    });
-
-    const staffSlotsById = new Map<string, Set<string>>();
-    for (const s of availability.staff) {
-      staffSlotsById.set(s.staffId, buildSlotSet(s.slots));
-    }
-
-    const EMPTY_SLOT_SET = new Set<string>();
-    const getStaffSlotSet = (staffId: string): Set<string> =>
-      staffSlotsById.get(staffId) ?? EMPTY_SLOT_SET;
-
     // =====================
     // 4️⃣ Eligible staff for service (for ANY) - batch
     // =====================
@@ -287,9 +224,10 @@ export class AvailabilityCoreService {
         chain.map((s) => s.staffId).filter((id): id is string => id !== 'ANY'),
       ),
     ];
+    const activeStaffIds = new Set(index.activeStaffIds);
+    const dayStaffIds = new Set(day.staffIds);
 
     if (fixedStaffIds.length) {
-      const activeStaffIds = new Set(index.activeStaffIds);
       for (const id of fixedStaffIds) {
         if (!activeStaffIds.has(id)) {
           throw new BadRequestException(`Staff not available: ${id}`);
@@ -310,7 +248,9 @@ export class AvailabilityCoreService {
         continue;
       }
 
-      const eligibleStaff = eligibleStaffByService.get(step.serviceId) ?? [];
+      const eligibleStaff = (eligibleStaffByService.get(step.serviceId) ?? []).filter(
+        (candidateStaffId) => dayStaffIds.has(candidateStaffId),
+      );
 
       steps.push({
         serviceId: step.serviceId,
@@ -323,41 +263,76 @@ export class AvailabilityCoreService {
       return [];
     }
 
+    const candidateStaffIds = [
+      ...new Set(steps.flatMap((step) => step.candidates)),
+    ].filter((candidateStaffId) => day.startsByStaff.has(candidateStaffId));
+
+    if (!candidateStaffIds.length) {
+      return [];
+    }
+
+    const lockedByStaff = await this.slotLock.listLockedStarts({
+      branchId,
+      staffIds: candidateStaffIds,
+      date,
+    });
+
+    const EMPTY_SLOT_LIST: number[] = [];
+    const EMPTY_SLOT_SET = new Set<number>();
+    const staffStartsMsById = new Map<string, number[]>();
+    const staffStartSetById = new Map<string, Set<number>>();
+
+    for (const staffId of candidateStaffIds) {
+      const starts = day.startsByStaff.get(staffId) ?? EMPTY_SLOT_LIST;
+      if (!starts.length) {
+        continue;
+      }
+
+      const locked = lockedByStaff.get(staffId) ?? new Set<string>();
+      const lockedStartsMs = new Set<number>(
+        [...locked].map((lockedStartIso) => Date.parse(lockedStartIso)),
+      );
+      const availableStarts: number[] = [];
+      const availableStartSet = new Set<number>();
+
+      for (const startMs of starts) {
+        if (lockedStartsMs.has(startMs)) {
+          continue;
+        }
+
+        availableStarts.push(startMs);
+        availableStartSet.add(startMs);
+      }
+
+      if (!availableStarts.length) {
+        continue;
+      }
+
+      staffStartsMsById.set(staffId, availableStarts);
+      staffStartSetById.set(staffId, availableStartSet);
+    }
+
+    const getStaffStartSet = (staffId: string): Set<number> =>
+      staffStartSetById.get(staffId) ?? EMPTY_SLOT_SET;
+
     // =====================
     // 6️⃣ BaseStartTimes (union from step 0 candidates)
     // =====================
 
-    const baseStartTimes = new Set<string>();
+    const baseStartTimes = new Set<number>();
 
     {
       const first = steps[0];
 
       for (const staffId of first.candidates) {
-        const slotSet = getStaffSlotSet(staffId);
-        for (const slotIso of slotSet) {
-          baseStartTimes.add(slotIso);
+        const starts = staffStartsMsById.get(staffId) ?? EMPTY_SLOT_LIST;
+        for (const startMs of starts) {
+          baseStartTimes.add(startMs);
         }
       }
     }
 
     if (!baseStartTimes.size) return [];
-
-    const minBookingNoticeMin = 0;
-
-    const minStartUtc = minStartForDateUtc({
-      date,
-      stepMin: STEP_MIN,
-      noticeMin: minBookingNoticeMin,
-    });
-
-    if (minStartUtc) {
-      for (const slotIso of Array.from(baseStartTimes)) {
-        // slotIso está en UTC ISO
-        if (slotIso < minStartUtc) {
-          baseStartTimes.delete(slotIso);
-        }
-      }
-    }
 
     if (!baseStartTimes.size) return [];
 
@@ -369,43 +344,45 @@ export class AvailabilityCoreService {
 
     const solveFrom = (
       stepIndex: number,
-      cursorIso: string,
+      cursorMs: number,
     ): ChainAssignment[] | null => {
       if (stepIndex >= steps.length) return [];
 
-      const memoKey = `${stepIndex}|${cursorIso}`;
+      const memoKey = `${stepIndex}|${cursorMs}`;
       if (memoFail.has(memoKey)) return null;
 
       const step = steps[stepIndex];
 
       for (const staffId of step.candidates) {
-        const slotSet = getStaffSlotSet(staffId);
+        const slotSet = getStaffStartSet(staffId);
 
         const ok = canCoverDuration({
           slotSet,
-          startIso: cursorIso,
+          startMs: cursorMs,
           durationMin: step.durationMin,
         });
 
         if (!ok) continue;
 
-        const endIso = addMinutesIso(cursorIso, step.durationMin);
+        const endMs = addMinutesMs(cursorMs, step.durationMin);
 
         // 🔥 Opción C: redondear hacia arriba el inicio del siguiente servicio
-        const nextCursorIso = ceilToStepIso(endIso, STEP_MIN);
+        const nextCursorMs = ceilToStepMs(endMs, STEP_MS);
 
-        const next = solveFrom(stepIndex + 1, nextCursorIso);
+        const next = solveFrom(stepIndex + 1, nextCursorMs);
 
         if (next) {
+          const startIso = toUtcIso(cursorMs);
+          const endIso = toUtcIso(endMs);
           const current: ChainAssignment = {
             serviceId: step.serviceId,
             staffId,
 
-            startIso: cursorIso,
+            startIso,
             endIso,
 
-            startLocalIso: toLocalIso(cursorIso),
-            endLocalIso: toLocalIso(endIso),
+            startLocalIso: toLocalIso(cursorMs),
+            endLocalIso: toLocalIso(endMs),
 
             durationMin: step.durationMin,
           };
@@ -424,18 +401,17 @@ export class AvailabilityCoreService {
 
     const plans: ChainPlan[] = [];
 
-    for (const startIso of baseStartTimes) {
-      const normalized = DateTime.fromISO(startIso, { zone: 'utc' })
-        .toUTC()
-        .toISO()!;
+    const sortedBaseStarts = [...baseStartTimes].sort((a, b) => a - b);
 
-      const assignments = solveFrom(0, normalized);
+    for (const startMs of sortedBaseStarts) {
+      const assignments = solveFrom(0, startMs);
 
       if (assignments?.length) {
+        const normalized = toUtcIso(startMs);
         plans.push({
           startIso: normalized,
-          startLocalIso: toLocalIso(normalized),
-          startLocalLabel: toLocalLabel(normalized),
+          startLocalIso: toLocalIso(startMs),
+          startLocalLabel: toLocalLabel(startMs),
           assignments,
         });
       }

@@ -7,6 +7,7 @@ import { CACHE_PORT } from 'src/modules/cache/core/ports/tokens';
 import { CachePort } from 'src/modules/cache/core/ports/cache.port';
 import { BranchSettingsCacheService } from 'src/modules/cache/application/branch-settings-cache.service';
 import { AvailabilityCacheService } from 'src/modules/availability/infrastructure/adapters/availability-cache.service';
+import { AvailabilitySnapshotWarmService } from 'src/modules/availability/infrastructure/adapters/availability-snapshot-warm.service';
 
 @Injectable()
 export class UpdateBranchSettingsUseCase {
@@ -19,6 +20,7 @@ export class UpdateBranchSettingsUseCase {
 
     private readonly branchSettingsCache: BranchSettingsCacheService,
     private readonly availabilityCache: AvailabilityCacheService,
+    private readonly availabilityWarm: AvailabilitySnapshotWarmService,
   ) {}
 
   async execute(branchId: string, input: UpdateBranchSettingsInput) {
@@ -29,9 +31,11 @@ export class UpdateBranchSettingsUseCase {
     await Promise.all([
       this.cache.delPattern('explore:*'),
       this.branchSettingsCache.invalidate(branchId),
+      this.cache.delPattern(`calendar:snapshot:${branchId}:*`),
       this.cache.delPattern(`calendar:day:${branchId}:*`),
       this.cache.delPattern(`calendar:week:${branchId}:*`),
       this.availabilityCache.invalidate(branchId),
+      this.availabilityWarm.enqueueNextDays(branchId, 14),
     ]);
 
     return result;

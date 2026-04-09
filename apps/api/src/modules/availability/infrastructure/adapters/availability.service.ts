@@ -395,9 +395,7 @@ export class AvailabilityService {
     if (diffDays > settings.maxBookingAheadDays)
       throw new BadRequestException('Date is beyond max booking ahead window');
 
-    const snapshotStaffIds = [
-      ...new Set((index.byDay.get(date)?.slots ?? []).map((slot) => slot.staffId)),
-    ];
+    const snapshotStaffIds = index.byDay.get(date)?.staffIds ?? [];
     if (!snapshotStaffIds.length) {
       return new AvailabilityResult(branchId, date, []);
     }

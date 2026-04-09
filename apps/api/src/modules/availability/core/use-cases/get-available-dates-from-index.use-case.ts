@@ -20,26 +20,37 @@ export class GetAvailableDatesFromIndexUseCase {
 
     return params.dates.map((date) => {
       const day = params.index.byDay.get(date);
-      if (!day?.slots.length) {
+      if (!day?.staffIds.length) {
         return { date, available: false };
       }
 
       const startsByStaff = new Map<string, number[]>();
       const startSetByStaff = new Map<string, Set<number>>();
 
-      for (const slot of day.slots) {
-        if (params.staffId && slot.staffId !== params.staffId) {
-          continue;
+      if (day.startsByStaff.size) {
+        for (const [staffId, starts] of day.startsByStaff.entries()) {
+          if (params.staffId && staffId !== params.staffId) {
+            continue;
+          }
+
+          startsByStaff.set(staffId, starts);
+          startSetByStaff.set(staffId, new Set(starts));
         }
+      } else {
+        for (const slot of day.slots) {
+          if (params.staffId && slot.staffId !== params.staffId) {
+            continue;
+          }
 
-        const startMs = slot.start.getTime();
-        const list = startsByStaff.get(slot.staffId) ?? [];
-        list.push(startMs);
-        startsByStaff.set(slot.staffId, list);
+          const startMs = slot.start.getTime();
+          const list = startsByStaff.get(slot.staffId) ?? [];
+          list.push(startMs);
+          startsByStaff.set(slot.staffId, list);
 
-        const set = startSetByStaff.get(slot.staffId) ?? new Set<number>();
-        set.add(startMs);
-        startSetByStaff.set(slot.staffId, set);
+          const set = startSetByStaff.get(slot.staffId) ?? new Set<number>();
+          set.add(startMs);
+          startSetByStaff.set(slot.staffId, set);
+        }
       }
 
       let available = false;

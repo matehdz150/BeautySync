@@ -16,6 +16,9 @@ export type CachedBranchService = {
   priceCents: number | null;
   isActive: boolean;
   categoryId: string | null;
+  categoryName: string | null;
+  categoryColor: string | null;
+  categoryIcon: string | null;
 };
 
 @Injectable()
@@ -47,11 +50,33 @@ export class BranchServicesCacheService {
           isActive: true,
           categoryId: true,
         },
+        with: {
+          category: {
+            columns: {
+              name: true,
+              colorHex: true,
+              icon: true,
+            },
+          },
+        },
         where: eq(services.branchId, branchId),
       });
 
-      await this.cache.set(key, rows, BranchServicesCacheService.TTL_SECONDS);
-      return rows;
+      const value = rows.map((row) => ({
+        id: row.id,
+        branchId: row.branchId,
+        name: row.name,
+        durationMin: row.durationMin,
+        priceCents: row.priceCents,
+        isActive: row.isActive,
+        categoryId: row.categoryId,
+        categoryName: row.category?.name ?? null,
+        categoryColor: row.category?.colorHex ?? null,
+        categoryIcon: row.category?.icon ?? null,
+      }));
+
+      await this.cache.set(key, value, BranchServicesCacheService.TTL_SECONDS);
+      return value;
     });
   }
 
@@ -65,6 +90,6 @@ export class BranchServicesCacheService {
   }
 
   private buildKey(branchId: string) {
-    return `services:${branchId}`;
+    return `services:v2:${branchId}`;
   }
 }
