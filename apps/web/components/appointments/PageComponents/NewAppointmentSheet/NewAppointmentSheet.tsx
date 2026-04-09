@@ -47,6 +47,10 @@ type InnerProps = {
   presetServices?: Service[];
 };
 
+type LegacyServiceColorFallback = Service & {
+  categoryColor?: string | null;
+};
+
 function InnerSheet({
   open,
   onOpenChange,
@@ -101,9 +105,25 @@ function InnerSheet({
   }, [draft.services.length]);
 
   const step2Valid = useMemo(() => {
-    // regla: staff ready según tu draft
-    return step1Valid && draftActions.isStep3Ready();
-  }, [step1Valid, draftActions]);
+    if (!step1Valid) return false;
+
+    if (draft.staffChoiceMode === "ANY") return true;
+
+    if (draft.staffChoiceMode === "SINGLE_STAFF") {
+      return !!draft.singleStaffId;
+    }
+
+    return draft.services.every((service) => {
+      const staffId = draft.staffByService[service.id];
+      return typeof staffId === "string" && staffId.length > 0;
+    });
+  }, [
+    step1Valid,
+    draft.staffChoiceMode,
+    draft.singleStaffId,
+    draft.staffByService,
+    draft.services,
+  ]);
 
   const step3Valid = useMemo(() => {
     // regla: ya hay fecha + plan seleccionado
@@ -238,7 +258,7 @@ function InnerSheet({
           serviceName: service?.name ?? "Servicio",
           serviceColor:
             service?.category?.colorHex ??
-            (service as any)?.categoryColor ??
+            (service as LegacyServiceColorFallback | undefined)?.categoryColor ??
             "#A78BFA",
 
           priceCents: service?.priceCents ?? 0,
@@ -368,7 +388,7 @@ function InnerSheet({
   );
 }
 
-export function NewAppointmentSheet(props: any) {
+export function NewAppointmentSheet(props: InnerProps) {
   return (
     <BookingManagerDraftProvider>
       <AppointmentBuilderProvider>

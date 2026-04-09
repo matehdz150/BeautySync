@@ -1,19 +1,16 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { BadRequestException, Injectable, Inject } from '@nestjs/common';
 import { DateTime } from 'luxon';
 
 import { AvailabilityService } from './availability.service';
 import { SLOT_LOCK_PORT } from 'src/modules/cache/core/ports/tokens';
 import { SlotLockPort } from 'src/modules/cache/core/ports/slot-lock.port';
+import { AvailabilitySnapshotService } from './availability-snapshot.service';
 
 @Injectable()
 export class AvailabilityCoreService {
   constructor(
     private availabilityService: AvailabilityService,
+    private readonly availabilitySnapshot: AvailabilitySnapshotService,
     @Inject(SLOT_LOCK_PORT)
     private readonly slotLock: SlotLockPort,
   ) {}
@@ -111,17 +108,15 @@ export class AvailabilityCoreService {
     // HELPERS
     // =====================
 
-    const STEP_MIN = 15;
-    const STEP_MS = STEP_MIN * 60_000;
-    const index = await this.availabilityService.getAvailabilityIndex({
+    const snapshot = await this.availabilitySnapshot.getDaySnapshot({
       branchId,
       date,
     });
-    const settings = index.settings;
-    const BRANCH_TZ = settings.timezone;
-    const day = index.byDay.get(date);
+    const STEP_MIN = snapshot.stepMin || 15;
+    const STEP_MS = STEP_MIN * 60_000;
+    const BRANCH_TZ = snapshot.timezone;
 
-    if (!day?.staffIds.length) {
+    if (!snapshot.staff.length) {
       return [];
     }
 
@@ -182,17 +177,22 @@ export class AvailabilityCoreService {
     // =====================
 
     const uniqueServiceIds = [...new Set(chain.map((s) => s.serviceId))];
+    const servicesById = new Map(
+      snapshot.services.map((service) => [
+        service.id,
+        {
+          durationMin: service.durationMin,
+          availableStaffIdsByStart: new Map(service.availableStaffIdsByStart),
+        },
+      ]),
+    );
     const durationByService = new Map(
       uniqueServiceIds
         .map((serviceId) => {
-          const durationMin = index.serviceDurations.get(serviceId);
-          return typeof durationMin === 'number'
-            ? ([serviceId, durationMin] as const)
-            : null;
+          const service = servicesById.get(serviceId);
+          return service ? ([serviceId, service.durationMin] as const) : null;
         })
-        .filter(
-          (entry): entry is readonly [string, number] => entry !== null,
-        ),
+        .filter((entry): entry is readonly [string, number] => entry !== null),
     );
 
     for (const id of uniqueServiceIds) {
@@ -205,7 +205,18 @@ export class AvailabilityCoreService {
     // 4️⃣ Eligible staff for service (for ANY) - batch
     // =====================
 
-    const eligibleStaffByService = index.staffIdsByService;
+    const eligibleStaffByService = new Map(
+      snapshot.services.map((service) => [
+        service.id,
+        [
+          ...new Set(
+            service.availableStaffIdsByStart.flatMap(
+              ([, staffIds]) => staffIds,
+            ),
+          ),
+        ],
+      ]),
+    );
 
     // =====================
     // 5️⃣ Build step candidates
@@ -224,8 +235,9 @@ export class AvailabilityCoreService {
         chain.map((s) => s.staffId).filter((id): id is string => id !== 'ANY'),
       ),
     ];
-    const activeStaffIds = new Set(index.activeStaffIds);
-    const dayStaffIds = new Set(day.staffIds);
+    const activeStaffIds = new Set(snapshot.staff.map((staff) => staff.id));
+    const startsByStaff = new Map(snapshot.startsByStaff ?? []);
+    const dayStaffIds = new Set(startsByStaff.keys());
 
     if (fixedStaffIds.length) {
       for (const id of fixedStaffIds) {
@@ -248,9 +260,9 @@ export class AvailabilityCoreService {
         continue;
       }
 
-      const eligibleStaff = (eligibleStaffByService.get(step.serviceId) ?? []).filter(
-        (candidateStaffId) => dayStaffIds.has(candidateStaffId),
-      );
+      const eligibleStaff = (
+        eligibleStaffByService.get(step.serviceId) ?? []
+      ).filter((candidateStaffId) => dayStaffIds.has(candidateStaffId));
 
       steps.push({
         serviceId: step.serviceId,
@@ -265,7 +277,7 @@ export class AvailabilityCoreService {
 
     const candidateStaffIds = [
       ...new Set(steps.flatMap((step) => step.candidates)),
-    ].filter((candidateStaffId) => day.startsByStaff.has(candidateStaffId));
+    ].filter((candidateStaffId) => startsByStaff.has(candidateStaffId));
 
     if (!candidateStaffIds.length) {
       return [];
@@ -283,7 +295,7 @@ export class AvailabilityCoreService {
     const staffStartSetById = new Map<string, Set<number>>();
 
     for (const staffId of candidateStaffIds) {
-      const starts = day.startsByStaff.get(staffId) ?? EMPTY_SLOT_LIST;
+      const starts = startsByStaff.get(staffId) ?? EMPTY_SLOT_LIST;
       if (!starts.length) {
         continue;
       }

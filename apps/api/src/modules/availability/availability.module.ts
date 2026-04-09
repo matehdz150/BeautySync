@@ -49,6 +49,8 @@ import { AvailabilitySnapshotGeneratorService } from './infrastructure/adapters/
 import { AvailabilitySnapshotWarmService } from './infrastructure/adapters/availability-snapshot-warm.service';
 import { RedisAvailabilityIndexRepository } from './infrastructure/adapters/redis-availability-index.repository';
 import { RedisAvailabilityServicesRepository } from './infrastructure/adapters/redis-availability-services.repository';
+import { AvailabilityServicesLookupService } from './infrastructure/adapters/availability-services-lookup.service';
+import { AvailabilitySnapshotService } from './infrastructure/adapters/availability-snapshot.service';
 
 @Module({
   imports: [CacheModule],
@@ -67,6 +69,8 @@ import { RedisAvailabilityServicesRepository } from './infrastructure/adapters/r
     RedisAvailabilityServicesRepository,
     AvailabilitySnapshotGeneratorService,
     AvailabilitySnapshotWarmService,
+    AvailabilityServicesLookupService,
+    AvailabilitySnapshotService,
 
     // repositories
     DrizzleAvailabilityRepository,
@@ -128,6 +132,7 @@ import { RedisAvailabilityServicesRepository } from './infrastructure/adapters/r
     AvailabilityCacheService,
     AvailabilityIndexCacheService,
     AvailabilitySnapshotWarmService,
+    AvailabilitySnapshotService,
     {
       provide: AVAILABILITY_SNAPSHOT_REPOSITORY,
       useExisting: RedisAvailabilitySnapshotRepository,

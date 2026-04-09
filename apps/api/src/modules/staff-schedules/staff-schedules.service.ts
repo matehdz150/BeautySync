@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { DateTime } from 'luxon';
 import * as client from 'src/modules/db/client';
 import { staff, staffSchedules } from 'src/modules/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -13,6 +14,8 @@ import { AvailabilityCacheService } from '../availability/infrastructure/adapter
 import { AvailabilitySnapshotWarmService } from '../availability/infrastructure/adapters/availability-snapshot-warm.service';
 import { CACHE_PORT } from '../cache/core/ports/tokens';
 import { CachePort } from '../cache/core/ports/cache.port';
+import { BranchSettingsCacheService } from '../cache/application/branch-settings-cache.service';
+import { CalendarRealtimePublisher } from '../calendar/calendar-realtime.publisher';
 
 type StaffScheduleRecord = Awaited<
   ReturnType<StaffSchedulesService['findForStaff']>
@@ -26,6 +29,8 @@ export class StaffSchedulesService {
     private readonly availabilityWarm: AvailabilitySnapshotWarmService,
     @Inject(CACHE_PORT)
     private readonly cache: CachePort,
+    private readonly branchSettingsCache: BranchSettingsCacheService,
+    private readonly calendarRealtime: CalendarRealtimePublisher,
   ) {}
 
   findForStaff(staffId: string) {
@@ -110,6 +115,7 @@ export class StaffSchedulesService {
       where: eq(staff.id, dto.staffId),
     });
     if (staffRow?.branchId) {
+      await this.emitCalendarScheduleInvalidate(staffRow.branchId);
       await Promise.all([
         this.availabilityCache.invalidate(staffRow.branchId),
         this.cache.del(`staff:snapshot:branch:${staffRow.branchId}`),
@@ -153,6 +159,7 @@ export class StaffSchedulesService {
       where: eq(staff.id, merged.staffId),
     });
     if (staffRow?.branchId) {
+      await this.emitCalendarScheduleInvalidate(staffRow.branchId);
       await Promise.all([
         this.availabilityCache.invalidate(staffRow.branchId),
         this.cache.del(`staff:snapshot:branch:${staffRow.branchId}`),
@@ -172,6 +179,7 @@ export class StaffSchedulesService {
       .delete(staffSchedules)
       .where(eq(staffSchedules.staffId, staffId));
     if (staffRow?.branchId) {
+      await this.emitCalendarScheduleInvalidate(staffRow.branchId);
       await Promise.all([
         this.availabilityCache.invalidate(staffRow.branchId),
         this.cache.del(`staff:snapshot:branch:${staffRow.branchId}`),
@@ -180,5 +188,18 @@ export class StaffSchedulesService {
     }
 
     return { ok: true };
+  }
+
+  private async emitCalendarScheduleInvalidate(branchId: string) {
+    const timezone = await this.branchSettingsCache.getTimezone(branchId);
+    const start = DateTime.now().setZone(timezone).startOf('day');
+    const end = start.plus({ days: 13 }).endOf('day');
+
+    await this.calendarRealtime.emitInvalidate({
+      branchId,
+      reason: 'staff_schedule.updated',
+      start: start.toUTC().toISO() ?? undefined,
+      end: end.toUTC().toISO() ?? undefined,
+    });
   }
 }

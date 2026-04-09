@@ -184,6 +184,9 @@ export class AvailabilitySnapshotGeneratorService implements AvailabilityGenerat
       stepMin: AvailabilitySnapshotGeneratorService.SLOT_MIN,
       staff,
       services,
+      startsByStaff: [...dayStartsByStaff.entries()].sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      ),
     };
   }
 }

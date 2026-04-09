@@ -7,10 +7,11 @@ import {
   eachDayOfInterval,
   isSameDay,
   addMonths,
+  differenceInCalendarDays,
 } from "date-fns";
 import { es } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -45,13 +46,17 @@ export function HorizontalDatePicker({ value, onChange }: Props) {
      PAGINATION
   ===================== */
 
-  const [startIndex, setStartIndex] = useState(0);
-
-  useEffect(() => {
-    setStartIndex(0);
-  }, [rangeStart.getTime()]);
-
   const maxStart = Math.max(days.length - PAGE_SIZE, 0);
+  const selectedIndex = Math.max(0, differenceInCalendarDays(value, rangeStart));
+  const selectedPageStart = Math.max(
+    0,
+    Math.min(Math.floor(selectedIndex / PAGE_SIZE) * PAGE_SIZE, maxStart)
+  );
+  const [pageOffset, setPageOffset] = useState(0);
+  const startIndex = Math.max(
+    0,
+    Math.min(selectedPageStart + pageOffset * PAGE_SIZE, maxStart)
+  );
   const canPrev = startIndex > 0;
   const canNext = startIndex < maxStart;
 
@@ -74,9 +79,7 @@ export function HorizontalDatePicker({ value, onChange }: Props) {
         <div className="flex items-center gap-2">
           <button
             disabled={!canPrev}
-            onClick={() =>
-              setStartIndex((i) => Math.max(i - PAGE_SIZE, 0))
-            }
+            onClick={() => setPageOffset((offset) => offset - 1)}
             className="h-8 w-8 rounded-full flex items-center justify-center
               hover:bg-black/5 disabled:opacity-30"
           >
@@ -85,11 +88,7 @@ export function HorizontalDatePicker({ value, onChange }: Props) {
 
           <button
             disabled={!canNext}
-            onClick={() =>
-              setStartIndex((i) =>
-                Math.min(i + PAGE_SIZE, maxStart)
-              )
-            }
+            onClick={() => setPageOffset((offset) => offset + 1)}
             className="h-8 w-8 rounded-full flex items-center justify-center
               hover:bg-black/5 disabled:opacity-30"
           >
@@ -106,7 +105,10 @@ export function HorizontalDatePicker({ value, onChange }: Props) {
           return (
             <button
               key={day.toISOString()}
-              onClick={() => onChange(day)}
+              onClick={() => {
+                setPageOffset(0);
+                onChange(day);
+              }}
               className="flex flex-col items-center gap-2"
             >
               <div

@@ -202,9 +202,8 @@ export class CreateStaffTimeOffUseCase {
       });
     }
 
-    if (instances.length) {
-      await this.repo.createMany(instances);
-    }
+    const createdInstances =
+      instances.length > 0 ? await this.repo.createMany(instances) : [];
 
     await this.availabilityWarm.enqueueRange({
       branchId,
@@ -218,6 +217,7 @@ export class CreateStaffTimeOffUseCase {
     return {
       rule: createdRule,
       instancesCreated: instances.length,
+      instances: createdInstances,
     };
   }
 }

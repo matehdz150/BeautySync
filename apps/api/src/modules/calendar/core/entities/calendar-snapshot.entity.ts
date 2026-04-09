@@ -1,4 +1,4 @@
-type CalendarSnapshotAppointment = {
+export type CalendarSnapshotAppointment = {
   type: 'APPOINTMENT';
   id: string;
   staffId: string;
@@ -10,7 +10,7 @@ type CalendarSnapshotAppointment = {
   color?: string;
 };
 
-type CalendarSnapshotTimeOff = {
+export type CalendarSnapshotTimeOff = {
   type: 'TIME_OFF';
   id: number;
   staffId: string;

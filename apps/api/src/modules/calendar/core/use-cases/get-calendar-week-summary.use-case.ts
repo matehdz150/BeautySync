@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { DateTime } from 'luxon';
 
-import { CalendarSnapshotCacheService } from '../../calendar-snapshot-cache.service';
-import { CalendarSnapshot } from '../entities/calendar-snapshot.entity';
+import { CalendarSnapshotService } from '../../calendar-snapshot.service';
+import { CalendarDaySnapshot } from '../entities/calendar-day-snapshot.entity';
 
 @Injectable()
 export class GetCalendarWeekSummaryUseCase {
-  constructor(private readonly calendarSnapshot: CalendarSnapshotCacheService) {}
+  constructor(private readonly calendarSnapshot: CalendarSnapshotService) {}
 
   async execute(input: { branchId: string; date: string; staffId?: string }) {
     const { branchId, date, staffId } = input;
@@ -15,32 +15,25 @@ export class GetCalendarWeekSummaryUseCase {
       throw new Error('branchId is required');
     }
 
-    const monthSnapshot = await this.calendarSnapshot.getOrBuild({
+    const selectedSnapshot = await this.calendarSnapshot.getDaySnapshot({
       branchId,
       date,
+      fallbackToRecompute: false,
     });
-    const timezone = monthSnapshot.timezone;
+    const timezone = selectedSnapshot.timezone;
     const selected = DateTime.fromISO(date, { zone: timezone });
     const weekStart = selected.startOf('week').plus({ days: 1 });
     const days = Array.from({ length: 7 }, (_, index) =>
       weekStart.plus({ days: index }),
     );
-    const snapshots = new Map<string, CalendarSnapshot>([
-      [monthSnapshot.month, monthSnapshot],
-    ]);
-
-    for (const day of days) {
-      const month = day.toFormat('yyyy-MM');
-      if (!snapshots.has(month)) {
-        snapshots.set(
-          month,
-          await this.calendarSnapshot.getOrBuild({
-            branchId,
-            date: day.toISODate()!,
-          }),
-        );
-      }
-    }
+    const daySnapshots = await this.calendarSnapshot.getDaySnapshots({
+      branchId,
+      dates: days.map((day) => day.toISODate()!),
+      fallbackToRecompute: false,
+    });
+    const snapshots = new Map<string, CalendarDaySnapshot>(
+      daySnapshots.map((snapshot) => [snapshot.date, snapshot]),
+    );
 
     return {
       date,
@@ -48,8 +41,7 @@ export class GetCalendarWeekSummaryUseCase {
       days: days.map((day) => ({
         date: day.toISODate()!,
         totalAppointments: this.getDailyCount({
-          snapshot: snapshots.get(day.toFormat('yyyy-MM'))!,
-          date: day.toISODate()!,
+          snapshot: snapshots.get(day.toISODate()!)!,
           staffId,
         }),
       })),
@@ -57,18 +49,16 @@ export class GetCalendarWeekSummaryUseCase {
   }
 
   private getDailyCount(params: {
-    snapshot: CalendarSnapshot;
-    date: string;
+    snapshot: CalendarDaySnapshot;
     staffId?: string;
   }) {
-    const { snapshot, date, staffId } = params;
+    const { snapshot, staffId } = params;
 
     if (!staffId) {
-      return snapshot.weekSummary[date] ?? 0;
+      return snapshot.meta.totalAppointments;
     }
 
-    return (snapshot.eventsByDay[date] ?? []).filter(
-      (event) => event.type === 'APPOINTMENT' && event.staffId === staffId,
-    ).length;
+    return snapshot.appointments.filter((event) => event.staffId === staffId)
+      .length;
   }
 }

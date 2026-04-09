@@ -1,4 +1,9 @@
 import { api } from "./api";
+import {
+  buildDedupKey,
+  invalidateCachedRequests,
+  runDeduped,
+} from "./request-dedupe";
 
 // ===============================
 // TYPES
@@ -227,6 +232,56 @@ export interface TimeOffEndSlotsResponse {
   endSlots: string[]; // ISO UTC
 }
 
+const TIME_OFF_AVAILABILITY_TTL_MS = 60_000;
+
+function buildTimeOffStartAvailabilityPath(params: {
+  branchId: string;
+  staffId: string;
+  date: string;
+}) {
+  const query = new URLSearchParams({
+    branchId: params.branchId,
+    staffId: params.staffId,
+    date: params.date,
+  }).toString();
+
+  return `/staff-time-off/availability/start?${query}`;
+}
+
+function buildTimeOffEndAvailabilityPath(params: {
+  branchId: string;
+  staffId: string;
+  date: string;
+  startISO: string;
+}) {
+  const query = new URLSearchParams({
+    branchId: params.branchId,
+    staffId: params.staffId,
+    date: params.date,
+    startISO: params.startISO,
+  }).toString();
+
+  return `/staff-time-off/availability/end?${query}`;
+}
+
+export function invalidateTimeOffAvailabilityCache(params: {
+  branchId: string;
+  staffId: string;
+  date: string;
+}) {
+  const queryFragment = new URLSearchParams({
+    branchId: params.branchId,
+    staffId: params.staffId,
+    date: params.date,
+  }).toString();
+
+  invalidateCachedRequests(
+    (key) =>
+      key.includes("/staff-time-off/availability/") &&
+      key.includes(queryFragment),
+  );
+}
+
 // ===============================
 // GET AVAILABLE START SLOTS
 // ===============================
@@ -236,16 +291,12 @@ export async function getTimeOffStartSlots(params: {
   staffId: string;
   date: string;
 }) {
-  const { branchId, staffId, date } = params;
+  const path = buildTimeOffStartAvailabilityPath(params);
 
-  const query = new URLSearchParams({
-    branchId,
-    staffId,
-    date,
-  }).toString();
-
-  return api<TimeOffStartSlotsResponse>(
-    `/staff-time-off/availability/start?${query}`
+  return runDeduped(
+    buildDedupKey("GET", path),
+    () => api<TimeOffStartSlotsResponse>(path),
+    { cacheTtlMs: TIME_OFF_AVAILABILITY_TTL_MS },
   );
 }
 
@@ -259,16 +310,11 @@ export async function getTimeOffEndSlots(params: {
   date: string;
   startISO: string;
 }) {
-  const { branchId, staffId, date, startISO } = params;
+  const path = buildTimeOffEndAvailabilityPath(params);
 
-  const query = new URLSearchParams({
-    branchId,
-    staffId,
-    date,
-    startISO,
-  }).toString();
-
-  return api<TimeOffEndSlotsResponse>(
-    `/staff-time-off/availability/end?${query}`
+  return runDeduped(
+    buildDedupKey("GET", path),
+    () => api<TimeOffEndSlotsResponse>(path),
+    { cacheTtlMs: TIME_OFF_AVAILABILITY_TTL_MS },
   );
 }

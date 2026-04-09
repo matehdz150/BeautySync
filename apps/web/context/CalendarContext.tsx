@@ -28,6 +28,7 @@ import {
   type StaffSchedule,
 } from "@/lib/services/staffSchedules";
 import { useCalendarData } from "@/hooks/useCalendarData";
+import { invalidateTimeOffAvailabilityCache } from "@/lib/services/staff-time-off";
 
 export type Prefill = {
   defaultStaffId?: string;
@@ -73,8 +74,38 @@ export type CalendarTimeOff = {
   type: "TIME_OFF";
 };
 
+type CalendarRealtimeTimeOff = {
+  id: number;
+  staffId: string;
+  start: string;
+  end: string;
+  reason?: string;
+};
+
+type CalendarInvalidateEvent = {
+  branchId?: string;
+  reason?: string;
+  at?: string;
+  staffId?: string;
+  start?: string;
+  end?: string;
+  patch?: {
+    entityType?: "TIME_OFF";
+    operation?: "created" | "updated" | "deleted";
+    staffId?: string;
+    start?: string;
+    end?: string;
+    timeOffs?: CalendarRealtimeTimeOff[];
+    removedTimeOffIds?: number[];
+    previousStart?: string;
+    previousEnd?: string;
+    previousTimeOffId?: number;
+  };
+};
+
 type CalendarState = {
   date: string;
+  timezone: string;
   staff: Staff[];
   schedules: Record<string, StaffSchedule[]>;
   appointments: CalendarAppointment[];
@@ -99,6 +130,7 @@ type CalendarState = {
 
 type Action =
   | { type: "SET_DATE"; payload: string }
+  | { type: "SET_TIMEZONE"; payload: string }
   | { type: "SET_STAFF"; payload: Staff[] }
   | { type: "SET_SCHEDULES"; payload: Record<string, StaffSchedule[]> }
   | { type: "SET_APPOINTMENTS"; payload: CalendarAppointment[] }
@@ -128,6 +160,7 @@ type CalendarContextType = {
 
 const initialState: CalendarState = {
   date: DateTime.now().toISODate()!,
+  timezone: "America/Mexico_City",
   staff: [],
   schedules: {},
   appointments: [],
@@ -154,6 +187,8 @@ function reducer(state: CalendarState, action: Action): CalendarState {
   switch (action.type) {
     case "SET_DATE":
       return { ...state, date: action.payload };
+    case "SET_TIMEZONE":
+      return { ...state, timezone: action.payload };
     case "SET_STAFF":
       return { ...state, staff: action.payload };
     case "SET_SCHEDULES":
@@ -292,6 +327,32 @@ function mapTimeOffs(timeOffs: any[]): CalendarTimeOff[] {
   });
 }
 
+function sortTimeOffs(timeOffs: CalendarTimeOff[]) {
+  return [...timeOffs].sort((a, b) => {
+    const startDiff =
+      DateTime.fromISO(a.startISO).toMillis() -
+      DateTime.fromISO(b.startISO).toMillis();
+
+    if (startDiff !== 0) {
+      return startDiff;
+    }
+
+    return a.id.localeCompare(b.id);
+  });
+}
+
+function affectsSelectedDate(params: {
+  selectedDate: string;
+  timezone: string;
+  timeOff: CalendarRealtimeTimeOff;
+}) {
+  return (
+    DateTime.fromISO(params.timeOff.start, { zone: "utc" })
+      .setZone(params.timezone)
+      .toISODate() === params.selectedDate
+  );
+}
+
 const CalendarContext = createContext<CalendarContextType | null>(null);
 
 export function CalendarProvider({ children }: { children: ReactNode }) {
@@ -300,6 +361,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const stateRef = useRef(state);
   const staffLoadSeqRef = useRef(0);
+  const timezoneRef = useRef("America/Mexico_City");
 
   useEffect(() => {
     stateRef.current = state;
@@ -415,6 +477,11 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    timezoneRef.current = selectedDayData.timezone;
+    dispatch({
+      type: "SET_TIMEZONE",
+      payload: selectedDayData.timezone,
+    });
     applyDayResponse(selectedDayData);
   }, [applyDayResponse, selectedDayData]);
 
@@ -465,19 +532,94 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
       eventSource.addEventListener("calendar.invalidate", (event: MessageEvent) => {
         try {
-          const payload = JSON.parse(event.data) as {
-            branchId?: string;
-            date?: string;
-            reason?: string;
-            at?: string;
-          };
+          const payload = JSON.parse(event.data) as CalendarInvalidateEvent;
 
           if (payload.branchId && payload.branchId !== branchId) {
             return;
           }
+
+          const patch = payload.patch;
+          if (patch?.entityType !== "TIME_OFF") {
+            return;
+          }
+
+          const selectedDate = stateRef.current.date;
+          const timezone = timezoneRef.current;
+
+          const nextTimeOffs = [...stateRef.current.timeOffs];
+          const removedIds = new Set(
+            (patch.removedTimeOffIds ?? []).map((id) => `timeoff-${id}`),
+          );
+
+          if (patch.previousTimeOffId) {
+            removedIds.add(`timeoff-${patch.previousTimeOffId}`);
+          }
+
+          const filteredTimeOffs = nextTimeOffs.filter(
+            (timeOff) => !removedIds.has(timeOff.id),
+          );
+
+          const incomingTimeOffs = (patch.timeOffs ?? []).filter((timeOff) =>
+            affectsSelectedDate({
+              selectedDate,
+              timezone,
+              timeOff,
+            }),
+          );
+
+          const mappedIncomingTimeOffs = mapTimeOffs(incomingTimeOffs);
+          const mergedTimeOffs = sortTimeOffs([
+            ...filteredTimeOffs.filter(
+              (timeOff) =>
+                !mappedIncomingTimeOffs.some(
+                  (incomingTimeOff) => incomingTimeOff.id === timeOff.id,
+                ),
+            ),
+            ...mappedIncomingTimeOffs,
+          ]);
+
+          dispatch({
+            type: "SET_TIMEOFFS",
+            payload: mergedTimeOffs,
+          });
+
+          const datesToInvalidate = new Set<string>();
+
+          for (const timeOff of patch.timeOffs ?? []) {
+            const date = DateTime.fromISO(timeOff.start, { zone: "utc" })
+              .setZone(timezone)
+              .toISODate();
+
+            if (date) {
+              datesToInvalidate.add(date);
+            }
+          }
+
+          for (const iso of [patch.start, patch.end, patch.previousStart, patch.previousEnd]) {
+            if (!iso) {
+              continue;
+            }
+
+            const date = DateTime.fromISO(iso, { zone: "utc" })
+              .setZone(timezone)
+              .toISODate();
+
+            if (date && patch.staffId) {
+              datesToInvalidate.add(date);
+            }
+          }
+
+          for (const date of datesToInvalidate) {
+            if (patch.staffId) {
+              invalidateTimeOffAvailabilityCache({
+                branchId,
+                staffId: patch.staffId,
+                date,
+              });
+            }
+          }
         } catch {
-          // The current stream only sends invalidation metadata.
-          // State updates for local actions are applied optimistically elsewhere.
+          // Ignore malformed realtime payloads and keep current state.
         }
       });
 

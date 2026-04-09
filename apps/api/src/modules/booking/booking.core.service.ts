@@ -157,7 +157,9 @@ export class BookingsCoreService {
       return cached;
     }
 
-    const inflight = this.managerChainInflight.get(key) as Promise<T> | undefined;
+    const inflight = this.managerChainInflight.get(key) as
+      | Promise<T>
+      | undefined;
     if (inflight) {
       return inflight;
     }
@@ -249,7 +251,9 @@ export class BookingsCoreService {
         },
       ]),
     );
-    const staffById = new Map(snapshot.staff.map((member) => [member.id, member]));
+    const staffById = new Map(
+      snapshot.staff.map((member) => [member.id, member]),
+    );
     const stepMin = snapshot.stepMin || 15;
     const bufferBeforeMin = snapshot.bufferBeforeMin ?? 0;
     const bufferAfterMin = snapshot.bufferAfterMin ?? 0;
@@ -434,8 +438,12 @@ export class BookingsCoreService {
 
     const bookingId = randomUUID();
 
-    const requestedServiceIds = [...new Set(drafts.map((draft) => draft.serviceId))];
-    const requestedStaffIds = [...new Set(drafts.map((draft) => draft.staffId))];
+    const requestedServiceIds = [
+      ...new Set(drafts.map((draft) => draft.serviceId)),
+    ];
+    const requestedStaffIds = [
+      ...new Set(drafts.map((draft) => draft.staffId)),
+    ];
     const servicesMap = await this.branchServicesCache.getActiveMap(branch.id);
     const staffMap = await this.branchStaffCache.getActiveMap(branch.id);
 
@@ -452,56 +460,56 @@ export class BookingsCoreService {
     }
 
     const normalized = drafts.map((a) => {
-        const service = servicesMap.get(a.serviceId);
-        const staffRow = staffMap.get(a.staffId);
+      const service = servicesMap.get(a.serviceId);
+      const staffRow = staffMap.get(a.staffId);
 
-        if (!staffRow) {
-          throw new BadRequestException(`Staff not found: ${a.staffId}`);
-        }
+      if (!staffRow) {
+        throw new BadRequestException(`Staff not found: ${a.staffId}`);
+      }
 
-        if (!service) {
-          throw new BadRequestException(`Service not found: ${a.serviceId}`);
-        }
+      if (!service) {
+        throw new BadRequestException(`Service not found: ${a.serviceId}`);
+      }
 
-        const startLocal = DateTime.fromISO(a.startIso).set({
-          millisecond: 0,
-          second: 0,
-        });
-
-        if (!startLocal.isValid) {
-          throw new BadRequestException('Invalid startIso');
-        }
-
-        const startInBranchTz = startLocal.setZone(tz);
-        if (startInBranchTz.toISODate() !== dto.date) {
-          throw new BadRequestException(
-            `startIso does not match date ${dto.date}`,
-          );
-        }
-
-        const totalMinutes = service.durationMin + bufferBefore + bufferAfter;
-
-        const roundedMinutes =
-          Math.ceil(totalMinutes / BLOCK_MINUTES) * BLOCK_MINUTES;
-
-        const startUtc = startLocal.toUTC();
-        const endUtc = startUtc.plus({ minutes: roundedMinutes }).set({
-          millisecond: 0,
-          second: 0,
-        });
-
-        return {
-          publicBookingId: bookingId,
-          branchId: branch.id,
-          serviceId: service.id,
-          staffId: a.staffId,
-          startUtc,
-          endUtc,
-          priceCents: service.priceCents,
-          notes: dto.notes ?? null,
-          serviceName: service.name,
-        };
+      const startLocal = DateTime.fromISO(a.startIso).set({
+        millisecond: 0,
+        second: 0,
       });
+
+      if (!startLocal.isValid) {
+        throw new BadRequestException('Invalid startIso');
+      }
+
+      const startInBranchTz = startLocal.setZone(tz);
+      if (startInBranchTz.toISODate() !== dto.date) {
+        throw new BadRequestException(
+          `startIso does not match date ${dto.date}`,
+        );
+      }
+
+      const totalMinutes = service.durationMin + bufferBefore + bufferAfter;
+
+      const roundedMinutes =
+        Math.ceil(totalMinutes / BLOCK_MINUTES) * BLOCK_MINUTES;
+
+      const startUtc = startLocal.toUTC();
+      const endUtc = startUtc.plus({ minutes: roundedMinutes }).set({
+        millisecond: 0,
+        second: 0,
+      });
+
+      return {
+        publicBookingId: bookingId,
+        branchId: branch.id,
+        serviceId: service.id,
+        staffId: a.staffId,
+        startUtc,
+        endUtc,
+        priceCents: service.priceCents,
+        notes: dto.notes ?? null,
+        serviceName: service.name,
+      };
+    });
 
     normalized.sort((x, y) =>
       x.startUtc.toISO()!.localeCompare(y.startUtc.toISO()),
@@ -772,6 +780,15 @@ export class BookingsCoreService {
       endsAtUtc: bookingEndsAtUtc,
     });
 
+    await this.recomputeCalendarForWrittenAppointments({
+      branchId: branch.id,
+      appointments: result.appointments.map((appointment) => ({
+        start: appointment.start,
+        end: appointment.end,
+      })),
+      reason: 'booking.created',
+    });
+
     // =========================
     // 🔔 BUILD NOTIFICATION DATA (READ ONLY)
     // =========================
@@ -829,11 +846,6 @@ export class BookingsCoreService {
       })),
 
       totalCents: bookingTotalCents,
-    });
-
-    await this.calendarRealtime.emitInvalidate({
-      branchId: branch.id,
-      reason: 'booking.created',
     });
 
     if (bookingStartsAtUtc) {
@@ -1012,15 +1024,16 @@ export class BookingsCoreService {
         endsAtISO: DateTime.fromJSDate(booking.endsAt, {
           zone: 'utc',
         }).toISO()!,
-        rating: booking.ratingValue !== null
-          ? {
-              value: booking.ratingValue,
-              comment: booking.ratingComment ?? null,
-              createdAt: booking.ratingCreatedAt
-                ? booking.ratingCreatedAt.toISOString()
-                : null,
-            }
-          : null,
+        rating:
+          booking.ratingValue !== null
+            ? {
+                value: booking.ratingValue,
+                comment: booking.ratingComment ?? null,
+                createdAt: booking.ratingCreatedAt
+                  ? booking.ratingCreatedAt.toISOString()
+                  : null,
+              }
+            : null,
 
         branch: {
           id: booking.branchId,
@@ -1274,8 +1287,12 @@ export class BookingsCoreService {
       });
     }
 
-    await this.calendarRealtime.emitInvalidate({
+    await this.recomputeCalendarForWrittenAppointments({
       branchId: branch.id,
+      appointments: result.appointments.map((appointment) => ({
+        start: appointment.start,
+        end: appointment.end,
+      })),
       reason: 'booking.created',
     });
 
@@ -1284,6 +1301,38 @@ export class BookingsCoreService {
 
   private roundToBlock(totalMinutes: number, blockMinutes = 15) {
     return Math.ceil(totalMinutes / blockMinutes) * blockMinutes;
+  }
+
+  private async recomputeCalendarForWrittenAppointments(params: {
+    branchId: string;
+    appointments: Array<{
+      start: Date;
+      end: Date;
+    }>;
+    reason: 'booking.created' | 'booking.cancelled' | 'booking.rescheduled';
+  }) {
+    if (!params.appointments.length) {
+      return;
+    }
+
+    let minStart = params.appointments[0].start;
+    let maxEnd = params.appointments[0].end;
+
+    for (const appointment of params.appointments) {
+      if (appointment.start < minStart) {
+        minStart = appointment.start;
+      }
+      if (appointment.end > maxEnd) {
+        maxEnd = appointment.end;
+      }
+    }
+
+    await this.calendarRealtime.emitInvalidate({
+      branchId: params.branchId,
+      reason: params.reason,
+      start: minStart.toISOString(),
+      end: maxEnd.toISOString(),
+    });
   }
 
   private async getBranchAndSettings(branchId: string) {
@@ -1441,7 +1490,10 @@ export class BookingsCoreService {
     });
 
     return this.getOrSetManagerChainCache(cacheKey, async () => {
-      const snapshot = await this.getAvailabilityDaySnapshotOrWarm(branchId, date);
+      const snapshot = await this.getAvailabilityDaySnapshotOrWarm(
+        branchId,
+        date,
+      );
       const existingAssignments = chain.length
         ? this.resolveManagerChainPlanFromSnapshot({
             snapshot,
@@ -1722,7 +1774,9 @@ export class BookingsCoreService {
               hasPublicUser: booking.hasPublicUser,
             }
           : null,
-        paymentStatus: appointmentPayload.every((a) => a.paymentStatus === 'PAID')
+        paymentStatus: appointmentPayload.every(
+          (a) => a.paymentStatus === 'PAID',
+        )
           ? 'PAID'
           : 'UNPAID',
         totalCents: appointmentPayload.reduce(
@@ -2036,6 +2090,8 @@ export class BookingsCoreService {
     await this.calendarRealtime.emitInvalidate({
       branchId: booking.branchId,
       reason: 'booking.cancelled',
+      start: booking.startsAt.toISOString(),
+      end: booking.endsAt.toISOString(),
     });
 
     const cancelledDate = DateTime.fromJSDate(booking.startsAt, {
@@ -2406,6 +2462,14 @@ export class BookingsCoreService {
     await this.calendarRealtime.emitInvalidate({
       branchId: booking.branchId,
       reason: 'booking.rescheduled',
+      start:
+        beforeSnapshot.booking.startsAt < newStartsAt
+          ? beforeSnapshot.booking.startsAt.toISOString()
+          : newStartsAt.toISOString(),
+      end:
+        beforeSnapshot.booking.endsAt > newEndsAt
+          ? beforeSnapshot.booking.endsAt.toISOString()
+          : newEndsAt.toISOString(),
     });
 
     const timezone = branchSettingsRow?.timezone ?? 'America/Mexico_City';
@@ -2421,10 +2485,9 @@ export class BookingsCoreService {
       (value): value is string => Boolean(value),
     );
     if (affectedDates.length > 0) {
-      await this.availabilityCache.invalidate(
-        booking.branchId,
-        [...new Set(affectedDates)],
-      );
+      await this.availabilityCache.invalidate(booking.branchId, [
+        ...new Set(affectedDates),
+      ]);
     } else {
       await this.availabilityCache.invalidate(booking.branchId);
     }

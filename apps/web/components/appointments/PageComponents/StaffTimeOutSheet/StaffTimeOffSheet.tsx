@@ -10,7 +10,6 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
@@ -21,6 +20,7 @@ import {
   createStaffTimeOff,
   getTimeOffEndSlots,
   getTimeOffStartSlots,
+  invalidateTimeOffAvailabilityCache,
   updateStaffTimeOff,
 } from "@/lib/services/staff-time-off";
 
@@ -30,7 +30,6 @@ import { TimePickerInput } from "./TimeSelector";
 import { RecurrenceSelector } from "./RecurrenceSelector";
 import { Input } from "@/components/ui/input";
 import { DateTime } from "luxon";
-import { useCalendar } from "@/context/CalendarContext";
 
 type Props = {
   open: boolean;
@@ -49,22 +48,13 @@ const WEEK_DAYS = [
   { value: 0, label: "Dom" },
 ];
 
-const RECURRENCE_OPTIONS = [
-  { value: "NONE", label: "Sin repetición" },
-  { value: "DAILY", label: "Diario" },
-  { value: "WEEKLY", label: "Cada semana" },
-  { value: "MONTHLY", label: "Cada mes" },
-];
-
 export function StaffTimeOffSheet({
   open,
   onOpenChange,
   branchId,
-  startISO,
 }: Props) {
   const { state } = useTimeOffDraft();
   const { setField, toggleDay } = useTimeOffActions();
-  const { reload } = useCalendar();
 
   const [loading, setLoading] = useState(false);
   const [startSlots, setStartSlots] = useState<string[]>([]);
@@ -85,78 +75,108 @@ export function StaffTimeOffSheet({
     return DateTime.fromISO(date).set({ hour: h, minute: m }).toUTC().toISO();
   }
 
+  const startAvailabilityParams = useMemo(() => {
+    if (!branchId || !state.staffId || !state.date) {
+      return null;
+    }
+
+    return {
+      branchId,
+      staffId: state.staffId,
+      date: state.date,
+    };
+  }, [branchId, state.date, state.staffId]);
+
+  const endAvailabilityParams = useMemo(() => {
+    if (!startAvailabilityParams || !state.startTime) {
+      return null;
+    }
+
+    const startISO = timeToISO(startAvailabilityParams.date, state.startTime);
+    if (!startISO) {
+      return null;
+    }
+
+    return {
+      ...startAvailabilityParams,
+      startISO,
+    };
+  }, [startAvailabilityParams, state.startTime]);
+
   // PREVIEW (mejorado)
-  const preview = useMemo(() => {
-    if (state.recurrenceType === "NONE") {
-      return `${state.date} · ${state.startTime} - ${state.endTime}`;
-    }
-
-    if (state.recurrenceType === "DAILY") {
-      return `Todos los días · ${state.startTime} - ${state.endTime}`;
-    }
-
-    if (state.recurrenceType === "WEEKLY") {
-      return `Semanal · ${state.daysOfWeek.length} día(s) · ${state.startTime} - ${state.endTime}`;
-    }
-
-    return `Mensual · ${state.startTime} - ${state.endTime}`;
-  }, [state]);
-
   useEffect(() => {
-    if (!state.staffId || !state.date) return;
+    if (!startAvailabilityParams) {
+      setStartSlots([]);
+      return;
+    }
+
+    const params = startAvailabilityParams;
+    let cancelled = false;
 
     async function load() {
       setLoadingStart(true);
 
       try {
-        const res = await getTimeOffStartSlots({
-          branchId,
-          staffId: state.staffId,
-          date: state.date,
-        });
+        const res = await getTimeOffStartSlots(params);
 
-        setStartSlots(res.slots);
+        if (!cancelled) {
+          setStartSlots(res.slots);
+        }
       } catch (e) {
         console.error(e);
-        setStartSlots([]);
+        if (!cancelled) {
+          setStartSlots([]);
+        }
       } finally {
-        setLoadingStart(false);
+        if (!cancelled) {
+          setLoadingStart(false);
+        }
       }
     }
 
-    load();
-  }, [state.staffId, state.date]);
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [startAvailabilityParams]);
 
   useEffect(() => {
-    if (!state.staffId || !state.date || !state.startTime) {
+    if (!endAvailabilityParams) {
       setEndSlots([]);
       return;
     }
+
+    const params = endAvailabilityParams;
+    let cancelled = false;
 
     async function load() {
       setLoadingEnd(true);
 
       try {
-        const startISO = timeToISO(state.date, state.startTime);
+        const res = await getTimeOffEndSlots(params);
 
-        const res = await getTimeOffEndSlots({
-          branchId,
-          staffId: state.staffId,
-          date: state.date,
-          startISO: startISO!,
-        });
-
-        setEndSlots(res.endSlots);
+        if (!cancelled) {
+          setEndSlots(res.endSlots);
+        }
       } catch (e) {
         console.error(e);
-        setEndSlots([]);
+        if (!cancelled) {
+          setEndSlots([]);
+        }
       } finally {
-        setLoadingEnd(false);
+        if (!cancelled) {
+          setLoadingEnd(false);
+        }
       }
     }
 
-    load();
-  }, [state.startTime]);
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [endAvailabilityParams]);
 
   async function handleSubmit() {
     if (loading) return;
@@ -188,14 +208,17 @@ export function StaffTimeOffSheet({
         await createStaffTimeOff(payload);
       }
 
-      // 🔥🔥🔥 ESTO ES LO QUE TE FALTABA
-      await reload();
+      if (startAvailabilityParams) {
+        invalidateTimeOffAvailabilityCache(startAvailabilityParams);
+      }
 
       onOpenChange(false);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
 
-      switch (e.message) {
+      const message = e instanceof Error ? e.message : "UNKNOWN_ERROR";
+
+      switch (message) {
         case "INVALID_DATETIME":
           alert("Fecha inválida");
           break;
@@ -313,16 +336,10 @@ export function StaffTimeOffSheet({
             </div>
           )}
 
-          {/* DAILY / MONTHLY INFO */}
+          {/* DAILY INFO */}
           {state.recurrenceType === "DAILY" && (
             <p className="text-sm text-muted-foreground">
               Se repetirá todos los días
-            </p>
-          )}
-
-          {state.recurrenceType === "MONTHLY" && (
-            <p className="text-sm text-muted-foreground">
-              Se repetirá cada mes en este día
             </p>
           )}
 

@@ -56,10 +56,11 @@ export class DrizzleStaffTimeOffRepository implements StaffTimeOffRepository {
       end: Date;
       reason?: string;
     }[],
-  ): Promise<void> {
-    if (!data.length) return;
+  ): Promise<StaffTimeOff[]> {
+    if (!data.length) return [];
 
-    await this.db.insert(staffTimeOff).values(data);
+    const created = await this.db.insert(staffTimeOff).values(data).returning();
+    return created.map((row) => this.map(row));
   }
 
   async update(
