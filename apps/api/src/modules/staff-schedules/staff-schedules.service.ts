@@ -14,6 +14,10 @@ import { AvailabilitySnapshotWarmService } from '../availability/infrastructure/
 import { CACHE_PORT } from '../cache/core/ports/tokens';
 import { CachePort } from '../cache/core/ports/cache.port';
 
+type StaffScheduleRecord = Awaited<
+  ReturnType<StaffSchedulesService['findForStaff']>
+>[number];
+
 @Injectable()
 export class StaffSchedulesService {
   constructor(
@@ -37,8 +41,34 @@ export class StaffSchedulesService {
 
     return this.db.query.staffSchedules.findMany({
       where: inArray(staffSchedules.staffId, staffIds),
-      orderBy: (t, { asc }) => [asc(t.staffId), asc(t.dayOfWeek), asc(t.startTime)],
+      orderBy: (t, { asc }) => [
+        asc(t.staffId),
+        asc(t.dayOfWeek),
+        asc(t.startTime),
+      ],
     });
+  }
+
+  async findGroupedForStaffIds(staffIds: string[]) {
+    const uniqueStaffIds = [...new Set(staffIds.filter(Boolean))];
+
+    if (!uniqueStaffIds.length) {
+      return { staffSchedules: {} as Record<string, StaffScheduleRecord[]> };
+    }
+
+    const schedules = await this.findForStaffIds(uniqueStaffIds);
+    const grouped = Object.fromEntries(
+      uniqueStaffIds.map((staffId) => [staffId, [] as StaffScheduleRecord[]]),
+    );
+
+    for (const schedule of schedules) {
+      grouped[schedule.staffId] ??= [];
+      grouped[schedule.staffId].push(schedule);
+    }
+
+    return {
+      staffSchedules: grouped,
+    };
   }
 
   validateTimes(start: string, end: string) {

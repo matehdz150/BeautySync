@@ -19,6 +19,10 @@ export type StaffSchedule = {
   endTime: string;
 };
 
+type StaffSchedulesByStaffResponse = {
+  staffSchedules: Record<string, StaffSchedule[]>;
+};
+
 /* ===== CREATE ONE DAY SCHEDULE ===== */
 export async function createStaffSchedule(input: StaffScheduleInput) {
   return api("/staff-schedules", {
@@ -49,13 +53,8 @@ export async function saveDefaultScheduleForStaff(params: {
 
 /* ===== GET STAFF SCHEDULE ===== */
 export async function getScheduleForStaff(staffId: string) {
-  const path = `/staff-schedules/staff/${staffId}`;
-
-  return runDeduped(
-    buildDedupKey("GET", path),
-    () => api<StaffSchedule[]>(path),
-    { cacheTtlMs: STAFF_SCHEDULE_CACHE_MS },
-  );
+  const schedules = await getSchedulesForStaffMembers([staffId]);
+  return schedules[staffId] ?? [];
 }
 
 export async function getSchedulesForStaffMembers(
@@ -70,18 +69,17 @@ export async function getSchedulesForStaffMembers(
   return runDeduped(
     buildDedupKey(
       "GET",
-      "/staff-schedules/staff",
+      "/staff-schedules",
       stableStringify(uniqueStaffIds),
     ),
     async () => {
-      const entries = await Promise.all(
-        uniqueStaffIds.map(async (staffId) => [
-          staffId,
-          await getScheduleForStaff(staffId),
-        ] as const),
-      );
+      const query = new URLSearchParams({
+        staffIds: uniqueStaffIds.join(","),
+      }).toString();
+      const path = `/staff-schedules?${query}`;
+      const response = await api<StaffSchedulesByStaffResponse>(path);
 
-      return Object.fromEntries(entries);
+      return response.staffSchedules ?? {};
     },
     { cacheTtlMs: STAFF_SCHEDULE_CACHE_MS },
   );

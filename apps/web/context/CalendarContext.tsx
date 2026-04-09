@@ -16,13 +16,18 @@ import { DateTime } from "luxon";
 import { useBranch } from "@/context/BranchContext";
 import { getConceptualStatus } from "@/lib/helpers/conceptualStatus";
 import { API_URL } from "@/lib/services/api";
-import { getCalendarDay } from "@/lib/services/calendar";
+import {
+  getCalendarDay,
+  getCalendarWeekSummary,
+  type GetCalendarDayResponse,
+} from "@/lib/services/calendar";
 import type { Service } from "@/lib/services/services";
 import { getStaffByBranch, type Staff } from "@/lib/services/staff";
 import {
   getSchedulesForStaffMembers,
   type StaffSchedule,
 } from "@/lib/services/staffSchedules";
+import { useCalendarData } from "@/hooks/useCalendarData";
 
 export type Prefill = {
   defaultStaffId?: string;
@@ -238,13 +243,11 @@ function sameStringArray(a: string[], b: string[]) {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-function getWeekDays(date: string) {
+function getWeekSummaryKey(branchId: string, date: string) {
   const selected = DateTime.fromISO(date);
-  const startOfWeek = selected.startOf("week").plus({ days: 1 });
+  const startOfWeek = selected.startOf("week").plus({ days: 1 }).toISODate()!;
 
-  return Array.from({ length: 7 }, (_, index) =>
-    startOfWeek.plus({ days: index }).toISODate()!,
-  );
+  return `${branchId}:${startOfWeek}`;
 }
 
 function mapAppointments(appointments: any[]): CalendarAppointment[] {
@@ -297,9 +300,10 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const stateRef = useRef(state);
   const staffLoadSeqRef = useRef(0);
-  const calendarLoadSeqRef = useRef(0);
 
-  stateRef.current = state;
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const loadStaffResources = useCallback(async () => {
     if (!branchId) return;
@@ -333,51 +337,107 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     }
   }, [branchId]);
 
-  const loadCalendarResources = useCallback(
-    async (targetDate = stateRef.current.date) => {
-      if (!branchId) return;
+  const applyDayResponse = useCallback((response: GetCalendarDayResponse) => {
+    dispatch({
+      type: "SET_APPOINTMENTS",
+      payload: mapAppointments(response.appointments),
+    });
+    dispatch({
+      type: "SET_TIMEOFFS",
+      payload: mapTimeOffs(response.timeOffs),
+    });
+  }, []);
 
-      const loadSeq = ++calendarLoadSeqRef.current;
-      const weekDays = getWeekDays(targetDate);
-      const selectedDayIndex = weekDays.indexOf(targetDate);
-      const weekResponses = await Promise.all(
-        weekDays.map((date) => getCalendarDay({ branchId, date })),
-      );
+  const selectedDayRequestKey = useMemo(
+    () => (branchId ? `${branchId}-${state.date}` : null),
+    [branchId, state.date],
+  );
 
-      if (loadSeq !== calendarLoadSeqRef.current) {
-        return;
+  const weekSummaryRequestKey = useMemo(
+    () => (branchId ? getWeekSummaryKey(branchId, state.date) : null),
+    [branchId, state.date],
+  );
+
+  const fetchSelectedDay = useCallback(
+    (signal: AbortSignal) => {
+      if (!branchId) {
+        return Promise.reject(new Error("Missing branchId"));
       }
 
-      const selectedDayResponse =
-        weekResponses[selectedDayIndex >= 0 ? selectedDayIndex : 0];
-
-      dispatch({
-        type: "SET_APPOINTMENTS",
-        payload: mapAppointments(selectedDayResponse.appointments),
-      });
-      dispatch({
-        type: "SET_TIMEOFFS",
-        payload: mapTimeOffs(selectedDayResponse.timeOffs),
-      });
-      dispatch({
-        type: "SET_DAILY_COUNTS",
-        payload: Object.fromEntries(
-          weekResponses.map((response, index) => [
-            weekDays[index],
-            response.appointments.length,
-          ]),
-        ),
-      });
+      return getCalendarDay(
+        {
+          branchId,
+          date: state.date,
+        },
+        { signal },
+      );
     },
-    [branchId],
+    [branchId, state.date],
   );
+
+  const fetchWeekSummary = useCallback(
+    (signal: AbortSignal) => {
+      if (!branchId) {
+        return Promise.reject(new Error("Missing branchId"));
+      }
+
+      return getCalendarWeekSummary(
+        {
+          branchId,
+          date: state.date,
+        },
+        { signal },
+      );
+    },
+    [branchId, state.date],
+  );
+
+  const {
+    data: selectedDayData,
+    refresh: refreshSelectedDay,
+  } = useCalendarData({
+    requestKey: selectedDayRequestKey,
+    enabled: Boolean(branchId),
+    fetcher: fetchSelectedDay,
+  });
+
+  const {
+    data: weekSummaryData,
+    refresh: refreshWeekSummary,
+  } = useCalendarData({
+    requestKey: weekSummaryRequestKey,
+    enabled: Boolean(branchId),
+    fetcher: fetchWeekSummary,
+  });
+
+  useEffect(() => {
+    if (!selectedDayData) {
+      return;
+    }
+
+    applyDayResponse(selectedDayData);
+  }, [applyDayResponse, selectedDayData]);
+
+  useEffect(() => {
+    if (!weekSummaryData) {
+      return;
+    }
+
+    dispatch({
+      type: "SET_DAILY_COUNTS",
+      payload: Object.fromEntries(
+        weekSummaryData.days.map((day) => [day.date, day.totalAppointments]),
+      ),
+    });
+  }, [weekSummaryData]);
 
   const reload = useCallback(async () => {
     await Promise.all([
       loadStaffResources(),
-      loadCalendarResources(stateRef.current.date),
+      refreshSelectedDay(),
+      refreshWeekSummary(),
     ]);
-  }, [loadCalendarResources, loadStaffResources]);
+  }, [loadStaffResources, refreshSelectedDay, refreshWeekSummary]);
 
   useEffect(() => {
     if (!branchId) return;
@@ -388,18 +448,8 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!branchId) return;
 
-    void loadCalendarResources(state.date);
-  }, [branchId, state.date, loadCalendarResources]);
-
-  const loadCalendarResourcesRef = useRef(loadCalendarResources);
-  loadCalendarResourcesRef.current = loadCalendarResources;
-
-  useEffect(() => {
-    if (!branchId) return;
-
     let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     let closed = false;
 
     const reconnect = () => {
@@ -413,15 +463,22 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         { withCredentials: true },
       );
 
-      eventSource.addEventListener("calendar.invalidate", () => {
-        if (refreshTimer) {
-          return;
-        }
+      eventSource.addEventListener("calendar.invalidate", (event: MessageEvent) => {
+        try {
+          const payload = JSON.parse(event.data) as {
+            branchId?: string;
+            date?: string;
+            reason?: string;
+            at?: string;
+          };
 
-        refreshTimer = setTimeout(() => {
-          refreshTimer = null;
-          void loadCalendarResourcesRef.current(stateRef.current.date);
-        }, 250);
+          if (payload.branchId && payload.branchId !== branchId) {
+            return;
+          }
+        } catch {
+          // The current stream only sends invalidation metadata.
+          // State updates for local actions are applied optimistically elsewhere.
+        }
       });
 
       eventSource.onerror = () => {
@@ -436,7 +493,6 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     return () => {
       closed = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (refreshTimer) clearTimeout(refreshTimer);
       if (eventSource) eventSource.close();
     };
   }, [branchId]);

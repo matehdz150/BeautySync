@@ -1,5 +1,5 @@
 // app/dashboard/appointments/page.tsx
-import { CalendarProvider } from "@/context/CalendarContext";
+import { CalendarProvider } from "@/context/CalendarProvider";
 import Calendar from "./Calendar";
 import { TimeOffDraftProvider } from "@/context/TimeOffDraftContext";
 
