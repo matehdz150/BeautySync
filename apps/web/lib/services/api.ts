@@ -1,6 +1,8 @@
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+let refreshPromise: Promise<void> | null = null;
+
 async function request(path: string, options: RequestInit = {}) {
   return fetch(`${API_URL}${path}`, {
     ...options,
@@ -12,6 +14,24 @@ async function request(path: string, options: RequestInit = {}) {
   });
 }
 
+async function refreshTokenOnce() {
+  if (!refreshPromise) {
+    refreshPromise = request("/auth/refresh", {
+      method: "POST",
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Sesión expirada");
+        }
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
 export async function api<T>(
   path: string,
   options: RequestInit = {}
@@ -20,11 +40,9 @@ export async function api<T>(
 
   // 🔁 Intentar refresh automático
   if (res.status === 401) {
-    const refresh = await request("/auth/refresh", {
-      method: "POST",
-    });
-
-    if (!refresh.ok) {
+    try {
+      await refreshTokenOnce();
+    } catch {
       window.location.href = "/login";
       throw new Error("Sesión expirada");
     }

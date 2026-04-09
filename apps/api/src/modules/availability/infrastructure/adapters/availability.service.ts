@@ -35,16 +35,12 @@ import { GetAvailableDatesFromIndexUseCase } from '../../core/use-cases/get-avai
 import { GetSlotsForDayFromIndexUseCase } from '../../core/use-cases/get-slots-for-day-from-index.use-case';
 import { AvailabilityIndex } from '../../core/entities/availability-index.entity';
 import { AvailabilityIndexCacheService } from './availability-index-cache.service';
+import { getAvailabilityWindowForDate } from './availability-window.helpers';
+import { BLOCKING_APPOINTMENT_STATUSES } from 'src/modules/lib/booking/booking.constants';
 
 type StaffSchedule = InferSelectModel<typeof staffSchedules>;
 type StaffTimeOff = InferSelectModel<typeof staffTimeOff>;
 type Appointment = InferSelectModel<typeof appointments>;
-
-export const BLOCKING_APPOINTMENT_STATUSES: Appointment['status'][] = [
-  'PENDING',
-  'CONFIRMED',
-  'COMPLETED',
-];
 
 type TimeBlock = {
   startMin: number;
@@ -81,6 +77,7 @@ export class AvailabilityService {
     private readonly slotLock: SlotLockPort,
     private readonly getAvailableDatesFromIndex: GetAvailableDatesFromIndexUseCase,
     private readonly getSlotsForDayFromIndex: GetSlotsForDayFromIndexUseCase,
+    @Inject(AvailabilityIndexCacheService)
     private readonly availabilityIndexCache: AvailabilityIndexCacheService,
   ) {}
 
@@ -88,17 +85,19 @@ export class AvailabilityService {
     branchId: string;
     date: string;
   }): Promise<AvailabilityIndex> {
-    const anchorDate = DateTime.fromISO(params.date).startOf('day');
-    if (!anchorDate.isValid) {
-      throw new BadRequestException('Invalid availability date');
-    }
+    return this.getAvailabilityWindow(params);
+  }
 
-    const normalizedStart = anchorDate.startOf('month');
-    const normalizedEnd = anchorDate.endOf('month');
-    return this.availabilityIndexCache.getOrBuild({
+  async getAvailabilityWindow(params: {
+    branchId: string;
+    date: string;
+  }): Promise<AvailabilityIndex> {
+    const window = getAvailabilityWindowForDate(params.date);
+
+    return this.availabilityIndexCache.getAvailabilityWindow({
       branchId: params.branchId,
-      start: normalizedStart.toUTC().toJSDate(),
-      end: normalizedEnd.toUTC().toJSDate(),
+      start: window.start.toUTC().toJSDate(),
+      end: window.end.toUTC().toJSDate(),
     });
   }
 
@@ -354,7 +353,7 @@ export class AvailabilityService {
     const { branchId, serviceId, date, staffId, requiredDurationMin } = query;
 
     const isByService = typeof serviceId === 'string';
-    const index = await this.getAvailabilityIndex({
+    const index = await this.getAvailabilityWindow({
       branchId,
       date,
     });

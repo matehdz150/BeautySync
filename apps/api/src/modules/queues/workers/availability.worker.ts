@@ -13,6 +13,12 @@ type AvailabilitySnapshotJob = {
   date: string;
 };
 
+type AvailabilityWindowJob = {
+  branchId: string;
+  start: string;
+  end: string;
+};
+
 async function main() {
   console.log('🚀 availability worker running...');
 
@@ -25,13 +31,17 @@ async function main() {
     'availability',
     async (job) =>
       trackJobMetric(job.name, async () => {
-        const data = job.data as AvailabilitySnapshotJob;
-        if (!data?.branchId || !data?.date) {
-          console.warn('⚠️ Invalid availability job payload', job.id, job.data);
-          return;
-        }
-
         if (job.name === 'availability.snapshot.day') {
+          const data = job.data as AvailabilitySnapshotJob;
+          if (!data?.branchId || !data?.date) {
+            console.warn(
+              '⚠️ Invalid availability job payload',
+              job.id,
+              job.data,
+            );
+            return;
+          }
+
           await warm.warmDay({
             branchId: data.branchId,
             date: data.date,
@@ -40,9 +50,38 @@ async function main() {
         }
 
         if (job.name === 'availability.services.day') {
+          const data = job.data as AvailabilitySnapshotJob;
+          if (!data?.branchId || !data?.date) {
+            console.warn(
+              '⚠️ Invalid availability job payload',
+              job.id,
+              job.data,
+            );
+            return;
+          }
+
           await warm.rebuildServicesDay({
             branchId: data.branchId,
             date: data.date,
+          });
+          return;
+        }
+
+        if (job.name === 'availability.window') {
+          const data = job.data as AvailabilityWindowJob;
+          if (!data?.branchId || !data?.start || !data?.end) {
+            console.warn(
+              '⚠️ Invalid availability job payload',
+              job.id,
+              job.data,
+            );
+            return;
+          }
+
+          await warm.warmWindow({
+            branchId: data.branchId,
+            start: data.start,
+            end: data.end,
           });
           return;
         }

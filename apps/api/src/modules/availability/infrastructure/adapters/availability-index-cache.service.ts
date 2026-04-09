@@ -3,11 +3,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
 
 import { REDIS_CACHE } from 'src/modules/cache/core/ports/tokens';
+import { BranchServicesCacheService } from 'src/modules/cache/application/branch-services-cache.service';
+import { BranchStaffCacheService } from 'src/modules/cache/application/branch-staff-cache.service';
 
 import { AvailabilityIndex } from '../../core/entities/availability-index.entity';
 import { BuildAvailabilitySnapshotUseCase } from '../../core/use-cases/build-availability-snapshot.use-case';
 import { BuildAvailabilityIndexUseCase } from '../../core/use-cases/build-availability-index.use-case';
 import { AvailabilityCacheService } from './availability-cache.service';
+import { buildAvailabilityDaySnapshots } from './availability-day-snapshot.builder';
 
 type GetOrBuildParams = {
   branchId: string;
@@ -29,10 +32,18 @@ export class AvailabilityIndexCacheService {
     private readonly availabilityCache: AvailabilityCacheService,
     private readonly buildAvailabilitySnapshot: BuildAvailabilitySnapshotUseCase,
     private readonly buildAvailabilityIndex: BuildAvailabilityIndexUseCase,
+    private readonly branchServicesCache: BranchServicesCacheService,
+    private readonly branchStaffCache: BranchStaffCacheService,
   ) {}
 
   buildKey(params: { branchId: string; startDate: string; endDate: string }) {
     return this.availabilityCache.buildKey(params);
+  }
+
+  async getAvailabilityWindow(
+    params: GetOrBuildParams,
+  ): Promise<AvailabilityIndex> {
+    return this.getOrBuild(params);
   }
 
   async getCached(params: GetOrBuildParams): Promise<AvailabilityIndex | null> {
@@ -43,12 +54,12 @@ export class AvailabilityIndexCacheService {
     });
 
     const cached = await this.availabilityCache.getIndex(key);
-    if (cached) {
-      console.log('[Availability] CACHE HIT', key);
+    if (cached && this.hasCompleteWindow(cached)) {
+      console.log('[Availability] WINDOW CACHE HIT', key);
       return cached;
     }
 
-    console.log('[Availability] CACHE MISS', key);
+    console.log('[Availability] WINDOW CACHE MISS', key);
     return null;
   }
 
@@ -60,18 +71,18 @@ export class AvailabilityIndexCacheService {
     });
 
     const cached = await this.availabilityCache.getIndex(key);
-    if (cached) {
-      console.log('[Availability] CACHE HIT', key);
+    if (cached && this.hasCompleteWindow(cached)) {
+      console.log('[Availability] WINDOW CACHE HIT', key);
       return cached;
     }
 
     const existing = this.inflight.get(key);
     if (existing) {
-      console.log('[Availability] INFLIGHT HIT', key);
+      console.log('[Availability] WINDOW INFLIGHT HIT', key);
       return existing;
     }
 
-    console.log('[Availability] CACHE MISS', key);
+    console.log('[Availability] WINDOW CACHE MISS', key);
 
     let resolvePromise!: (value: AvailabilityIndex) => void;
     let rejectPromise!: (reason?: unknown) => void;
@@ -100,7 +111,7 @@ export class AvailabilityIndexCacheService {
     key: string,
     params: GetOrBuildParams,
   ): Promise<AvailabilityIndex> {
-    const lockKey = `availability:index:lock:${key}`;
+    const lockKey = `availability:window:lock:${key}`;
     const lockId = randomUUID();
     let acquiredLock = false;
 
@@ -117,7 +128,7 @@ export class AvailabilityIndexCacheService {
       }
 
       const cached = await this.availabilityCache.getIndex(key);
-      if (cached) {
+      if (cached && this.hasCompleteWindow(cached)) {
         return cached;
       }
 
@@ -134,8 +145,22 @@ export class AvailabilityIndexCacheService {
         end: params.end,
       });
 
-      await this.availabilityCache.setIndex(key, index);
-      return index;
+      const [services, staffRows] = await Promise.all([
+        this.branchServicesCache.getActive(params.branchId),
+        this.branchStaffCache.getByBranch(params.branchId),
+      ]);
+      const hydratedIndex: AvailabilityIndex = {
+        ...index,
+        daySnapshots: buildAvailabilityDaySnapshots({
+          branchId: params.branchId,
+          index,
+          services,
+          staffRows,
+        }),
+      };
+
+      await this.availabilityCache.setIndex(key, hydratedIndex);
+      return hydratedIndex;
     } finally {
       if (acquiredLock) {
         await this.releaseLock(lockKey, lockId);
@@ -156,10 +181,14 @@ export class AvailabilityIndexCacheService {
   }
 
   private async waitForCache(key: string) {
-    for (let attempt = 0; attempt < AvailabilityIndexCacheService.POLL_ATTEMPTS; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < AvailabilityIndexCacheService.POLL_ATTEMPTS;
+      attempt += 1
+    ) {
       await this.sleep(AvailabilityIndexCacheService.POLL_INTERVAL_MS);
       const cached = await this.availabilityCache.getIndex(key);
-      if (cached) {
+      if (cached && this.hasCompleteWindow(cached)) {
         return cached;
       }
     }
@@ -176,6 +205,10 @@ export class AvailabilityIndexCacheService {
 
   private async sleep(ms: number) {
     await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private hasCompleteWindow(index: AvailabilityIndex) {
+    return index.daySnapshots.size > 0;
   }
 
   private normalizeDate(date: Date) {
