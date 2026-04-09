@@ -10,9 +10,7 @@ import { AvailabilityIndex } from '../../core/entities/availability-index.entity
 import { AvailabilityIndexCacheService } from './availability-index-cache.service';
 
 @Injectable()
-export class AvailabilitySnapshotGeneratorService
-  implements AvailabilityGeneratorService
-{
+export class AvailabilitySnapshotGeneratorService implements AvailabilityGeneratorService {
   private static readonly SLOT_MIN = 15;
 
   constructor(
@@ -29,12 +27,18 @@ export class AvailabilitySnapshotGeneratorService
     const monthStart = branchDay.startOf('month').toUTC().toJSDate();
     const monthEnd = branchDay.endOf('month').toUTC().toJSDate();
 
-    const [index, services, staffRows] = await Promise.all([
-      this.availabilityIndexCache.getOrBuild({
-        branchId,
-        start: monthStart,
-        end: monthEnd,
-      }),
+    const index = await this.availabilityIndexCache.getOrBuild({
+      branchId,
+      start: monthStart,
+      end: monthEnd,
+    });
+
+    const cachedSnapshot = index.daySnapshots.get(date);
+    if (cachedSnapshot) {
+      return cachedSnapshot;
+    }
+
+    const [services, staffRows] = await Promise.all([
       this.branchServicesCache.getActive(branchId),
       this.branchStaffCache.getByBranch(branchId),
     ]);
@@ -77,7 +81,9 @@ export class AvailabilitySnapshotGeneratorService
     const { index } = params;
     const day = index.byDay.get(params.date);
     const activeStaff = params.staffRows.filter((staff) => staff.isActive);
-    const activeStaffById = new Map(activeStaff.map((member) => [member.id, member]));
+    const activeStaffById = new Map(
+      activeStaff.map((member) => [member.id, member]),
+    );
     const dayStaffIds = day?.staffIds ?? [];
     const dayStartsByStaff = day?.startsByStaff ?? new Map<string, number[]>();
     const startSetByStaff = new Map(
@@ -89,9 +95,8 @@ export class AvailabilitySnapshotGeneratorService
 
     const staff = dayStaffIds
       .map((staffId) => activeStaffById.get(staffId))
-      .filter(
-        (member): member is NonNullable<(typeof activeStaff)[number]> =>
-          Boolean(member),
+      .filter((member): member is NonNullable<(typeof activeStaff)[number]> =>
+        Boolean(member),
       )
       .map((member) => ({
         id: member.id,
@@ -162,9 +167,9 @@ export class AvailabilitySnapshotGeneratorService
             categoryId: service.categoryId ?? null,
             categoryName: service.categoryName ?? null,
             categoryColor: service.categoryColor ?? null,
-            availableStaffIdsByStart: [...availableStaffIdsByStart.entries()].sort(
-              (a, b) => a[0] - b[0],
-            ),
+            availableStaffIdsByStart: [
+              ...availableStaffIdsByStart.entries(),
+            ].sort((a, b) => a[0] - b[0]),
           },
         ];
       });

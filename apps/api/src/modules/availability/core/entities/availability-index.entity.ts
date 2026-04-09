@@ -1,4 +1,5 @@
 import { AvailabilitySnapshotSettings } from './availability-snapshot.entity';
+import { AvailabilityDaySnapshot } from './availability-day-snapshot.entity';
 
 export type TimeSlot = {
   start: Date;
@@ -21,4 +22,5 @@ export type AvailabilityIndex = {
   serviceDurations: Map<string, number>;
   activeStaffIds: string[];
   settings: AvailabilitySnapshotSettings;
+  daySnapshots: Map<string, AvailabilityDaySnapshot>;
 };

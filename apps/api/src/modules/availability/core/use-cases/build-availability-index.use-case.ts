@@ -54,7 +54,11 @@ export class BuildAvailabilityIndexUseCase {
     }
 
     const dateSet = this.buildDateSet(start, end, tz);
-    const timeOffByStaffAndDate = this.groupBusy(snapshot.timeOffs, tz, dateSet);
+    const timeOffByStaffAndDate = this.groupBusy(
+      snapshot.timeOffs,
+      tz,
+      dateSet,
+    );
     const appointmentsByStaffAndDate = this.groupBusy(
       snapshot.appointments,
       tz,
@@ -81,7 +85,8 @@ export class BuildAvailabilityIndexUseCase {
       const date = cursor.toISODate()!;
       const dayOfWeek = cursor.weekday % 7;
       const noticeCutoffMin =
-        cursor.hasSame(nowLocal, 'day') && snapshot.settings.minBookingNoticeMin > 0
+        cursor.hasSame(nowLocal, 'day') &&
+        snapshot.settings.minBookingNoticeMin > 0
           ? dtToMinutesSinceDayStart(nowLocal, cursor) +
             snapshot.settings.minBookingNoticeMin
           : 0;
@@ -115,7 +120,9 @@ export class BuildAvailabilityIndexUseCase {
           ) {
             const startAt = cursor.plus({ minutes: minute }).toUTC().toJSDate();
             const endAt = cursor
-              .plus({ minutes: minute + BuildAvailabilityIndexUseCase.SLOT_MIN })
+              .plus({
+                minutes: minute + BuildAvailabilityIndexUseCase.SLOT_MIN,
+              })
               .toUTC()
               .toJSDate();
             const starts = startsByStaff.get(staff.id) ?? [];
@@ -152,6 +159,7 @@ export class BuildAvailabilityIndexUseCase {
       serviceDurations,
       activeStaffIds,
       settings: snapshot.settings,
+      daySnapshots: new Map(),
     };
   }
 
@@ -200,7 +208,8 @@ export class BuildAvailabilityIndexUseCase {
         const endMin = dtToMinutesSinceDayStart(clampedEnd, dayStart);
 
         if (startMin < endMin) {
-          const byDate = output.get(row.staffId) ?? new Map<string, TimeBlock[]>();
+          const byDate =
+            output.get(row.staffId) ?? new Map<string, TimeBlock[]>();
           const intervals = byDate.get(date) ?? [];
           intervals.push({ startMin, endMin });
           byDate.set(date, intervals);

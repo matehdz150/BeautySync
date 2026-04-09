@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { StaffSchedulesService } from './staff-schedules.service';
 import { CreateStaffScheduleDto } from './dto/create-staff-schedule.dto';
@@ -14,6 +15,16 @@ import { UpdateStaffScheduleDto } from './dto/update-staff-schedule.dto';
 @Controller('staff-schedules')
 export class StaffSchedulesController {
   constructor(private readonly service: StaffSchedulesService) {}
+
+  @Get()
+  findForStaffIds(@Query('staffIds') staffIdsParam?: string) {
+    const staffIds = (staffIdsParam ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    return this.service.findGroupedForStaffIds(staffIds);
+  }
 
   @Get('staff/:staffId')
   findForStaff(@Param('staffId') staffId: string) {

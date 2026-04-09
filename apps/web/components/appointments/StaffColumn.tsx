@@ -3,54 +3,65 @@
 import { DateTime } from "luxon";
 import { AppointmentItem } from "./AppointmentItem";
 import { CalendarGrid } from "./CalendarGrid";
-import { useEffect, useState } from "react";
-import { getScheduleForStaff } from "@/lib/services/staffSchedules";
-import { useCalendarActions } from "@/context/CalendarContext";
+import { memo, useMemo } from "react";
+import {
+  useCalendarActions,
+  type CalendarAppointment,
+  type CalendarTimeOff,
+} from "@/context/CalendarContext";
 import { TimeOffItem } from "./TimeOffItem";
 import { useBranch } from "@/context/BranchContext";
 import { getStaffTimeOffDetail } from "@/lib/services/staff-time-off";
 import { useTimeOffActions } from "@/context/TimeOffDraftContext";
+import type { StaffSchedule } from "@/lib/services/staffSchedules";
 
+type StaffColumnProps = {
+  staff: {
+    id: string;
+    name: string;
+  };
+  schedules?: StaffSchedule[];
+  appointments: CalendarAppointment[];
+  timeSlots: string[];
+  timeOffs: CalendarTimeOff[];
+  date: string;
+};
 
-
-export function StaffColumn({
+export const StaffColumn = memo(function StaffColumn({
   staff,
+  schedules = [],
   appointments,
   timeSlots,
   timeOffs,
-  onSlotClick,
   date,
-}: any) {
+}: StaffColumnProps) {
   const getTimeIndex = (t: string) => timeSlots.indexOf(t);
-  const [schedule, setSchedule] = useState<any[]>([]);
-
   const { branch } = useBranch();
   const { loadFromTimeOff } = useTimeOffActions();
-  const { openBlockTime } = useCalendarActions();
+  const { openAppointmentById, openBlockTime } = useCalendarActions();
 
-  const { openAppointmentById } = useCalendarActions();
-
-  // 📅 LOAD STAFF SCHEDULE
-  useEffect(() => {
-    async function load() {
-      const res = await getScheduleForStaff(staff.id);
-      setSchedule(res ?? []);
-    }
-    load();
-  }, [staff.id]);
+  const weekday = useMemo(() => DateTime.fromISO(date).weekday, [date]);
+  const todaysSchedule = useMemo(
+    () => schedules.filter((item) => item.dayOfWeek === weekday),
+    [schedules, weekday],
+  );
+  const staffAppointments = useMemo(
+    () => appointments.filter((appointment) => appointment.staffId === staff.id),
+    [appointments, staff.id],
+  );
+  const staffTimeOffs = useMemo(
+    () => timeOffs.filter((timeOff) => timeOff.staffId === staff.id),
+    [timeOffs, staff.id],
+  );
 
   // ✔ check if slot belongs to shift
   function isInsideSchedule(time: string) {
-    if (!schedule || schedule.length === 0) return false;
-
-    const weekday = DateTime.fromISO(date).weekday;
-    const todays = schedule.filter((s) => s.dayOfWeek === weekday);
-    if (todays.length === 0) return false;
+    if (todaysSchedule.length === 0) return false;
 
     const [h, m] = time.split(":").map(Number);
     const mins = h * 60 + m;
 
-    return todays.some((s) => {
+    return todaysSchedule.some((s) => {
       const [sh, sm] = s.startTime.split(":").map(Number);
       const [eh, em] = s.endTime.split(":").map(Number);
 
@@ -62,26 +73,41 @@ export function StaffColumn({
   }
 
   // ⬇️ BUILD OFF-HOURS BLOCKS
-  function buildOffHoursBlocks() {
-    if (!schedule || schedule.length === 0) {
-      return [{ start: 6 * 60, end: 24 * 60 }];
-    }
-
-    const weekday = DateTime.fromISO(date).weekday;
-    const todays = schedule.filter((s) => s.dayOfWeek === weekday);
-
-    if (todays.length === 0) {
-      return [{ start: 6 * 60, end: 24 * 60 }];
-    }
-
+  const offBlocks = useMemo(() => {
     const DAY_START = 6 * 60;
     const DAY_END = 24 * 60;
 
-    const intervals = todays.map((s) => {
-      const [sh, sm] = s.startTime.split(":").map(Number);
-      const [eh, em] = s.endTime.split(":").map(Number);
-      return { start: sh * 60 + sm, end: eh * 60 + em };
-    });
+    if (todaysSchedule.length === 0) {
+      const startISO = DateTime.fromISO(date).set({
+        hour: Math.floor(DAY_START / 60),
+        minute: DAY_START % 60,
+      });
+      const endISO = DateTime.fromISO(date).set({
+        hour: Math.floor(DAY_END / 60),
+        minute: DAY_END % 60,
+      });
+
+      return [
+        {
+          id: `off-${staff.id}-${DAY_START}`,
+          staffId: staff.id,
+          startISO: startISO.toISO(),
+          endISO: endISO.toISO(),
+          startTime: startISO.toFormat("H:mm"),
+          minutes: DAY_END - DAY_START,
+          client: "",
+          service: "Fuera de horario",
+          isOffhours: true,
+        },
+      ];
+    }
+
+    const intervals =
+      todaysSchedule.map((s) => {
+        const [sh, sm] = s.startTime.split(":").map(Number);
+        const [eh, em] = s.endTime.split(":").map(Number);
+        return { start: sh * 60 + sm, end: eh * 60 + em };
+      });
 
     intervals.sort((a, b) => a.start - b.start);
 
@@ -93,35 +119,34 @@ export function StaffColumn({
       prev = i.end;
     }
 
-    if (prev < DAY_END) off.push({ start: prev, end: DAY_END });
+    if (prev < DAY_END) {
+      off.push({ start: prev, end: DAY_END });
+    }
 
-    return off;
-  }
+    return off.map((block) => {
+      const startISO = DateTime.fromISO(date).set({
+        hour: Math.floor(block.start / 60),
+        minute: block.start % 60,
+      });
 
-  // ⬇️ CONVERT OFF-HOURS TO APPOINTMENT-LIKE ELEMENTS
-  const offBlocks = buildOffHoursBlocks().map((b) => {
-    const startISO = DateTime.fromISO(date).set({
-      hour: Math.floor(b.start / 60),
-      minute: b.start % 60,
+      const endISO = DateTime.fromISO(date).set({
+        hour: Math.floor(block.end / 60),
+        minute: block.end % 60,
+      });
+
+      return {
+        id: `off-${staff.id}-${block.start}`,
+        staffId: staff.id,
+        startISO: startISO.toISO(),
+        endISO: endISO.toISO(),
+        startTime: startISO.toFormat("H:mm"),
+        minutes: block.end - block.start,
+        client: "",
+        service: "Fuera de horario",
+        isOffhours: true,
+      };
     });
-
-    const endISO = DateTime.fromISO(date).set({
-      hour: Math.floor(b.end / 60),
-      minute: b.end % 60,
-    });
-
-    return {
-      id: `off-${staff.id}-${b.start}`,
-      staffId: staff.id,
-      startISO: startISO.toISO(),
-      endISO: endISO.toISO(),
-      startTime: startISO.toFormat("H:mm"),
-      minutes: b.end - b.start,
-      client: "",
-      service: "Fuera de horario",
-      isOffhours: true,
-    };
-  });
+  }, [date, staff.id, todaysSchedule]);
 
   return (
     <div className="flex-1 border-l relative h-full">
@@ -130,59 +155,51 @@ export function StaffColumn({
         timeSlots={timeSlots}
         staffId={staff.id}
         staffName={staff.name}
-        onSlotClick={onSlotClick}
         selectedDate={date}
         isDisabled={(t) => !isInsideSchedule(t)}
       />
 
       {/* NORMAL APPOINTMENTS */}
-      {appointments
-        .filter((a) => a.staffId === staff.id)
-        .map((a) => (
-          <AppointmentItem
-            key={a.id}
-            a={a}
-            startIdx={getTimeIndex(a.startTime)}
-            isPast={false}
-            isOngoing={false}
-            onClick={() => openAppointmentById(a.id)}
-          />
-        ))}
+      {staffAppointments.map((a) => (
+        <AppointmentItem
+          key={a.id}
+          a={a}
+          startIdx={getTimeIndex(a.startTime)}
+          isPast={false}
+          isOngoing={false}
+          onClick={() => openAppointmentById(a.id)}
+        />
+      ))}
 
       {/* 🔥 TIME OFFS */}
-      {timeOffs
-        ?.filter((t: any) => t.staffId === staff.id)
-        .map((t: any) => (
-          <TimeOffItem
-            key={t.id}
-            t={t}
-            onClick={async () => {
-              if (!branch?.id) return;
+      {staffTimeOffs.map((t) => (
+        <TimeOffItem
+          key={t.id}
+          t={t}
+          onClick={async () => {
+            if (!branch?.id) return;
 
-              try {
-                const timeOffId = Number(
-                  t.id.toString().replace("timeoff-", ""),
-                );
-                const res = await getStaffTimeOffDetail({
-                  timeOffId,
-                  staffId: t.staffId,
-                  branchId: branch.id,
-                });
+            try {
+              const timeOffId = Number(
+                t.id.toString().replace("timeoff-", ""),
+              );
+              const res = await getStaffTimeOffDetail({
+                timeOffId,
+                staffId: t.staffId,
+                branchId: branch.id,
+              });
 
-                console.log(res);
+              loadFromTimeOff(res);
 
-                // 🔥 usar action, NO dispatch
-                loadFromTimeOff(res);
-
-                setTimeout(() => {
-                  openBlockTime();
-                }, 0);
-              } catch (e) {
-                console.error(e);
-              }
-            }}
-          />
-        ))}
+              setTimeout(() => {
+                openBlockTime();
+              }, 0);
+            } catch (e) {
+              console.error(e);
+            }
+          }}
+        />
+      ))}
 
       {/* ⬇️ OFF-HOURS APPOINTMENTS */}
       {offBlocks.map((a) => (
@@ -190,4 +207,4 @@ export function StaffColumn({
       ))}
     </div>
   );
-}
+});

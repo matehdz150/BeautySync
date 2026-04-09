@@ -844,7 +844,7 @@ export class BookingsCoreService {
         .toISODate();
       if (branchDate) {
         await this.availabilityCache.invalidate(branch.id, branchDate);
-        await this.availabilityWarm.enqueueDay({
+        await this.availabilityWarm.enqueueWindowForDate({
           branchId: branch.id,
           date: branchDate,
         });
@@ -2045,7 +2045,7 @@ export class BookingsCoreService {
       .toISODate();
     if (cancelledDate) {
       await this.availabilityCache.invalidate(booking.branchId, cancelledDate);
-      await this.availabilityWarm.enqueueDay({
+      await this.availabilityWarm.enqueueWindowForDate({
         branchId: booking.branchId,
         date: cancelledDate,
       });
@@ -2429,7 +2429,7 @@ export class BookingsCoreService {
       await this.availabilityCache.invalidate(booking.branchId);
     }
     for (const affectedDate of new Set(affectedDates)) {
-      await this.availabilityWarm.enqueueDay({
+      await this.availabilityWarm.enqueueWindowForDate({
         branchId: booking.branchId,
         date: affectedDate,
       });

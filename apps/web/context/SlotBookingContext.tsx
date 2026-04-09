@@ -243,14 +243,19 @@ type Ctx = {
     }): void;
 
     removeLastService(): void;
-    setStaffForService(index: number, staffId: string | "ANY"): void;
+    setStaffForService(
+      index: number,
+      staffId: string | "ANY",
+      staffName?: string,
+    ): void;
+    setPendingService(service: PendingService | null): void;
 
     setStep(step: SlotBookingState["step"]): void;
     nextStep(): void;
     prevStep(): void;
 
-    setClient(): void;
-    clearClient():void;
+    setClient(client: SlotBookingState["client"]): void;
+    clearClient(): void;
 
     reset(): void;
   };
@@ -288,7 +293,7 @@ export function SlotBookingProvider({
         });
       },
 
-      setPendingService(service) {
+      setPendingService(service: PendingService | null) {
         dispatch({ type: "SET_PENDING_SERVICE", payload: service });
       },
 
@@ -306,8 +311,7 @@ export function SlotBookingProvider({
           payload: Math.max(state.step - 1, 1) as SlotBookingState["step"],
         }),
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setClient: (client: any) => dispatch({ type: "SET_CLIENT", payload: client }),
+      setClient: (client) => dispatch({ type: "SET_CLIENT", payload: client }),
 
       clearClient: () => dispatch({ type: "CLEAR_CLIENT" }),
 

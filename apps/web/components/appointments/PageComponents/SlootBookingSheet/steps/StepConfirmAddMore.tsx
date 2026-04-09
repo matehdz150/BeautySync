@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useSlotBooking } from "@/context/SlotBookingContext";
-import { api } from "@/lib/services/api";
+import { getAvailableServicesAt } from "@/lib/services/availability";
 import { cn } from "@/lib/utils";
 import { StaffPicker } from "./Staffpicker/StaffPicker";
 
@@ -72,21 +72,17 @@ export function StepConfirmAddMore() {
   useEffect(() => {
     if (!branchId || !nextStartIso) return;
 
+    const currentBranchId = branchId;
+    const currentNextStartIso = nextStartIso;
     let cancelled = false;
 
     async function load() {
       setLoading(true);
       try {
-        const res = await api<AvailableServicesResponse>(
-          "/availability/available-services-at",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              branchId,
-              datetime: nextStartIso,
-            }),
-          },
-        );
+        const res = await getAvailableServicesAt<AvailableServicesResponse>({
+          branchId: currentBranchId,
+          datetime: currentNextStartIso,
+        });
 
         if (!cancelled) {
           const services = Array.isArray(res?.services) ? res.services : [];
@@ -216,8 +212,8 @@ export function StepConfirmAddMore() {
                     <StaffPicker
                       value={s.staffId}
                       staffOptions={staffOptions}
-                      onChange={(staffId, staffName) => {
-                        actions.setStaffForService(i, staffId, staffName);
+                      onChange={(staffId) => {
+                        actions.setStaffForService(i, staffId);
                       }}
                     />
                   )}

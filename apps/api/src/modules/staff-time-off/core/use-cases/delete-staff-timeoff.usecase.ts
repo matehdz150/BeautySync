@@ -19,7 +19,7 @@ export class DeleteStaffTimeOffUseCase {
     if (existing?.branchId) {
       const date = existing.start.toISOString().slice(0, 10);
       await this.availabilityCache.invalidate(existing.branchId, date);
-      await this.availabilityWarm.enqueueDay({
+      await this.availabilityWarm.enqueueWindowForDate({
         branchId: existing.branchId,
         date,
       });

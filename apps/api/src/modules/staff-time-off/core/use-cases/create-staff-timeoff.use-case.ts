@@ -124,7 +124,7 @@ export class CreateStaffTimeOffUseCase {
         .toISODate();
       if (date) {
         await this.availabilityCache.invalidate(branchId, date);
-        await this.availabilityWarm.enqueueDay({ branchId, date });
+        await this.availabilityWarm.enqueueWindowForDate({ branchId, date });
       } else {
         await this.availabilityCache.invalidate(branchId);
       }

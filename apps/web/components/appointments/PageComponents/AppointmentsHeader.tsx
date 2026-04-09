@@ -1,7 +1,5 @@
 "use client";
 
-import { Settings, ChevronDown } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { DualMonthDatePicker } from "./HeaderComponents/DualMonthDatePicker";
 import { AddMenu } from "./HeaderComponents/AddMenu";
@@ -13,18 +11,11 @@ import { CalendarSettingsButton } from "./CalendarSettingsSheet/CalendarSettings
 import { useTimeOffActions } from "@/context/TimeOffDraftContext";
 
 type Props = {
-  onToday?: () => void;
-  onPrev?: () => void;
-  onNext?: () => void;
-  currentLabel: string; // Ej: "Mon 1 Dec"
-  locationLabel: string;
-  teamLabel: string;
-  view: "day" | "week" | "month";
-  onViewChange?: (v: "day" | "week" | "month") => void;
-  onAdd?: () => void;
   date: string;
-  onDateChange: () => void;
-  onNew: () => void | React.Dispatch<React.SetStateAction<boolean>>;
+  onDateChange: (date: string) => void;
+  dailyCounts?: Record<string, number>;
+  todayCount?: number;
+  onNew?: () => void | React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export function AppointmentsHeader({ date, onDateChange }: Props) {
@@ -39,14 +30,24 @@ export function AppointmentsHeader({ date, onDateChange }: Props) {
         <Button
           variant="outline"
           className="rounded-full shadow-none"
-          onClick={() => onDateChange(DateTime.now().toISODate())}
+          onClick={() => {
+            const today = DateTime.now().toISODate();
+            if (today) {
+              onDateChange(today);
+            }
+          }}
         >
           Hoy
         </Button>
         {/* Prev / Date / Next */}
         <DualMonthDatePicker
           date={jsDate}
-          onChange={(d) => onDateChange(DateTime.fromJSDate(d).toISODate())}
+          onChange={(d) => {
+            const nextDate = DateTime.fromJSDate(d).toISODate();
+            if (nextDate) {
+              onDateChange(nextDate);
+            }
+          }}
         />
         {/* Team */}
         <CalendarVisibilityMenu />

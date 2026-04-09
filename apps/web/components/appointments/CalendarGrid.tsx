@@ -3,15 +3,12 @@
 import { useState } from "react";
 import { DateTime } from "luxon";
 import { useCalendarActions } from "@/context/CalendarContext";
-import { getAvailableServicesForSlot } from "@/lib/services/availability";
-import { useBranch } from "@/context/BranchContext";
 
 type Props = {
   timeSlots: string[];
   staffId: string;
-  staffName: string,
+  staffName: string;
   selectedDate: string;
-  onSlotClick?: (startISO: string, staffId: string) => void;
   isDisabled?: (time: string) => boolean;
 };
 
@@ -20,13 +17,11 @@ export function CalendarGrid({
   staffId,
   selectedDate,
   staffName,
-  onSlotClick,
   isDisabled,
 }: Props) {
   const [hoverTime, setHoverTime] = useState<string | null>(null);
   const [hoverY, setHoverY] = useState<number>(0);
   const { openSlotBooking } = useCalendarActions();
-  const { branch } = useBranch();
 
   return (
     <div className="relative">
@@ -61,25 +56,14 @@ export function CalendarGrid({
               setHoverY(e.currentTarget.offsetTop);
             }}
             onMouseLeave={() => setHoverTime(null)}
-            onClick={async () => {
+            onClick={() => {
               if (disabled) return;
-
-              const branchId = branch?.id;
-              if (!branchId) return; // por seguridad
 
               const [h, m] = t.split(":").map(Number);
 
               const startISO = DateTime.fromISO(selectedDate)
                 .set({ hour: h, minute: m, second: 0, millisecond: 0 })
                 .toISO();
-
-              const services = await getAvailableServicesForSlot({
-                branchId,
-                staffId,
-                datetime: startISO!,
-              });
-
-              console.log("Servicios disponibles en esa hora:", services);
 
               openSlotBooking({
                 pinnedStaffId: staffId,

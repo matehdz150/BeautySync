@@ -1,32 +1,70 @@
 import { api } from "./api";
+import { buildDedupKey, runDeduped, stableStringify } from "./request-dedupe";
 
-export async function getAvailability(params: {
+const AVAILABILITY_RESULT_CACHE_MS = 1000;
+
+export async function getAvailability<T = unknown>(params: {
   branchId: string;
   serviceId: string;
   date: string;
   staffId?: string;
-}) {
+}): Promise<T> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const query = new URLSearchParams(params as any).toString();
 
-  return api(`/availability?${query}`);
+  const path = `/availability?${query}`;
+
+  return runDeduped(
+    buildDedupKey("GET", path),
+    () => api<T>(path),
+    { cacheTtlMs: AVAILABILITY_RESULT_CACHE_MS },
+  );
 }
 
-export async function getAvailableServicesForSlot(params: {
+export async function getAvailableServicesForSlot<T = unknown>(params: {
   branchId: string;
   staffId: string;
   datetime: string; // ISO
-}) {
+}): Promise<T> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const query = new URLSearchParams(params as any).toString();
 
-  return api(`/availability/available-services?${query}`);
+  const path = `/availability/available-services?${query}`;
+
+  return runDeduped(
+    buildDedupKey("GET", path),
+    () => api<T>(path),
+    { cacheTtlMs: AVAILABILITY_RESULT_CACHE_MS },
+  );
+}
+
+export async function getAvailableServicesAt<T>(params: {
+  branchId: string;
+  datetime: string;
+}): Promise<T> {
+  const path = "/availability/available-services-at";
+  const body = {
+    branchId: params.branchId,
+    datetime: params.datetime,
+  };
+
+  return runDeduped(
+    buildDedupKey("POST", path, body),
+    () =>
+      api<T>(path, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    { cacheTtlMs: AVAILABILITY_RESULT_CACHE_MS },
+  );
 }
 
 export type ManagerAvailabilityChainRequest = {
   date: string; // YYYY-MM-DD
   chain: { serviceId: string; staffId: string | "ANY" }[];
 };
+
+export type AvailabilityChainRequest = AvailabilityChainRequestBody;
 
 export type ManagerAvailabilityChainPlan = {
   startIso: string; // UTC ISO
@@ -89,8 +127,18 @@ export async function getManagerAvailabilityChain(params: {
     throw new Error("Missing body.chain");
   }
 
-  return api<AvailabilityChainPlan[]>(`/availability/${branchId}/chain`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  const path = `/availability/${branchId}/chain`;
+  const normalizedBody = stableStringify(body);
+
+  return runDeduped(
+    buildDedupKey("POST", path, normalizedBody),
+    () =>
+      api<AvailabilityChainPlan[]>(path, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    { cacheTtlMs: AVAILABILITY_RESULT_CACHE_MS },
+  );
 }
+
+export const getAvailabilityChainManager = getManagerAvailabilityChain;

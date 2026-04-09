@@ -14,8 +14,7 @@ import { requestContext } from 'src/modules/metrics/request-context';
 import { BranchSettingsCacheService } from 'src/modules/cache/application/branch-settings-cache.service';
 import { BranchServicesCacheService } from 'src/modules/cache/application/branch-services-cache.service';
 import { BranchStaffCacheService } from 'src/modules/cache/application/branch-staff-cache.service';
-
-import { BLOCKING_APPOINTMENT_STATUSES } from './availability.service';
+import { BLOCKING_APPOINTMENT_STATUSES } from 'src/modules/lib/booking/booking.constants';
 
 export type AvailabilitySnapshotInput = {
   branchId: string;

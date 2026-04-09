@@ -2,7 +2,6 @@
 
 import { useRef } from "react";
 import { DateTime } from "luxon";
-import { AnimatePresence } from "framer-motion";
 
 import { useCurrentMinute } from "@/hooks/UseCurrentMinute";
 import { TimeColumn } from "@/components/appointments/TimeColumn";
@@ -10,7 +9,6 @@ import { StaffColumn } from "@/components/appointments/StaffColumn";
 import { AppointmentsHeader } from "@/components/appointments/PageComponents/AppointmentsHeader";
 import { StaffStickyHeader } from "@/components/appointments/PageComponents/StaffStickyHeader";
 import { NowLine } from "@/components/appointments/NowLine";
-import { EventPopover } from "@/components/appointments/EventPopover";
 import { NewAppointmentSheet } from "@/components/appointments/PageComponents/NewAppointmentSheet/NewAppointmentSheet";
 
 import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
@@ -18,7 +16,6 @@ import AppointmentDetailSheet from "@/components/appointments/PageComponents/App
 import { EmptyStaffState } from "./EmptyState";
 import SlotBookingSheet from "@/components/appointments/PageComponents/SlootBookingSheet/SlotBookingSheet";
 import { StaffTimeOffSheet } from "@/components/appointments/PageComponents/StaffTimeOutSheet/StaffTimeOffSheet";
-import { TimeOffDraftProvider } from "@/context/TimeOffDraftContext";
 import { useBranch } from "@/context/BranchContext";
 import { BlockDetailSheet } from "@/components/appointments/PageComponents/TimeOffDetailSheet/TimeOffDetailSheet";
 
@@ -34,7 +31,7 @@ const timeSlots = Array.from({ length: (24 - 6) * 4 + 1 }, (_, i) => {
 
 export default function Calendar() {
   const { state, dispatch, visibleStaff } = useCalendar();
-  const { setDate, openNewAppointment, clearEvent } = useCalendarActions();
+  const { setDate, openNewAppointment } = useCalendarActions();
   const { branch } = useBranch();
   const branchId = branch?.id;
 
@@ -45,7 +42,7 @@ export default function Calendar() {
   /* ---------- NOW LINE ---------- */
 
   const selectedDay = DateTime.fromISO(state.date);
-  const nowLocal = now.setZone(selectedDay.zoneName);
+  const nowLocal = now.setZone(selectedDay.zoneName ?? undefined);
   const isToday = nowLocal.hasSame(selectedDay, "day");
 
   const firstSlotMinutes = 6 * 60;
@@ -95,9 +92,6 @@ export default function Calendar() {
                   timeSlots={timeSlots}
                   timeOffs={state.timeOffs}
                   date={state.date}
-                  onSlotClick={(startISO: string, staffId: string) =>
-                    openNewAppointment({ defaultStaffId: staffId, startISO })
-                  }
                 />
               ))}
             </div>
@@ -126,9 +120,9 @@ export default function Calendar() {
           <SlotBookingSheet
             open={state.slotDialogOpen}
             onOpenChange={() => dispatch({ type: "CLOSE_SLOT_SHEET" })}
-            pinnedStaffId={state.slotPrefill?.pinnedStaffId}
-            pinnedStartIso={state.slotPrefill?.pinnedStartIso}
-            pinnedStaffName={state.slotPrefill?.pinnedStaffName}
+            pinnedStaffId={state.slotPrefill?.pinnedStaffId ?? null}
+            pinnedStartIso={state.slotPrefill?.pinnedStartIso ?? null}
+            pinnedStaffName={state.slotPrefill?.pinnedStaffName ?? null}
           />
         </>
       )}

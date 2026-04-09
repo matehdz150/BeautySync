@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { buildDedupKey, runDeduped } from "./request-dedupe";
 
 export type CalendarAppointment = {
   id: string;
@@ -35,18 +36,67 @@ export type GetCalendarDayResponse = {
   };
 };
 
+export type GetCalendarWeekSummaryResponse = {
+  date: string;
+  timezone: string;
+  days: Array<{
+    date: string;
+    totalAppointments: number;
+  }>;
+};
+
 type GetCalendarDayParams = {
   branchId: string;
   date: string; // YYYY-MM-DD
   staffId?: string;
 };
 
-export async function getCalendarDay(params: GetCalendarDayParams) {
+type GetCalendarWeekSummaryParams = GetCalendarDayParams;
+
+type CalendarRequestOptions = {
+  signal?: AbortSignal;
+};
+
+export async function getCalendarDay(
+  params: GetCalendarDayParams,
+  options?: CalendarRequestOptions,
+) {
   const query = new URLSearchParams({
     branchId: params.branchId,
     date: params.date,
     ...(params.staffId ? { staffId: params.staffId } : {}),
   });
 
-  return api<GetCalendarDayResponse>(`/calendar/day?${query.toString()}`);
+  const path = `/calendar/day?${query.toString()}`;
+
+  if (options?.signal) {
+    return api<GetCalendarDayResponse>(path, { signal: options.signal });
+  }
+
+  return runDeduped(
+    buildDedupKey("GET", path),
+    () => api<GetCalendarDayResponse>(path),
+  );
+}
+
+export async function getCalendarWeekSummary(
+  params: GetCalendarWeekSummaryParams,
+  options?: CalendarRequestOptions,
+) {
+  const query = new URLSearchParams({
+    branchId: params.branchId,
+    date: params.date,
+    ...(params.staffId ? { staffId: params.staffId } : {}),
+  });
+
+  const path = `/calendar/week-summary?${query.toString()}`;
+
+  if (options?.signal) {
+    return api<GetCalendarWeekSummaryResponse>(path, { signal: options.signal });
+  }
+
+  return runDeduped(
+    buildDedupKey("GET", path),
+    () => api<GetCalendarWeekSummaryResponse>(path),
+  );
 }

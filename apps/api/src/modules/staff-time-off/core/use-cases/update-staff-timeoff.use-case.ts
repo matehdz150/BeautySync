@@ -74,7 +74,7 @@ export class UpdateStaffTimeOffUseCase {
         });
         const date = start.toISOString().slice(0, 10);
         await this.availabilityCache.invalidate(branchId, date);
-        await this.availabilityWarm.enqueueDay({ branchId, date });
+        await this.availabilityWarm.enqueueWindowForDate({ branchId, date });
         return recreated;
       } catch (e) {
         // 🔥 rollback
