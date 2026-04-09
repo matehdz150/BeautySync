@@ -14,6 +14,7 @@ import {
 } from '../../core/ports/tokens';
 import { AvailabilityIndexSlot } from '../../core/entities/availability-global-index.entity';
 import { AvailabilityIndexCacheService } from './availability-index-cache.service';
+import { buildAvailabilityServicesSnapshot } from './availability-services-snapshot.builder';
 import {
   getAvailabilityWindowForDate,
   getAvailabilityWindowsForRange,
@@ -167,11 +168,19 @@ export class AvailabilitySnapshotWarmService {
   }
 
   async warmWindow(params: EnqueueWindowParams): Promise<void> {
-    await this.availabilityIndexCache.getAvailabilityWindow({
+    const index = await this.availabilityIndexCache.getAvailabilityWindow({
       branchId: params.branchId,
       start: DateTime.fromISO(params.start).startOf('day').toUTC().toJSDate(),
       end: DateTime.fromISO(params.end).endOf('day').toUTC().toJSDate(),
     });
+
+    await Promise.all(
+      [...index.daySnapshots.values()].map((daySnapshot) =>
+        this.servicesSnapshots.set(
+          buildAvailabilityServicesSnapshot(daySnapshot),
+        ),
+      ),
+    );
   }
 
   async warmWindowForDate(params: EnqueueDayParams): Promise<void> {

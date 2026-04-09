@@ -127,6 +127,43 @@ export function StepPlan() {
     [actions]
   );
 
+  const buildRequestBody = useCallback(
+    (date: string): AvailabilityChainRequestBody => {
+      if (!state.services.length) {
+        throw new Error("Missing services");
+      }
+
+      const chain = state.services.map((service) => {
+        if (state.staffChoiceMode === "ANY") {
+          return { serviceId: service.id, staffId: "ANY" as const };
+        }
+
+        if (state.staffChoiceMode === "SINGLE_STAFF") {
+          if (!state.singleStaffId) {
+            throw new Error("Missing singleStaffId");
+          }
+
+          return { serviceId: service.id, staffId: state.singleStaffId };
+        }
+
+        const staffId = state.staffByService[service.id];
+        if (!staffId) {
+          throw new Error(`Missing staff for service ${service.id}`);
+        }
+
+        return { serviceId: service.id, staffId };
+      });
+
+      return { date, chain };
+    },
+    [
+      state.services,
+      state.staffChoiceMode,
+      state.singleStaffId,
+      state.staffByService,
+    ]
+  );
+
   /* =====================
      FETCH PLANS
   ===================== */
@@ -139,12 +176,7 @@ export function StepPlan() {
     setError(null);
 
     try {
-      const body = actions.buildChainDraftPayload();
-
-      const reqBody: AvailabilityChainRequestBody = {
-        ...body,
-        date,
-      };
+      const reqBody = buildRequestBody(date);
 
       // ordenar servicios por duración DESC
       const durationByService = new Map(
@@ -193,18 +225,13 @@ export function StepPlan() {
 
     fetchPlans(state.date);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branch?.id, canFetch, requestKey, state.date, selectedDate]);
+  }, [branch?.id, canFetch, requestKey, state.date, selectedDate, actions]);
 
   /* =====================
      DERIVED
   ===================== */
 
   const plans = state.plans as AvailabilityChainPlan[];
-
-  const selectedPlan = useMemo(() => {
-    if (!state.selectedPlanStartIso) return null;
-    return plans.find((p) => p.startIso === state.selectedPlanStartIso) ?? null;
-  }, [plans, state.selectedPlanStartIso]);
 
   /* =====================
      UI GUARDS

@@ -102,7 +102,10 @@ export class AvailabilityService {
   }
 
   private groupSchedulesByStaffAndDay(
-    rows: Pick<StaffSchedule, 'staffId' | 'dayOfWeek' | 'startTime' | 'endTime'>[],
+    rows: Pick<
+      StaffSchedule,
+      'staffId' | 'dayOfWeek' | 'startTime' | 'endTime'
+    >[],
   ) {
     const map = new Map<string, Map<number, TimeBlock[]>>();
 
@@ -156,9 +159,10 @@ export class AvailabilityService {
       const dayStartLocal = DateTime.fromISO(date, { zone: params.tz }).startOf(
         'day',
       );
-      const diffDays = dayStartLocal
-        .diff(params.nowLocal.startOf('day'), 'days')
-        .days;
+      const diffDays = dayStartLocal.diff(
+        params.nowLocal.startOf('day'),
+        'days',
+      ).days;
 
       out.push({
         date,
@@ -285,7 +289,11 @@ export class AvailabilityService {
         continue;
       }
 
-      for (let start = firstStart; start <= lastStart; start += params.stepMin) {
+      for (
+        let start = firstStart;
+        start <= lastStart;
+        start += params.stepMin
+      ) {
         if (!params.lockedStartMinutes.has(start)) {
           return true;
         }
@@ -384,9 +392,9 @@ export class AvailabilityService {
     }
     const tz = settings.timezone;
     const nowLocal = DateTime.now().setZone(tz);
-    const normalizedDayStartLocal = DateTime.fromISO(date, { zone: tz }).startOf(
-      'day',
-    );
+    const normalizedDayStartLocal = DateTime.fromISO(date, {
+      zone: tz,
+    }).startOf('day');
     const diffDays = normalizedDayStartLocal
       .startOf('day')
       .diff(nowLocal.startOf('day'), 'days').days;

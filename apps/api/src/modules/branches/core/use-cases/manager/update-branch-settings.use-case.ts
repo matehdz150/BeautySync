@@ -32,6 +32,7 @@ export class UpdateBranchSettingsUseCase {
       this.cache.delPattern('explore:*'),
       this.branchSettingsCache.invalidate(branchId),
       this.cache.delPattern(`calendar:snapshot:${branchId}:*`),
+      this.cache.delPattern(`calendar:branch:${branchId}:date:*`),
       this.cache.delPattern(`calendar:day:${branchId}:*`),
       this.cache.delPattern(`calendar:week:${branchId}:*`),
       this.availabilityCache.invalidate(branchId),

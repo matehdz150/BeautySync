@@ -28,12 +28,13 @@ import { GetAvailableTimeOffStartSlotsUseCase } from '../core/use-cases/availabi
 import { GetAvailableTimeOffEndSlotsUseCase } from '../core/use-cases/availability/get-available-timeoff-end.use-case';
 import { CalendarRealtimePublisher } from 'src/modules/calendar/calendar-realtime.publisher';
 import * as client from 'src/modules/db/client';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { staff, staffTimeOff } from 'src/modules/db/schema';
+import { StaffTimeOff } from '../core/entities/staff-time-off-entity';
 
 @Controller('staff-time-off')
 export class StaffTimeOffController {
-  private async resolveBranchIdFromRuleId(ruleId: number) {
+  private async resolveRuleContext(ruleId: number) {
     const rule = await this.db.query.staffTimeOffRules.findFirst({
       where: (t, { eq }) => eq(t.id, ruleId),
       columns: { staffId: true },
@@ -46,7 +47,67 @@ export class StaffTimeOffController {
       columns: { branchId: true },
     });
 
-    return staffMember?.branchId ?? null;
+    if (!staffMember?.branchId) {
+      return null;
+    }
+
+    return {
+      branchId: staffMember.branchId,
+      staffId: rule.staffId,
+    };
+  }
+
+  private serializeTimeOff(timeOff: StaffTimeOff) {
+    return {
+      id: timeOff.id,
+      staffId: timeOff.staffId,
+      start: timeOff.start.toISOString(),
+      end: timeOff.end.toISOString(),
+      reason: timeOff.reason,
+    };
+  }
+
+  private extractTimeOffs(
+    result:
+      | StaffTimeOff
+      | {
+          instances?: StaffTimeOff[];
+        },
+  ) {
+    if ('start' in result && 'end' in result && 'staffId' in result) {
+      return [this.serializeTimeOff(result)];
+    }
+
+    return (result.instances ?? []).map((timeOff) =>
+      this.serializeTimeOff(timeOff),
+    );
+  }
+
+  private isSingleTimeOffResult(
+    result:
+      | StaffTimeOff
+      | {
+          instances?: StaffTimeOff[];
+        },
+  ): result is StaffTimeOff {
+    return 'start' in result && 'end' in result && 'staffId' in result;
+  }
+
+  private async findBranchTimeOffsForStaff(branchId: string, staffId: string) {
+    return this.db.query.staffTimeOff.findMany({
+      where: and(
+        eq(staffTimeOff.branchId, branchId),
+        eq(staffTimeOff.staffId, staffId),
+      ),
+      columns: {
+        id: true,
+        staffId: true,
+        branchId: true,
+        start: true,
+        end: true,
+        reason: true,
+      },
+    });
   }
 
   constructor(
@@ -124,9 +185,31 @@ export class StaffTimeOffController {
         : undefined,
     });
 
+    const createdTimeOffs = this.extractTimeOffs(result);
+    const sortedCreatedTimeOffs = [...createdTimeOffs].sort((a, b) =>
+      a.start.localeCompare(b.start),
+    );
+    const firstCreatedTimeOff = sortedCreatedTimeOffs[0];
+    const lastCreatedTimeOff =
+      sortedCreatedTimeOffs[sortedCreatedTimeOffs.length - 1];
+
     await this.calendarRealtime.emitInvalidate({
       branchId: dto.branchId,
       reason: 'timeoff.created',
+      start: firstCreatedTimeOff?.start ?? dto.start,
+      end: lastCreatedTimeOff?.end ?? dto.end,
+      invalidateWeekSummary: false,
+      patch:
+        firstCreatedTimeOff && lastCreatedTimeOff
+          ? {
+              entityType: 'TIME_OFF',
+              operation: 'created',
+              staffId: dto.staffId,
+              start: firstCreatedTimeOff.start,
+              end: lastCreatedTimeOff.end,
+              timeOffs: sortedCreatedTimeOffs,
+            }
+          : undefined,
     });
 
     return result;
@@ -140,8 +223,23 @@ export class StaffTimeOffController {
   async update(@Param('id') id: string, @Body() dto: UpdateStaffTimeOffDto) {
     const existing = await this.db.query.staffTimeOff.findFirst({
       where: eq(staffTimeOff.id, Number(id)),
-      columns: { branchId: true },
+      columns: {
+        id: true,
+        branchId: true,
+        staffId: true,
+        start: true,
+        end: true,
+        reason: true,
+      },
     });
+
+    const existingBranchTimeOffs =
+      existing?.branchId && existing.staffId
+        ? await this.findBranchTimeOffsForStaff(
+            existing.branchId,
+            existing.staffId,
+          )
+        : [];
 
     const result = await this.updateUseCase.execute({
       id: Number(id),
@@ -163,9 +261,32 @@ export class StaffTimeOffController {
     });
 
     if (existing?.branchId) {
+      const isSingleUpdate = this.isSingleTimeOffResult(result);
+      const nextTimeOffs = this.extractTimeOffs(result);
+      const firstNextTimeOff = nextTimeOffs[0];
+
       await this.calendarRealtime.emitInvalidate({
         branchId: existing.branchId,
         reason: 'timeoff.updated',
+        start: firstNextTimeOff?.start ?? existing.start.toISOString(),
+        end: firstNextTimeOff?.end ?? existing.end.toISOString(),
+        invalidateWeekSummary: false,
+        patch: existing.staffId
+          ? {
+              entityType: 'TIME_OFF',
+              operation: 'updated',
+              staffId: existing.staffId,
+              start: firstNextTimeOff?.start ?? existing.start.toISOString(),
+              end: firstNextTimeOff?.end ?? existing.end.toISOString(),
+              previousStart: existing.start.toISOString(),
+              previousEnd: existing.end.toISOString(),
+              previousTimeOffId: existing.id,
+              removedTimeOffIds: isSingleUpdate
+                ? [existing.id]
+                : existingBranchTimeOffs.map((timeOff) => timeOff.id),
+              timeOffs: nextTimeOffs,
+            }
+          : undefined,
       });
     }
 
@@ -180,7 +301,13 @@ export class StaffTimeOffController {
   async remove(@Param('id') id: string) {
     const existing = await this.db.query.staffTimeOff.findFirst({
       where: eq(staffTimeOff.id, Number(id)),
-      columns: { branchId: true },
+      columns: {
+        id: true,
+        branchId: true,
+        staffId: true,
+        start: true,
+        end: true,
+      },
     });
 
     const result = await this.deleteUseCase.execute(Number(id));
@@ -189,6 +316,20 @@ export class StaffTimeOffController {
       await this.calendarRealtime.emitInvalidate({
         branchId: existing.branchId,
         reason: 'timeoff.deleted',
+        start: existing.start.toISOString(),
+        end: existing.end.toISOString(),
+        invalidateWeekSummary: false,
+        patch: existing.staffId
+          ? {
+              entityType: 'TIME_OFF',
+              operation: 'deleted',
+              staffId: existing.staffId,
+              start: existing.start.toISOString(),
+              end: existing.end.toISOString(),
+              previousTimeOffId: existing.id,
+              removedTimeOffIds: [existing.id],
+            }
+          : undefined,
       });
     }
 
@@ -208,7 +349,7 @@ export class StaffTimeOffController {
     @Param('id') id: string,
     @Body() dto: UpdateStaffTimeOffRuleDto,
   ) {
-    const branchId = await this.resolveBranchIdFromRuleId(Number(id));
+    const context = await this.resolveRuleContext(Number(id));
 
     const result = await this.updateRuleUseCase.execute(Number(id), {
       ...dto,
@@ -216,10 +357,11 @@ export class StaffTimeOffController {
       endDate: dto.endDate ? new Date(dto.endDate) : undefined,
     });
 
-    if (branchId) {
+    if (context?.branchId) {
       await this.calendarRealtime.emitInvalidate({
-        branchId,
+        branchId: context.branchId,
         reason: 'timeoff.rule.updated',
+        invalidateWeekSummary: false,
       });
     }
 
@@ -232,14 +374,15 @@ export class StaffTimeOffController {
 
   @Delete('rules/:id')
   async deleteRule(@Param('id') id: string) {
-    const branchId = await this.resolveBranchIdFromRuleId(Number(id));
+    const context = await this.resolveRuleContext(Number(id));
 
     const result = await this.deleteRuleUseCase.execute(Number(id));
 
-    if (branchId) {
+    if (context?.branchId) {
       await this.calendarRealtime.emitInvalidate({
-        branchId,
+        branchId: context.branchId,
         reason: 'timeoff.rule.deleted',
+        invalidateWeekSummary: false,
       });
     }
 

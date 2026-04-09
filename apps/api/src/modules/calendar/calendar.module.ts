@@ -9,6 +9,7 @@ import {
   CALENDAR_EVENTS_PORT,
   APPOINTMENTS_PORT,
   BRANCH_SETTINGS_PORT,
+  CALENDAR_SNAPSHOT_REPOSITORY,
 } from './core/ports/tokens';
 
 import { AppointmentsDrizzleAdapter } from './infrastructure/appointments.drizzle.adapter';
@@ -19,9 +20,10 @@ import { CacheModule } from '../cache/cache.module';
 import { CalendarSseService } from './calendar-sse.service';
 import { CalendarRealtimeBridge } from './calendar.realtime';
 import { CalendarRealtimePublisher } from './calendar-realtime.publisher';
-import { CalendarDayCacheService } from './calendar-day-cache.service';
 import { AvailabilityModule } from '../availability/availability.module';
-import { CalendarSnapshotCacheService } from './calendar-snapshot-cache.service';
+import { RedisCalendarSnapshotRepository } from './infrastructure/redis-calendar-snapshot.repository';
+import { CalendarSnapshotService } from './calendar-snapshot.service';
+import { RecomputeCalendarSnapshotUseCase } from './core/use-cases/recompute-calendar-snapshot.use-case';
 
 @Module({
   imports: [AuthModule, CacheModule, AvailabilityModule],
@@ -32,8 +34,9 @@ import { CalendarSnapshotCacheService } from './calendar-snapshot-cache.service'
     CalendarSseService,
     CalendarRealtimeBridge,
     CalendarRealtimePublisher,
-    CalendarDayCacheService,
-    CalendarSnapshotCacheService,
+    RedisCalendarSnapshotRepository,
+    CalendarSnapshotService,
+    RecomputeCalendarSnapshotUseCase,
 
     {
       provide: CALENDAR_EVENTS_PORT,
@@ -47,7 +50,11 @@ import { CalendarSnapshotCacheService } from './calendar-snapshot-cache.service'
       provide: BRANCH_SETTINGS_PORT,
       useClass: BranchSettingsDrizzleAdapter,
     },
+    {
+      provide: CALENDAR_SNAPSHOT_REPOSITORY,
+      useExisting: RedisCalendarSnapshotRepository,
+    },
   ],
-  exports: [CalendarRealtimePublisher],
+  exports: [CalendarRealtimePublisher, CalendarSnapshotService],
 })
 export class CalendarModule {}

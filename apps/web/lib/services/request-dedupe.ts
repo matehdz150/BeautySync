@@ -142,3 +142,19 @@ export async function runDeduped<T>(
     return result;
   });
 }
+
+export function invalidateCachedRequests(
+  matcher: string | RegExp | ((key: string) => boolean),
+) {
+  const matches =
+    typeof matcher === "function"
+      ? matcher
+      : (key: string) =>
+          typeof matcher === "string" ? key.includes(matcher) : matcher.test(key);
+
+  for (const key of responseCache.keys()) {
+    if (matches(key)) {
+      responseCache.delete(key);
+    }
+  }
+}

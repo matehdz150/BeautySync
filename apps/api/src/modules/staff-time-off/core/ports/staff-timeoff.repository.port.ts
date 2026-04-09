@@ -18,11 +18,12 @@ export interface StaffTimeOffRepository {
   createMany(
     data: {
       staffId: string;
+      branchId: string;
       start: Date;
       end: Date;
       reason?: string;
     }[],
-  ): Promise<void>;
+  ): Promise<StaffTimeOff[]>;
 
   update(
     id: number,

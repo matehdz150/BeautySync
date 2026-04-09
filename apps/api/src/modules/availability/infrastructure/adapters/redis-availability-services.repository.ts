@@ -1,29 +1,37 @@
-import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import Redis from 'ioredis';
-import { DateTime } from 'luxon';
 
 import { REDIS_CACHE } from 'src/modules/cache/core/ports/tokens';
 
-import { AvailabilityDaySnapshot } from '../../core/entities/availability-day-snapshot.entity';
 import { AvailabilityServicesSnapshot } from '../../core/entities/availability-services-snapshot.entity';
 import { AvailabilityServicesRepository } from '../../core/ports/availability-services.repository';
 import { AvailabilitySnapshotRepository } from '../../core/ports/availability-snapshot.repository';
 import { AVAILABILITY_SNAPSHOT_REPOSITORY } from '../../core/ports/tokens';
+import { AvailabilityIndexCacheService } from './availability-index-cache.service';
+import {
+  buildAvailabilityServicesSnapshot,
+  availabilityServicesSnapshotTiming,
+} from './availability-services-snapshot.builder';
+import { getAvailabilityWindowForDate } from './availability-window.helpers';
 
 @Injectable()
-export class RedisAvailabilityServicesRepository
-  implements AvailabilityServicesRepository
-{
+export class RedisAvailabilityServicesRepository implements AvailabilityServicesRepository {
   private static readonly TTL_SECONDS = 600;
-  private static readonly STALE_AFTER_SECONDS = 30;
-  private static readonly EXPIRE_AFTER_SECONDS = 300;
-  private readonly inflight = new Map<string, Promise<AvailabilityServicesSnapshot>>();
+  private readonly inflight = new Map<
+    string,
+    Promise<AvailabilityServicesSnapshot>
+  >();
 
   constructor(
     @Inject(REDIS_CACHE)
     private readonly redis: Redis,
     @Inject(AVAILABILITY_SNAPSHOT_REPOSITORY)
     private readonly snapshots: AvailabilitySnapshotRepository,
+    private readonly availabilityIndexCache: AvailabilityIndexCacheService,
   ) {}
 
   async get(
@@ -59,13 +67,30 @@ export class RedisAvailabilityServicesRepository
     }
 
     const promise = (async () => {
-      const daySnapshot = await this.snapshots.get(branchId, date);
+      let daySnapshot = await this.snapshots.get(branchId, date);
       if (!daySnapshot) {
-        throw new ServiceUnavailableException('AVAILABILITY_SNAPSHOT_NOT_READY');
+        const window = getAvailabilityWindowForDate(date);
+        const index = await this.availabilityIndexCache.getAvailabilityWindow({
+          branchId,
+          start: window.start.toUTC().toJSDate(),
+          end: window.end.toUTC().toJSDate(),
+        });
+
+        daySnapshot = index.daySnapshots.get(date) ?? null;
       }
 
-      console.log('[AvailabilityServices] BUILD FROM SNAPSHOT ONLY', branchId, date);
-      const servicesSnapshot = this.transformDaySnapshot(daySnapshot);
+      if (!daySnapshot) {
+        throw new ServiceUnavailableException(
+          'AVAILABILITY_SNAPSHOT_NOT_READY',
+        );
+      }
+
+      console.log(
+        '[AvailabilityServices] BUILD FROM SNAPSHOT ONLY',
+        branchId,
+        date,
+      );
+      const servicesSnapshot = buildAvailabilityServicesSnapshot(daySnapshot);
       await this.set(servicesSnapshot);
       return servicesSnapshot;
     })();
@@ -104,90 +129,6 @@ export class RedisAvailabilityServicesRepository
     return `availability:services:${branchId}:${date}`;
   }
 
-  private transformDaySnapshot(
-    snapshot: AvailabilityDaySnapshot,
-  ): AvailabilityServicesSnapshot {
-    if (!snapshot?.branchId || !snapshot?.date || !snapshot?.timezone) {
-      throw new Error('Invalid snapshot: missing required root fields');
-    }
-
-    if (!Array.isArray(snapshot.services)) {
-      throw new Error('Invalid snapshot: missing required services');
-    }
-
-    const generatedAt = new Date();
-
-    return {
-      branchId: snapshot.branchId,
-      date: snapshot.date,
-      generatedAt: generatedAt.toISOString(),
-      staleAt: new Date(
-        generatedAt.getTime() +
-          RedisAvailabilityServicesRepository.STALE_AFTER_SECONDS * 1000,
-      ).toISOString(),
-      expiresAt: new Date(
-        generatedAt.getTime() +
-          RedisAvailabilityServicesRepository.EXPIRE_AFTER_SECONDS * 1000,
-      ).toISOString(),
-      staff: snapshot.staff.map((member) => ({
-        id: member.id,
-        name: member.name,
-        avatarUrl: member.avatarUrl,
-      })),
-      services: snapshot.services.map((service) => {
-        if (!service?.id || !service?.name) {
-          throw new Error('Invalid snapshot: missing required service fields');
-        }
-
-        if (!Array.isArray(service.availableStaffIdsByStart)) {
-          throw new Error('Invalid snapshot: missing required availability data');
-        }
-
-        const availableStaffIds = new Set<string>();
-        const availableSlots = service.availableStaffIdsByStart.map(
-          ([startMs, staffIds]) => {
-            if (!Number.isFinite(startMs)) {
-              throw new Error('Invalid snapshot: missing required slot start');
-            }
-
-            if (!Array.isArray(staffIds) || staffIds.some((staffId) => !staffId)) {
-              throw new Error('Invalid snapshot: missing required staffId');
-            }
-
-            for (const staffId of staffIds) {
-              availableStaffIds.add(staffId);
-            }
-
-            const startAt = DateTime.fromMillis(startMs, {
-              zone: 'utc',
-            }).setZone(snapshot.timezone);
-            const endAt = startAt.plus({ minutes: service.durationMin });
-
-            return {
-              start: startAt.toUTC().toISO() as string,
-              end: endAt.toUTC().toISO() as string,
-              staffIds,
-            };
-          },
-        );
-
-        return {
-          serviceId: service.id,
-          serviceName: service.name,
-          durationMin: service.durationMin,
-          priceCents: service.priceCents,
-          category: {
-            id: service.categoryId,
-            name: service.categoryName,
-            colorHex: service.categoryColor,
-          },
-          availableStaffIds: [...availableStaffIds],
-          availableSlots,
-        };
-      }),
-    };
-  }
-
   private normalizeSnapshot(
     snapshot: AvailabilityServicesSnapshot,
   ): AvailabilityServicesSnapshot {
@@ -202,13 +143,13 @@ export class RedisAvailabilityServicesRepository
         snapshot.staleAt ??
         new Date(
           generatedAt +
-            RedisAvailabilityServicesRepository.STALE_AFTER_SECONDS * 1000,
+            availabilityServicesSnapshotTiming.staleAfterSeconds * 1000,
         ).toISOString(),
       expiresAt:
         snapshot.expiresAt ??
         new Date(
           generatedAt +
-            RedisAvailabilityServicesRepository.EXPIRE_AFTER_SECONDS * 1000,
+            availabilityServicesSnapshotTiming.expireAfterSeconds * 1000,
         ).toISOString(),
     };
   }

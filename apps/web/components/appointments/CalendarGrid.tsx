@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { DateTime } from "luxon";
-import { useCalendarActions } from "@/context/CalendarContext";
+import { useCalendar, useCalendarActions } from "@/context/CalendarContext";
 
 type Props = {
   timeSlots: string[];
@@ -21,6 +21,7 @@ export function CalendarGrid({
 }: Props) {
   const [hoverTime, setHoverTime] = useState<string | null>(null);
   const [hoverY, setHoverY] = useState<number>(0);
+  const { state } = useCalendar();
   const { openSlotBooking } = useCalendarActions();
 
   return (
@@ -61,8 +62,11 @@ export function CalendarGrid({
 
               const [h, m] = t.split(":").map(Number);
 
-              const startISO = DateTime.fromISO(selectedDate)
+              const startISO = DateTime.fromISO(selectedDate, {
+                zone: state.timezone,
+              })
                 .set({ hour: h, minute: m, second: 0, millisecond: 0 })
+                .toUTC()
                 .toISO();
 
               openSlotBooking({

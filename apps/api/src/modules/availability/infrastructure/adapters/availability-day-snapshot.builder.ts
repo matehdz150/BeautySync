@@ -113,6 +113,9 @@ export function buildAvailabilityDaySnapshots(params: {
       stepMin: SLOT_MIN,
       staff,
       services,
+      startsByStaff: [...dayStartsByStaff.entries()].sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      ),
     });
   }
 

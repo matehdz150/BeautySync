@@ -25,4 +25,5 @@ export type AvailabilityDaySnapshot = {
   stepMin: number;
   staff: AvailabilityDaySnapshotStaff[];
   services: AvailabilityDaySnapshotService[];
+  startsByStaff: Array<[string, number[]]>;
 };

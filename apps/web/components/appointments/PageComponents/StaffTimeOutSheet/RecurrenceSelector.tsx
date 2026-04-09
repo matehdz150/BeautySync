@@ -14,7 +14,7 @@ import { Command, CommandGroup, CommandItem } from "@/components/ui/command";
 
 import { cn } from "@/lib/utils";
 
-type RecurrenceType = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
+type RecurrenceType = "NONE" | "DAILY" | "WEEKLY";
 
 const OPTIONS: { value: RecurrenceType; label: string }[] = [
   { value: "NONE", label: "Sin repetición" },

@@ -7,9 +7,7 @@ import { AvailabilityDaySnapshot } from '../../core/entities/availability-day-sn
 import { AvailabilitySnapshotRepository } from '../../core/ports/availability-snapshot.repository';
 
 @Injectable()
-export class RedisAvailabilitySnapshotRepository
-  implements AvailabilitySnapshotRepository
-{
+export class RedisAvailabilitySnapshotRepository implements AvailabilitySnapshotRepository {
   private static readonly TTL_SECONDS = 600;
 
   constructor(
@@ -21,7 +19,16 @@ export class RedisAvailabilitySnapshotRepository
     branchId: string,
     date: string,
   ): Promise<AvailabilityDaySnapshot | null> {
-    return this.cache.get<AvailabilityDaySnapshot>(this.buildKey(branchId, date));
+    const primary = await this.cache.get<AvailabilityDaySnapshot>(
+      this.buildKey(branchId, date),
+    );
+    if (primary) {
+      return primary;
+    }
+
+    return this.cache.get<AvailabilityDaySnapshot>(
+      this.buildLegacyKey(branchId, date),
+    );
   }
 
   async set(snapshot: AvailabilityDaySnapshot): Promise<void> {
@@ -34,14 +41,24 @@ export class RedisAvailabilitySnapshotRepository
 
   async invalidate(branchId: string, date?: string): Promise<void> {
     if (date) {
-      await this.cache.del(this.buildKey(branchId, date));
+      await Promise.all([
+        this.cache.del(this.buildKey(branchId, date)),
+        this.cache.del(this.buildLegacyKey(branchId, date)),
+      ]);
       return;
     }
 
-    await this.cache.delPattern(`availability:${branchId}:*`);
+    await Promise.all([
+      this.cache.delPattern(`availability:${branchId}:????-??-??`),
+      this.cache.delPattern(`availability:branch:${branchId}:day:*`),
+    ]);
   }
 
   buildKey(branchId: string, date: string) {
     return `availability:${branchId}:${date}`;
+  }
+
+  private buildLegacyKey(branchId: string, date: string) {
+    return `availability:branch:${branchId}:day:${date}`;
   }
 }
